@@ -12,7 +12,6 @@ template<> ComponentStorage<VelocityComponent>& World::_pool() { return _velocit
 template<> ComponentStorage<HealthComponent>& World::_pool() { return _healths; }
 template<> ComponentStorage<FactionComponent>& World::_pool() { return _factions; }
 template<> ComponentStorage<PlayerTagComponent>& World::_pool() { return _playerTags; }
-template<> ComponentStorage<ReticleComponent>& World::_pool() { return _reticles; }
 template<> ComponentStorage<AnimationComponent>& World::_pool() { return _animations; }
 
 World::World()
@@ -23,7 +22,9 @@ World::World()
     , _accumulator(0.f)
     , _inputs{}
     , _tickCount(0)
-{}
+{
+    reset_m1_scene();
+}
 
 World::~World() {}
 
@@ -44,10 +45,40 @@ void World::flush() {
         _healths.remove(id);
         _factions.remove(id);
         _playerTags.remove(id);
-        _reticles.remove(id);
         _animations.remove(id);
     }
     _deferredDestroyCount = 0;
+}
+
+void World::reset_m1_scene() {
+    for (int i = 0; i < kRexMaxPlayers; ++i) {
+        _reticles[i] = {};
+        _reticles[i].playerIndex = (uint8_t)i;
+        _reticles[i].active = (i == 0);
+        _reticles[i].x = 0.5f;
+        _reticles[i].y = 0.5f;
+    }
+
+    _railCamera = {};
+
+    for (int i = 0; i < kM1MaxTargets; ++i) {
+        _targets[i] = {};
+        _targets[i].worldZ = 2.0f + (float)i * 1.2f;
+        _targets[i].worldX = ((i % 3) - 1) * 0.75f;
+        _targets[i].worldY = -0.15f + 0.18f * (float)(i % 2);
+        _targets[i].timerOffset = (float)i * 0.65f;
+        _targets[i].halfWidth = 0.18f;
+        _targets[i].halfHeight = 0.22f;
+    }
+
+    _targets[0].active = true;
+    _targets[1].active = true;
+    _targets[2].active = true;
+    _targets[3].active = true;
+    _targets[3].moving = true;
+    _targets[3].worldZ = 4.5f;
+    _targets[3].halfWidth = 0.16f;
+    _targets[3].halfHeight = 0.18f;
 }
 
 void World::tick(float gameDt) {

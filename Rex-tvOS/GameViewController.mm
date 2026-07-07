@@ -27,6 +27,11 @@ static const int kMaxPlayers = 4;
     _host = [[RexGameHost alloc] initWithDevice:device pixelFormat:_mtkView.colorPixelFormat];
     [_host mtkView:_mtkView drawableSizeWillChange:_mtkView.drawableSize];
     _mtkView.delegate = _host;
+    [NSTimer scheduledTimerWithTimeInterval:1.0 / 120.0
+                                     target:self
+                                   selector:@selector(_sampleControllerMotion)
+                                   userInfo:nil
+                                    repeats:YES];
 
     [[NSNotificationCenter defaultCenter] addObserver:self
                                              selector:@selector(_controllerConnected:)
@@ -66,6 +71,7 @@ static const int kMaxPlayers = 4;
     GCController *controller = note.object;
     for (int i = 0; i < kMaxPlayers; ++i) {
         if (_assignedControllers[i] == controller) {
+            if (controller.motion) controller.motion.sensorsActive = NO;
             _assignedControllers[i] = nil;
             [_host setInputState:{} forPlayer:i];
             break;
@@ -89,6 +95,9 @@ static const int kMaxPlayers = 4;
     if (slot < 0) return;
 
     _assignedControllers[slot] = controller;
+    if (controller.motion) {
+        controller.motion.sensorsActive = YES;
+    }
     [self _wireController:controller toSlot:slot];
 }
 
@@ -97,7 +106,7 @@ static const int kMaxPlayers = 4;
     if (!gamepad) return;
 
     __weak GameViewController *weakSelf = self;
-    gamepad.leftThumbstick.valueChangedHandler = ^(GCControllerDirectionPad *pad, float x, float y) {
+    gamepad.rightThumbstick.valueChangedHandler = ^(GCControllerDirectionPad *pad, float x, float y) {
         GameViewController *vc = weakSelf;
         if (!vc) return;
         InputState state = [vc->_host currentInputStateForPlayer:slot];
@@ -126,6 +135,23 @@ static const int kMaxPlayers = 4;
         state.pause = true;
         [vc->_host setInputState:state forPlayer:slot];
     };
+}
+
+- (void)_sampleControllerMotion {
+    for (int slot = 0; slot < kMaxPlayers; ++slot) {
+        GCController *controller = _assignedControllers[slot];
+        if (!controller) continue;
+        InputState state = [_host currentInputStateForPlayer:slot];
+        GCMotion *motion = controller.motion;
+        if (motion && motion.sensorsActive) {
+            state.gyroDeltaX = (float)(motion.rotationRate.y * (1.0 / 120.0));
+            state.gyroDeltaY = (float)(-motion.rotationRate.x * (1.0 / 120.0));
+        } else {
+            state.gyroDeltaX = 0.f;
+            state.gyroDeltaY = 0.f;
+        }
+        [_host setInputState:state forPlayer:slot];
+    }
 }
 
 @end

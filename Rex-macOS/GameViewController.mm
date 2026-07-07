@@ -2,11 +2,13 @@
 #import <MetalKit/MetalKit.h>
 #import <GameController/GameController.h>
 #import "RexGameHost.h"
+#include "Simulation/Systems/ReticleSystem.h"
 #include "Platform/InputState.h"
 
 @implementation GameViewController {
     MTKView *_mtkView;
     RexGameHost *_host;
+    GCController *_controller;
     BOOL _left, _right, _up, _down, _fire, _recenter, _pause;
 }
 
@@ -51,13 +53,36 @@
                                              selector:@selector(_controllerConnected:)
                                                  name:GCControllerDidConnectNotification
                                                object:nil];
+    [[NSNotificationCenter defaultCenter] addObserver:self
+                                             selector:@selector(_controllerDisconnected:)
+                                                 name:GCControllerDidDisconnectNotification
+                                               object:nil];
     [GCController startWirelessControllerDiscoveryWithCompletionHandler:nil];
+    for (GCController *controller in [GCController controllers]) {
+        [self _attachController:controller];
+    }
 }
 
 - (void)_feedKeyboardInput {
     float x = (_right ? 1.f : 0.f) - (_left ? 1.f : 0.f);
     float y = (_up ? 1.f : 0.f) - (_down ? 1.f : 0.f);
-    InputState state = { x, y, 0.f, 0.f, (bool)_recenter, (bool)_fire, (bool)_pause };
+    InputState state = [_host currentInputStateForPlayer:0];
+    if (!_controller || _left || _right || _up || _down) {
+        state.stickX = x;
+        state.stickY = y;
+    }
+    state.recenter = state.recenter || (bool)_recenter;
+    state.fire = state.fire || (bool)_fire;
+    state.pause = state.pause || (bool)_pause;
+
+    GCMotion *motion = _controller.motion;
+    if (motion && motion.sensorsActive) {
+        state.gyroDeltaX = (float)(motion.rotationRate.y * (1.0 / 120.0));
+        state.gyroDeltaY = (float)(-motion.rotationRate.x * (1.0 / 120.0));
+    } else {
+        state.gyroDeltaX = 0.f;
+        state.gyroDeltaY = 0.f;
+    }
     [_host setInputState:state forPlayer:0];
     _fire = NO;
     _recenter = NO;
@@ -78,6 +103,12 @@
         case 49:  _fire = YES; break;
         case 12:  _recenter = YES; break;
         case 53:  _pause = YES; break;
+        case 24:  ReticleSystem_adjust_tuning( 0.05f,  0.00f,  0.00f); break; // =
+        case 27:  ReticleSystem_adjust_tuning(-0.05f,  0.00f,  0.00f); break; // -
+        case 30:  ReticleSystem_adjust_tuning( 0.00f,  0.03f,  0.00f); break; // ]
+        case 33:  ReticleSystem_adjust_tuning( 0.00f, -0.03f,  0.00f); break; // [
+        case 39:  ReticleSystem_adjust_tuning( 0.00f,  0.00f,  0.04f); break; // '
+        case 41:  ReticleSystem_adjust_tuning( 0.00f,  0.00f, -0.04f); break; // ;
         default: [super keyDown:event];
     }
 }
@@ -97,32 +128,48 @@
 }
 
 - (void)_controllerConnected:(NSNotification *)note {
+    [self _attachController:note.object];
+}
+
+- (void)_controllerDisconnected:(NSNotification *)note {
     GCController *controller = note.object;
+    if (_controller != controller) return;
+    if (_controller.motion) _controller.motion.sensorsActive = NO;
+    _controller = nil;
+    [_host setInputState:{} forPlayer:0];
+}
+
+- (void)_attachController:(GCController *)controller {
+    if (!controller || _controller == controller) return;
+    _controller = controller;
+    if (_controller.motion) {
+        _controller.motion.sensorsActive = YES;
+    }
     GCExtendedGamepad *gamepad = controller.extendedGamepad;
     if (!gamepad) return;
 
     __weak GameViewController *weakSelf = self;
-    gamepad.leftThumbstick.valueChangedHandler = ^(GCControllerDirectionPad *pad, float x, float y) {
+    gamepad.rightThumbstick.valueChangedHandler = ^(GCControllerDirectionPad *pad, float x, float y) {
         GameViewController *vc = weakSelf;
         if (!vc) return;
-        InputState state = [vc->_host currentInputStateForPlayer:1];
+        InputState state = [vc->_host currentInputStateForPlayer:0];
         state.stickX = x;
         state.stickY = y;
-        [vc->_host setInputState:state forPlayer:1];
+        [vc->_host setInputState:state forPlayer:0];
     };
     gamepad.buttonA.valueChangedHandler = ^(GCControllerButtonInput *button, float value, BOOL pressed) {
         GameViewController *vc = weakSelf;
         if (!vc) return;
-        InputState state = [vc->_host currentInputStateForPlayer:1];
+        InputState state = [vc->_host currentInputStateForPlayer:0];
         state.fire = pressed;
-        [vc->_host setInputState:state forPlayer:1];
+        [vc->_host setInputState:state forPlayer:0];
     };
     gamepad.buttonB.valueChangedHandler = ^(GCControllerButtonInput *button, float value, BOOL pressed) {
         GameViewController *vc = weakSelf;
         if (!vc) return;
-        InputState state = [vc->_host currentInputStateForPlayer:1];
+        InputState state = [vc->_host currentInputStateForPlayer:0];
         state.recenter = pressed;
-        [vc->_host setInputState:state forPlayer:1];
+        [vc->_host setInputState:state forPlayer:0];
     };
 }
 

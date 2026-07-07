@@ -86,6 +86,7 @@
 		EDABEAF2FD55A471D92554E9 /* QuartzCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F2E58A68AFED6E15C76E9CFA /* QuartzCore.framework */; };
 		F1D3072F9C3B03185B6F9C30 /* AVFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 06C96980F27DD82DD5C0F838 /* AVFoundation.framework */; };
 		F846B1150C0C17CFFC22A92D /* MetalKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E2CD79E815BBA360995598A8 /* MetalKit.framework */; };
+		F9F6A408AD8362AAF404B8F1 /* ReticleInputTests.mm in Sources */ = {isa = PBXBuildFile; fileRef = B83DE11BFAEAC7DDE1053DA3 /* ReticleInputTests.mm */; };
 		FE23ADD4D3EB36297557CCA1 /* UIKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E661802610C9D27E46EB4BA9 /* UIKit.framework */; };
 /* End PBXBuildFile section */
 
@@ -139,6 +140,7 @@
 		ABAB2B43F9A5A68DA6B8DD97 /* ScreenShakeSystem.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ScreenShakeSystem.h; sourceTree = "<group>"; };
 		AE2D0D4CC6CEEC753D54A8E2 /* AnimationSystem.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AnimationSystem.h; sourceTree = "<group>"; };
 		B071ADC542095BF0F8CD7E64 /* InputSystem.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = InputSystem.h; sourceTree = "<group>"; };
+		B83DE11BFAEAC7DDE1053DA3 /* ReticleInputTests.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = ReticleInputTests.mm; sourceTree = "<group>"; };
 		C32528CD28DE93AE376944FF /* PLAN-M1.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = "PLAN-M1.md"; sourceTree = "<group>"; };
 		D19215428D510F18874F5DC5 /* RexRenderer.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = RexRenderer.mm; sourceTree = "<group>"; };
 		D4D32BBDB71C4CE1CF154191 /* AppDelegate.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = AppDelegate.mm; sourceTree = "<group>"; };
@@ -243,6 +245,7 @@
 		4611987C1DE633582A1DBCCA /* RexLogicTests */ = {
 			isa = PBXGroup;
 			children = (
+				B83DE11BFAEAC7DDE1053DA3 /* ReticleInputTests.mm */,
 				62B42ED1E2636BF79323DFDA /* WorldSmokeTests.mm */,
 			);
 			path = RexLogicTests;
@@ -548,6 +551,7 @@
 				5C826A0FD6F44503E15EE165 /* InputSystem.mm in Sources */,
 				AF2F683A80A8998A9AD78C43 /* ParticleSim.cpp in Sources */,
 				155C9A2701741481F0484438 /* PhysicsSystem.mm in Sources */,
+				F9F6A408AD8362AAF404B8F1 /* ReticleInputTests.mm in Sources */,
 				E6925E39BD6C1C8A7702E539 /* ReticleSystem.mm in Sources */,
 				AC7DF45263A8E4167C55744B /* RexGameHost.mm in Sources */,
 				80AD01AAB6C768EB1B4E4D4F /* RexRenderer.mm in Sources */,

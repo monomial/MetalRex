@@ -45,10 +45,10 @@ public:
     void update(float physicalDt, float gameDt);
 
     void set_input(InputState input, int playerIndex = 0) {
-        if (playerIndex >= 0 && playerIndex < kMaxPlayers) _inputs[playerIndex] = input;
+        if (playerIndex >= 0 && playerIndex < kRexMaxPlayers) _inputs[playerIndex] = input;
     }
     InputState current_input(int playerIndex = 0) const {
-        return (playerIndex >= 0 && playerIndex < kMaxPlayers) ? _inputs[playerIndex] : InputState{};
+        return (playerIndex >= 0 && playerIndex < kRexMaxPlayers) ? _inputs[playerIndex] : InputState{};
     }
 
     EntityID defer_create();
@@ -78,13 +78,29 @@ public:
     ComponentStorage<HealthComponent>& healths() { return _healths; }
     ComponentStorage<FactionComponent>& factions() { return _factions; }
     ComponentStorage<PlayerTagComponent>& player_tags() { return _playerTags; }
-    ComponentStorage<ReticleComponent>& reticles() { return _reticles; }
     ComponentStorage<AnimationComponent>& animations() { return _animations; }
+    ReticleComponent& reticle(int playerIndex) {
+        assert(playerIndex >= 0 && playerIndex < kRexMaxPlayers);
+        return _reticles[playerIndex];
+    }
+    const ReticleComponent& reticle(int playerIndex) const {
+        assert(playerIndex >= 0 && playerIndex < kRexMaxPlayers);
+        return _reticles[playerIndex];
+    }
+    TargetComponent& target(int targetIndex) {
+        assert(targetIndex >= 0 && targetIndex < kM1MaxTargets);
+        return _targets[targetIndex];
+    }
+    const TargetComponent& target(int targetIndex) const {
+        assert(targetIndex >= 0 && targetIndex < kM1MaxTargets);
+        return _targets[targetIndex];
+    }
+    const RailCameraState& rail_camera() const { return _railCamera; }
+    RailCameraState& rail_camera() { return _railCamera; }
 
 private:
-    static constexpr int kMaxPlayers = 4;
-
     void flush();
+    void reset_m1_scene();
     void tick(float gameDt);
 
     template<typename T> ComponentStorage<T>& _pool();
@@ -95,7 +111,7 @@ private:
     EntityID _deferredDestroy[256];
     EventBus _events;
     float _accumulator;
-    InputState _inputs[kMaxPlayers];
+    InputState _inputs[kRexMaxPlayers];
     uint64_t _tickCount;
 
     ComponentStorage<PositionComponent> _positions;
@@ -103,8 +119,10 @@ private:
     ComponentStorage<HealthComponent> _healths;
     ComponentStorage<FactionComponent> _factions;
     ComponentStorage<PlayerTagComponent> _playerTags;
-    ComponentStorage<ReticleComponent> _reticles;
     ComponentStorage<AnimationComponent> _animations;
+    ReticleComponent _reticles[kRexMaxPlayers];
+    TargetComponent _targets[kM1MaxTargets];
+    RailCameraState _railCamera;
 };
 
 template<typename T>
@@ -124,5 +142,4 @@ template<> ComponentStorage<VelocityComponent>& World::_pool<VelocityComponent>(
 template<> ComponentStorage<HealthComponent>& World::_pool<HealthComponent>();
 template<> ComponentStorage<FactionComponent>& World::_pool<FactionComponent>();
 template<> ComponentStorage<PlayerTagComponent>& World::_pool<PlayerTagComponent>();
-template<> ComponentStorage<ReticleComponent>& World::_pool<ReticleComponent>();
 template<> ComponentStorage<AnimationComponent>& World::_pool<AnimationComponent>();

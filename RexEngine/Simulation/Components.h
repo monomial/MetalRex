@@ -1,6 +1,9 @@
 #pragma once
 #include <stdint.h>
 
+static constexpr int kRexMaxPlayers = 4;
+static constexpr int kM1MaxTargets = 6;
+
 struct PositionComponent {
     float x = 0.f;
     float y = 0.f;
@@ -29,8 +32,44 @@ struct PlayerTagComponent {
 
 struct ReticleComponent {
     uint8_t playerIndex = 0;
+    bool active = false;
+    bool gyroAvailable = false;
+    bool stickOnlyAssist = true;
+    bool overTarget = false;
     float x = 0.5f;
     float y = 0.5f;
+    float smoothedGyroX = 0.f;
+    float smoothedGyroY = 0.f;
+    float gyroDriftX = 0.f;
+    float gyroDriftY = 0.f;
+    float stickSensitivityH = 0.f;
+    float stickSensitivityV = 0.f;
+    float gyroSensitivityH = 0.f;
+    float gyroSensitivityV = 0.f;
+    float smoothingAlpha = 0.f;
+    float stillnessThreshold = 0.f;
+};
+
+struct TargetComponent {
+    bool active = false;
+    bool moving = false;
+    bool wasHit = false;
+    float worldX = 0.f;
+    float worldY = 0.f;
+    float worldZ = 0.f;
+    float halfWidth = 0.05f;
+    float halfHeight = 0.07f;
+    float screenX = 0.5f;
+    float screenY = 0.5f;
+    float screenHalfW = 0.05f;
+    float screenHalfH = 0.07f;
+    float timerOffset = 0.f;
+};
+
+struct RailCameraState {
+    float elapsed = 0.f;
+    float dollyZ = 0.f;
+    float dollySpeed = 1.2f;
 };
 
 static constexpr int kMaxBones = 64;
