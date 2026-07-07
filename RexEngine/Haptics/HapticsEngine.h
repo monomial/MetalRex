@@ -7,7 +7,7 @@
 // Call once from app delegate before first frame.
 - (void)startupInit;
 
-// Sharp transient — call on CombatSystem hit contact.
+// Sharp transient for a hit contact.
 - (void)playHitHaptic;
 
 // Light tap — player's punch starts (felt even when the swing whiffs).

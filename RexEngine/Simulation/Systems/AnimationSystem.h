@@ -15,7 +15,5 @@ void AnimationSystem_update(World& world, float gameDt);
 // actual transition at the next safe frame boundary.
 void AnimationSystem_request_clip(World& world, EntityID entity, AnimClipID clip);
 
-// Returns the duration of a clip for the given entity (uses loaded character data
-// when available, falls back to compile-time constants). Used by CombatSystem to
-// compute active-frame windows in absolute seconds.
+// Returns the duration of a clip for the given entity.
 float AnimationSystem_clip_duration(World& world, EntityID entity, AnimClipID clip);

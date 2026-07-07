@@ -2,7 +2,7 @@
 #include <stdint.h>
 
 // CPU particle pool for hit sparks, telegraphs, and other burst effects.
-// Pure C++ (no Metal, no ObjC) so BrawlerLogicTests can cover it. Particles
+// Pure C++ (no Metal, no ObjC) so logic tests can cover it. Particles
 // are deliberately NOT ECS entities: the renderer's bone buffer is indexed by
 // raw EntityID with a hard 64-slot cap, so short-lived entity churn would
 // push skinned characters past their slots.

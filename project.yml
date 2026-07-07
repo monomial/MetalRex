@@ -85,6 +85,7 @@ targets:
         INFOPLIST_FILE: Rex-tvOS/Info.plist
         PRODUCT_BUNDLE_IDENTIFIER: com.michaelsmith.metalrex.tvos
         DEVELOPMENT_TEAM: 74V7G3NQ7Y
+        CODE_SIGNING_ALLOWED: NO
         CLANG_CXX_LANGUAGE_STANDARD: c++20
         CLANG_CXX_LIBRARY: libc++
         GCC_ENABLE_OBJC_EXCEPTIONS: YES

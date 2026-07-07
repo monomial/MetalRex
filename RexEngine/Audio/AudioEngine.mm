@@ -21,7 +21,6 @@ static AVAudioPCMBuffer* synth_buffer(AVAudioFormat *fmt, double durationSec,
 static AVAudioPCMBuffer* make_hit_buffer(AVAudioFormat *fmt) {
     return synth_buffer(fmt, 0.18, ^(float *L, float *R, int frames, double sr) {
         for (int i = 0; i < frames; ++i) {
-            float t     = (float)i / (float)frames;
             float tSec  = (float)i / (float)sr;
             float attack = fminf(tSec / 0.003f, 1.f);              // 3ms fade-in → no click
             float thump  = sinf(2.f * (float)M_PI * 90.f * tSec)
@@ -58,9 +57,7 @@ static AVAudioPCMBuffer* make_death_buffer(AVAudioFormat *fmt) {
         for (int i = 0; i < frames; ++i) {
             float tSec   = (float)i / (float)sr;
             float attack = fminf(tSec / 0.004f, 1.f);
-            float freq   = 120.f * expf(-tSec * 4.f);             // pitch drop 120→~18Hz
-            // Integrate frequency to get phase (avoid discontinuity in freq sweep)
-            // Simple approx: use instantaneous freq
+            // Integrate frequency to get phase and avoid discontinuity in the sweep.
             float phase  = 2.f * (float)M_PI * (120.f / 4.f) * (1.f - expf(-tSec * 4.f));
             float thump  = sinf(phase) * expf(-tSec * 10.f) * 0.55f;
             float noise  = ((float)rand() / (float)RAND_MAX * 2.f - 1.f);
@@ -257,9 +254,9 @@ static const int kNumSfxNodes = 8;
 
 - (void)startupInit {
     if (_started) return;
-    // BRAWLER_MUTE=1: skip all audio (engine never starts → SFX no-op; music
+    // REX_MUTE=1: skip all audio (engine never starts -> SFX no-op; music
     // gated below). Used by scripts/smoke.sh so test runs are silent.
-    if (getenv("BRAWLER_MUTE")) { NSLog(@"AudioEngine: muted (BRAWLER_MUTE)"); return; }
+    if (getenv("REX_MUTE")) { NSLog(@"AudioEngine: muted (REX_MUTE)"); return; }
 
     _engine = [[AVAudioEngine alloc] init];
 
@@ -295,9 +292,9 @@ static const int kNumSfxNodes = 8;
 // it's at least 7 sounds old by then, so cutting it is inaudible.
 - (void)_playBuffer:(AVAudioPCMBuffer*)buf name:(const char*)name {
     if (!_started || !buf) return;
-    // BRAWLER_AUDIO_LOG=1: timestamp every SFX so a mystery sound can be
-    // matched against this log — if it isn't here, it's the music.
-    static const bool sLog = getenv("BRAWLER_AUDIO_LOG") != nullptr;
+    // REX_AUDIO_LOG=1: timestamp every SFX so a mystery sound can be
+    // matched against this log; if it is not here, it is the music.
+    static const bool sLog = getenv("REX_AUDIO_LOG") != nullptr;
     if (sLog) NSLog(@"AudioEngine: SFX %s", name);
     AVAudioPlayerNode *node = _sfxNodes[_sfxNodeIdx];
     _sfxNodeIdx = (_sfxNodeIdx + 1) % kNumSfxNodes;
@@ -320,7 +317,7 @@ static const int kNumSfxNodes = 8;
 // ---------------------------------------------------------------------------
 
 - (void)startBattleMusic {
-    if (getenv("BRAWLER_MUTE")) return; // silent test runs
+    if (getenv("REX_MUTE")) return; // silent test runs
     NSURL *url = bundleAudioURL(@"music_battle");
     if (!url) {
         NSLog(@"AudioEngine: music_battle not found — add music_battle.mp3 to bundle to enable music");

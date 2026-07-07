@@ -10,5 +10,5 @@ void ScreenShakeSystem_update(World& world, float physicalDt);
 // RenderSystem adds this to the camera target each frame.
 simd_float2 ScreenShakeSystem_offset(const World& world);
 
-// Trigger a shake — call from CombatSystem on hit.
+// Trigger a shake.
 void ScreenShakeSystem_trigger(World& world, float magnitude);

@@ -1,6 +1,7 @@
 #include "AnimationSystem.h"
 #include "Simulation/World.h"
 #include "Assets/CharacterLoader.h"
+#include <math.h>
 
 static const LoadedCharacter* s_playerChar = nullptr;
 static const LoadedCharacter* s_enemyChar  = nullptr;
@@ -49,17 +50,8 @@ static void begin_transition(World& world, EntityID id,
     anim.blendRemaining = kAnimBlendDuration;
     anim.currentClip    = next;
     anim.clipTime       = 0.f;
-    anim.hitApplied     = false;
     anim.clipDone       = false;
     anim.looping        = clip_loops(next);
-    anim.comboQueued    = false;
-
-    // AnimationSystem is the single authority on when a clip actually starts,
-    // so swing/dodge events are emitted here, not where input is read.
-    if (next == AnimClipID::Attack || next == AnimClipID::Attack2)
-        world.events().emit_attack_started(id, (uint8_t)next);
-    else if (next == AnimClipID::Dodge)
-        world.events().emit_dodge_started(id);
 }
 
 static float clip_speed_multiplier(World& world, EntityID entity, AnimClipID id) {
@@ -109,17 +101,9 @@ void AnimationSystem_update(World& world, float gameDt) {
             if (anim.clipTime >= duration) {
                 anim.clipTime = duration;
                 anim.clipDone = true;
-                // Combo chain: a queued press during the Attack clip overrides
-                // whatever was requested — flow straight into the finisher.
-                if (anim.currentClip == AnimClipID::Attack && anim.comboQueued && !anim.dying) {
-                    begin_transition(world, id, anim, AnimClipID::Attack2);
-                } else {
-                    // Dying entities may only transition to Death (not back to Idle/Walk).
-                    // Non-dying entities may transition to any requested clip.
-                    bool canTransition = !anim.dying || anim.requestedClip == AnimClipID::Death;
-                    if (canTransition && anim.requestedClip != anim.currentClip)
-                        begin_transition(world, id, anim, anim.requestedClip);
-                }
+                bool canTransition = !anim.dying || anim.requestedClip == AnimClipID::Death;
+                if (canTransition && anim.requestedClip != anim.currentClip)
+                    begin_transition(world, id, anim, anim.requestedClip);
             }
         }
 

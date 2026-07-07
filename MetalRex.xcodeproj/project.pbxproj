@@ -7,7 +7,6 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		04D96DBA5970AEA2592C5267 /* BrawlerRenderer.mm in Sources */ = {isa = PBXBuildFile; fileRef = 5EBCF4F5B06EDDED961D2A57 /* BrawlerRenderer.mm */; };
 		0C6E607D0A3D5DE997BA013B /* ScreenShakeSystem.mm in Sources */ = {isa = PBXBuildFile; fileRef = 0604376B2E287273A588D819 /* ScreenShakeSystem.mm */; };
 		0D99D6CE30057EF551EE5069 /* HapticsEngine.mm in Sources */ = {isa = PBXBuildFile; fileRef = DF0E49C9D1B509090135F40B /* HapticsEngine.mm */; };
 		11E836CEB88EC88F05CD7E21 /* PhysicsSystem.mm in Sources */ = {isa = PBXBuildFile; fileRef = 19CFD438813570373EF78E93 /* PhysicsSystem.mm */; };
@@ -19,10 +18,12 @@
 		1E59162514DAC6ECA1B8D7D8 /* ImageIO.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = EBCCBADB86BCC3BC079D9397 /* ImageIO.framework */; };
 		1EFB714F3B9ECB85EF721C9B /* WorldSmokeTests.mm in Sources */ = {isa = PBXBuildFile; fileRef = 62B42ED1E2636BF79323DFDA /* WorldSmokeTests.mm */; };
 		2746852A475BCA27D42DF89B /* CharacterLoader.mm in Sources */ = {isa = PBXBuildFile; fileRef = 87D7247D05FC2A57F6DAEB29 /* CharacterLoader.mm */; };
+		2A15B1C8242BCC5FD967AB39 /* ReticleSystem.mm in Sources */ = {isa = PBXBuildFile; fileRef = 8F6E7A678A2B416F70E70AF5 /* ReticleSystem.mm */; };
 		2D77B10BA8A494E6439F3402 /* PhysicsSystem.mm in Sources */ = {isa = PBXBuildFile; fileRef = 19CFD438813570373EF78E93 /* PhysicsSystem.mm */; };
 		3150906CA4247E855782DC5A /* HapticsEngine.mm in Sources */ = {isa = PBXBuildFile; fileRef = DF0E49C9D1B509090135F40B /* HapticsEngine.mm */; };
 		31606CC8BF1AF50087CE8D4F /* AudioEngine.mm in Sources */ = {isa = PBXBuildFile; fileRef = 2A7C75196D06EAC27F9A64E2 /* AudioEngine.mm */; };
 		34FBCF33F85835AEA0467F83 /* CoreHaptics.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 60C0E90E9C621BF1852AFA13 /* CoreHaptics.framework */; };
+		44407FF0359B21C599ED6F47 /* RexGameHost.mm in Sources */ = {isa = PBXBuildFile; fileRef = 34A962C9761AE26A1155D1F1 /* RexGameHost.mm */; };
 		4B06A94AD6DF538453690CA4 /* CoreGraphics.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 34892C62ADBBD67118CC0D23 /* CoreGraphics.framework */; };
 		4B0CBEA08D2A70E4D360AA17 /* InputSystem.mm in Sources */ = {isa = PBXBuildFile; fileRef = E24115F77C07DE877C58A1D9 /* InputSystem.mm */; };
 		4E96425B90F675E9D199BFEA /* ModelIO.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FF21A3D89DFCD32DB2F372CF /* ModelIO.framework */; };
@@ -48,25 +49,29 @@
 		7FB95C9B0064C6C039D91217 /* SceneDelegate.mm in Sources */ = {isa = PBXBuildFile; fileRef = 6CF16262AD420C9CCC907874 /* SceneDelegate.mm */; };
 		7FE1BC27DA2779E17864BAC5 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 00D4BFD242748220523ECF71 /* Assets.xcassets */; };
 		80AAA43C2537DED109B1F885 /* CoreHaptics.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 60C0E90E9C621BF1852AFA13 /* CoreHaptics.framework */; };
+		80AD01AAB6C768EB1B4E4D4F /* RexRenderer.mm in Sources */ = {isa = PBXBuildFile; fileRef = D19215428D510F18874F5DC5 /* RexRenderer.mm */; };
 		860E6CDE09E8A15BFCD8C42D /* InputSystem.mm in Sources */ = {isa = PBXBuildFile; fileRef = E24115F77C07DE877C58A1D9 /* InputSystem.mm */; };
+		876C6B4D41C5B7ED5A2D1A3D /* RexGameHost.mm in Sources */ = {isa = PBXBuildFile; fileRef = 34A962C9761AE26A1155D1F1 /* RexGameHost.mm */; };
 		88625F037988C89DA4E57FF3 /* CoreText.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F133AD737FDF28F461217E8A /* CoreText.framework */; };
 		8B1C6CBBFC9EE370F9D4CDBE /* ModelIO.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FF21A3D89DFCD32DB2F372CF /* ModelIO.framework */; };
 		8BAFF9F5AE214206D0F91DA0 /* ModelIO.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FF21A3D89DFCD32DB2F372CF /* ModelIO.framework */; };
+		92980B08BEDC019E4DD967FB /* RexRenderer.mm in Sources */ = {isa = PBXBuildFile; fileRef = D19215428D510F18874F5DC5 /* RexRenderer.mm */; };
 		94729FDF10BC4E37667B3F1C /* AppDelegate.mm in Sources */ = {isa = PBXBuildFile; fileRef = D4D32BBDB71C4CE1CF154191 /* AppDelegate.mm */; };
 		94F73AC9AAF1B4F827DB2ADC /* ImageIO.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = EBCCBADB86BCC3BC079D9397 /* ImageIO.framework */; };
 		992A2BF914C0273D6867A7FA /* AppDelegate.mm in Sources */ = {isa = PBXBuildFile; fileRef = 5A0AF114A95B797C661E0AB0 /* AppDelegate.mm */; };
 		9A45C1EEF96AE8BBEE3914BA /* CoreText.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F133AD737FDF28F461217E8A /* CoreText.framework */; };
 		9D7F92C0E116BA302E450479 /* AnimationSystem.mm in Sources */ = {isa = PBXBuildFile; fileRef = DDE8330981F4B3171E516CDD /* AnimationSystem.mm */; };
+		9DFA10B6A181EE634D4AF2DB /* ReticleSystem.mm in Sources */ = {isa = PBXBuildFile; fileRef = 8F6E7A678A2B416F70E70AF5 /* ReticleSystem.mm */; };
 		9FA9CD7302F86C3918B8D857 /* QuartzCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F2E58A68AFED6E15C76E9CFA /* QuartzCore.framework */; };
 		A1CED7364AAFDFDA8360962C /* CharacterLoader.mm in Sources */ = {isa = PBXBuildFile; fileRef = 87D7247D05FC2A57F6DAEB29 /* CharacterLoader.mm */; };
 		A58634F995C423042F6E6DC3 /* Metal.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8E8A637542BCA18FBFE4B6C0 /* Metal.framework */; };
 		A96D8D64A1D94DB9307B66D9 /* GameController.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1D4170C632E74E0BC0DCAC6E /* GameController.framework */; };
+		AC7DF45263A8E4167C55744B /* RexGameHost.mm in Sources */ = {isa = PBXBuildFile; fileRef = 34A962C9761AE26A1155D1F1 /* RexGameHost.mm */; };
 		ACEE1ADC2FDEFDE0EA723E2C /* AudioEngine.mm in Sources */ = {isa = PBXBuildFile; fileRef = 2A7C75196D06EAC27F9A64E2 /* AudioEngine.mm */; };
 		AF2F683A80A8998A9AD78C43 /* ParticleSim.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 97C15A79A4F325FCF1A47F0D /* ParticleSim.cpp */; };
 		B35342C01E5D6E5A3B90ED0C /* CoreHaptics.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 60C0E90E9C621BF1852AFA13 /* CoreHaptics.framework */; };
 		BAA67AED3B0E4ECBD0A7F3BA /* main.mm in Sources */ = {isa = PBXBuildFile; fileRef = 50CE385CDDEA3219EBC451EB /* main.mm */; };
 		BF82031A273824896A149CC4 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 2DC8B19B98734D8A5BCB46C7 /* Assets.xcassets */; };
-		C915B34EB7B17AE693B4A69E /* BrawlerRenderer.mm in Sources */ = {isa = PBXBuildFile; fileRef = 5EBCF4F5B06EDDED961D2A57 /* BrawlerRenderer.mm */; };
 		CC8A8DEDDE3586398DD26B1E /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = EB68E680D43E6A243EE60DAE /* Cocoa.framework */; };
 		CEF2EA681102A26BB102CD5F /* Shaders in Resources */ = {isa = PBXBuildFile; fileRef = 105B2556BDC7A289744004EC /* Shaders */; };
 		D496A27D1EFE7F1558662C86 /* AVFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 06C96980F27DD82DD5C0F838 /* AVFoundation.framework */; };
@@ -74,11 +79,12 @@
 		E5511D06193C0D25488A245E /* Metal.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8E8A637542BCA18FBFE4B6C0 /* Metal.framework */; };
 		E5A4738C9AB9B77B0E68D3E7 /* ParticleSim.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 97C15A79A4F325FCF1A47F0D /* ParticleSim.cpp */; };
 		E5C334F603C17707D610E205 /* World.mm in Sources */ = {isa = PBXBuildFile; fileRef = 6C3CE5C8074A8EC650F1C61B /* World.mm */; };
+		E6925E39BD6C1C8A7702E539 /* ReticleSystem.mm in Sources */ = {isa = PBXBuildFile; fileRef = 8F6E7A678A2B416F70E70AF5 /* ReticleSystem.mm */; };
+		E6F1C9196281110372883778 /* RexRenderer.mm in Sources */ = {isa = PBXBuildFile; fileRef = D19215428D510F18874F5DC5 /* RexRenderer.mm */; };
 		E8F03B8C2135C7C6908F45A3 /* assets in Resources */ = {isa = PBXBuildFile; fileRef = 9285B510089C9CA623582EE1 /* assets */; };
 		EB78733079BAA5A7702561D9 /* CharacterLoader.mm in Sources */ = {isa = PBXBuildFile; fileRef = 87D7247D05FC2A57F6DAEB29 /* CharacterLoader.mm */; };
 		EDABEAF2FD55A471D92554E9 /* QuartzCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F2E58A68AFED6E15C76E9CFA /* QuartzCore.framework */; };
 		F1D3072F9C3B03185B6F9C30 /* AVFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 06C96980F27DD82DD5C0F838 /* AVFoundation.framework */; };
-		F2C8ED61D9286866050B2BBD /* BrawlerRenderer.mm in Sources */ = {isa = PBXBuildFile; fileRef = 5EBCF4F5B06EDDED961D2A57 /* BrawlerRenderer.mm */; };
 		F846B1150C0C17CFFC22A92D /* MetalKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E2CD79E815BBA360995598A8 /* MetalKit.framework */; };
 		FE23ADD4D3EB36297557CCA1 /* UIKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E661802610C9D27E46EB4BA9 /* UIKit.framework */; };
 /* End PBXBuildFile section */
@@ -95,9 +101,12 @@
 		215B35A2BB13635BCE5C9BFD /* RexLogicTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = RexLogicTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		2726887279D805614D70EAC1 /* CharacterLoader.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = CharacterLoader.h; sourceTree = "<group>"; };
 		2A7C75196D06EAC27F9A64E2 /* AudioEngine.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = AudioEngine.mm; sourceTree = "<group>"; };
+		2B53E6DF22E58127DB39ACF7 /* RexRenderer.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = RexRenderer.h; sourceTree = "<group>"; };
 		2DC8B19B98734D8A5BCB46C7 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		322F98B61C57C3BA906BA5A4 /* Components.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = Components.h; sourceTree = "<group>"; };
+		32BFDE2E89C9BCDDAD0C49D8 /* RexGameHost.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = RexGameHost.h; sourceTree = "<group>"; };
 		34892C62ADBBD67118CC0D23 /* CoreGraphics.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreGraphics.framework; path = System/Library/Frameworks/CoreGraphics.framework; sourceTree = SDKROOT; };
+		34A962C9761AE26A1155D1F1 /* RexGameHost.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = RexGameHost.mm; sourceTree = "<group>"; };
 		36C9F6F43FE862FE83C07921 /* GameViewController.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = GameViewController.mm; sourceTree = "<group>"; };
 		452B29F363637142692AC819 /* AppDelegate.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AppDelegate.h; sourceTree = "<group>"; };
 		491A92F807F1BB828D515220 /* Rex-tvOS.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = "Rex-tvOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -106,7 +115,6 @@
 		50CE385CDDEA3219EBC451EB /* main.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = main.mm; sourceTree = "<group>"; };
 		5A0AF114A95B797C661E0AB0 /* AppDelegate.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = AppDelegate.mm; sourceTree = "<group>"; };
 		5D9746D33D5825D9A0BD0235 /* SceneDelegate.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SceneDelegate.h; sourceTree = "<group>"; };
-		5EBCF4F5B06EDDED961D2A57 /* BrawlerRenderer.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = BrawlerRenderer.mm; sourceTree = "<group>"; };
 		6018D8CDCD626BCE41A6C233 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		60C0E90E9C621BF1852AFA13 /* CoreHaptics.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreHaptics.framework; path = System/Library/Frameworks/CoreHaptics.framework; sourceTree = SDKROOT; };
 		62B42ED1E2636BF79323DFDA /* WorldSmokeTests.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = WorldSmokeTests.mm; sourceTree = "<group>"; };
@@ -116,10 +124,12 @@
 		7649D00B3DF5927FEFD9A797 /* Rex-macOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Rex-macOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		7BFD5A5F7E2D037FF4148A45 /* AudioEngine.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AudioEngine.h; sourceTree = "<group>"; };
 		86E62A1F5C179CF49ED651D2 /* TODOS.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = TODOS.md; sourceTree = "<group>"; };
+		86FC80FD0678A689BCFAC968 /* ReticleSystem.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ReticleSystem.h; sourceTree = "<group>"; };
 		87D7247D05FC2A57F6DAEB29 /* CharacterLoader.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = CharacterLoader.mm; sourceTree = "<group>"; };
 		889784DA7C9603A764262513 /* World.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = World.h; sourceTree = "<group>"; };
 		8AF0538161F029C543365BEC /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
 		8E8A637542BCA18FBFE4B6C0 /* Metal.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Metal.framework; path = System/Library/Frameworks/Metal.framework; sourceTree = SDKROOT; };
+		8F6E7A678A2B416F70E70AF5 /* ReticleSystem.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = ReticleSystem.mm; sourceTree = "<group>"; };
 		9285B510089C9CA623582EE1 /* assets */ = {isa = PBXFileReference; lastKnownFileType = folder; path = assets; sourceTree = SOURCE_ROOT; };
 		943AC821EF117BD8736BA3B2 /* PhysicsSystem.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = PhysicsSystem.h; sourceTree = "<group>"; };
 		97C15A79A4F325FCF1A47F0D /* ParticleSim.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = ParticleSim.cpp; sourceTree = "<group>"; };
@@ -130,6 +140,7 @@
 		AE2D0D4CC6CEEC753D54A8E2 /* AnimationSystem.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AnimationSystem.h; sourceTree = "<group>"; };
 		B071ADC542095BF0F8CD7E64 /* InputSystem.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = InputSystem.h; sourceTree = "<group>"; };
 		C32528CD28DE93AE376944FF /* PLAN-M1.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = "PLAN-M1.md"; sourceTree = "<group>"; };
+		D19215428D510F18874F5DC5 /* RexRenderer.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = RexRenderer.mm; sourceTree = "<group>"; };
 		D4D32BBDB71C4CE1CF154191 /* AppDelegate.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = AppDelegate.mm; sourceTree = "<group>"; };
 		DDE8330981F4B3171E516CDD /* AnimationSystem.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = AnimationSystem.mm; sourceTree = "<group>"; };
 		DF0E49C9D1B509090135F40B /* HapticsEngine.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = HapticsEngine.mm; sourceTree = "<group>"; };
@@ -137,7 +148,6 @@
 		E25BD5FFF62774CB8050E1A2 /* HapticsEngine.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = HapticsEngine.h; sourceTree = "<group>"; };
 		E2CD79E815BBA360995598A8 /* MetalKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = MetalKit.framework; path = System/Library/Frameworks/MetalKit.framework; sourceTree = SDKROOT; };
 		E661802610C9D27E46EB4BA9 /* UIKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UIKit.framework; path = System/Library/Frameworks/UIKit.framework; sourceTree = SDKROOT; };
-		E677084B5A207D1905FD1CE6 /* BrawlerRenderer.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BrawlerRenderer.h; sourceTree = "<group>"; };
 		EB68E680D43E6A243EE60DAE /* Cocoa.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Cocoa.framework; path = System/Library/Frameworks/Cocoa.framework; sourceTree = SDKROOT; };
 		EB7B41B03A8E026B414C7DA3 /* project.yml */ = {isa = PBXFileReference; lastKnownFileType = text.yaml; path = project.yml; sourceTree = "<group>"; };
 		EBCCBADB86BCC3BC079D9397 /* ImageIO.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = ImageIO.framework; path = System/Library/Frameworks/ImageIO.framework; sourceTree = SDKROOT; };
@@ -280,10 +290,10 @@
 		8035B5745A5ADA68B0CF1109 /* Renderer */ = {
 			isa = PBXGroup;
 			children = (
-				E677084B5A207D1905FD1CE6 /* BrawlerRenderer.h */,
-				5EBCF4F5B06EDDED961D2A57 /* BrawlerRenderer.mm */,
 				97C15A79A4F325FCF1A47F0D /* ParticleSim.cpp */,
 				15F5E5BB6F9B426318D2F765 /* ParticleSim.h */,
+				2B53E6DF22E58127DB39ACF7 /* RexRenderer.h */,
+				D19215428D510F18874F5DC5 /* RexRenderer.mm */,
 			);
 			path = Renderer;
 			sourceTree = "<group>";
@@ -335,6 +345,8 @@
 				E24115F77C07DE877C58A1D9 /* InputSystem.mm */,
 				943AC821EF117BD8736BA3B2 /* PhysicsSystem.h */,
 				19CFD438813570373EF78E93 /* PhysicsSystem.mm */,
+				86FC80FD0678A689BCFAC968 /* ReticleSystem.h */,
+				8F6E7A678A2B416F70E70AF5 /* ReticleSystem.mm */,
 				ABAB2B43F9A5A68DA6B8DD97 /* ScreenShakeSystem.h */,
 				0604376B2E287273A588D819 /* ScreenShakeSystem.mm */,
 			);
@@ -354,6 +366,8 @@
 		F2CB0480C0AF4A604660A4B5 /* RexEngine */ = {
 			isa = PBXGroup;
 			children = (
+				32BFDE2E89C9BCDDAD0C49D8 /* RexGameHost.h */,
+				34A962C9761AE26A1155D1F1 /* RexGameHost.mm */,
 				7BDE856604DBC4082DC52300 /* Assets */,
 				82DE688BB47FDE5E89867C2E /* Audio */,
 				DF799EA569654CA7F31D016D /* Haptics */,
@@ -508,13 +522,15 @@
 				1CE0020179C85A64AB34029E /* AnimationSystem.mm in Sources */,
 				94729FDF10BC4E37667B3F1C /* AppDelegate.mm in Sources */,
 				31606CC8BF1AF50087CE8D4F /* AudioEngine.mm in Sources */,
-				F2C8ED61D9286866050B2BBD /* BrawlerRenderer.mm in Sources */,
 				A1CED7364AAFDFDA8360962C /* CharacterLoader.mm in Sources */,
 				7A21BE1133729902E327ED12 /* GameViewController.mm in Sources */,
 				3150906CA4247E855782DC5A /* HapticsEngine.mm in Sources */,
 				860E6CDE09E8A15BFCD8C42D /* InputSystem.mm in Sources */,
 				E5A4738C9AB9B77B0E68D3E7 /* ParticleSim.cpp in Sources */,
 				11E836CEB88EC88F05CD7E21 /* PhysicsSystem.mm in Sources */,
+				2A15B1C8242BCC5FD967AB39 /* ReticleSystem.mm in Sources */,
+				44407FF0359B21C599ED6F47 /* RexGameHost.mm in Sources */,
+				E6F1C9196281110372883778 /* RexRenderer.mm in Sources */,
 				51EF8CD88C45BF1C1BF99187 /* ScreenShakeSystem.mm in Sources */,
 				5B0048B6C980D91AF25B8F31 /* World.mm in Sources */,
 				57CE9D78492786C208959764 /* main.mm in Sources */,
@@ -527,12 +543,14 @@
 			files = (
 				1DCF0E2D00C57D754E3466C4 /* AnimationSystem.mm in Sources */,
 				5218353F3036242B883DED5D /* AudioEngine.mm in Sources */,
-				C915B34EB7B17AE693B4A69E /* BrawlerRenderer.mm in Sources */,
 				2746852A475BCA27D42DF89B /* CharacterLoader.mm in Sources */,
 				0D99D6CE30057EF551EE5069 /* HapticsEngine.mm in Sources */,
 				5C826A0FD6F44503E15EE165 /* InputSystem.mm in Sources */,
 				AF2F683A80A8998A9AD78C43 /* ParticleSim.cpp in Sources */,
 				155C9A2701741481F0484438 /* PhysicsSystem.mm in Sources */,
+				E6925E39BD6C1C8A7702E539 /* ReticleSystem.mm in Sources */,
+				AC7DF45263A8E4167C55744B /* RexGameHost.mm in Sources */,
+				80AD01AAB6C768EB1B4E4D4F /* RexRenderer.mm in Sources */,
 				DA5A71C41D646251B75EB44F /* ScreenShakeSystem.mm in Sources */,
 				E5C334F603C17707D610E205 /* World.mm in Sources */,
 				1EFB714F3B9ECB85EF721C9B /* WorldSmokeTests.mm in Sources */,
@@ -546,13 +564,15 @@
 				9D7F92C0E116BA302E450479 /* AnimationSystem.mm in Sources */,
 				992A2BF914C0273D6867A7FA /* AppDelegate.mm in Sources */,
 				ACEE1ADC2FDEFDE0EA723E2C /* AudioEngine.mm in Sources */,
-				04D96DBA5970AEA2592C5267 /* BrawlerRenderer.mm in Sources */,
 				EB78733079BAA5A7702561D9 /* CharacterLoader.mm in Sources */,
 				4F73DEAFE2E7C817EFB73766 /* GameViewController.mm in Sources */,
 				5D8A4EFC028257CD4B4FE7CE /* HapticsEngine.mm in Sources */,
 				4B0CBEA08D2A70E4D360AA17 /* InputSystem.mm in Sources */,
 				5F94F7F9E9B3CE1353D5E11C /* ParticleSim.cpp in Sources */,
 				2D77B10BA8A494E6439F3402 /* PhysicsSystem.mm in Sources */,
+				9DFA10B6A181EE634D4AF2DB /* ReticleSystem.mm in Sources */,
+				876C6B4D41C5B7ED5A2D1A3D /* RexGameHost.mm in Sources */,
+				92980B08BEDC019E4DD967FB /* RexRenderer.mm in Sources */,
 				7FB95C9B0064C6C039D91217 /* SceneDelegate.mm in Sources */,
 				0C6E607D0A3D5DE997BA013B /* ScreenShakeSystem.mm in Sources */,
 				55A86DCEF1BA728C2F3193D2 /* World.mm in Sources */,
@@ -633,6 +653,7 @@
 				ASSETCATALOG_COMPILER_LAUNCHIMAGE_NAME = LaunchImage;
 				CLANG_CXX_LANGUAGE_STANDARD = "c++20";
 				CLANG_CXX_LIBRARY = "libc++";
+				CODE_SIGNING_ALLOWED = NO;
 				DEVELOPMENT_TEAM = 74V7G3NQ7Y;
 				GCC_ENABLE_OBJC_EXCEPTIONS = YES;
 				HEADER_SEARCH_PATHS = "$(SRCROOT)/RexEngine";
@@ -656,6 +677,7 @@
 				ASSETCATALOG_COMPILER_LAUNCHIMAGE_NAME = LaunchImage;
 				CLANG_CXX_LANGUAGE_STANDARD = "c++20";
 				CLANG_CXX_LIBRARY = "libc++";
+				CODE_SIGNING_ALLOWED = NO;
 				DEVELOPMENT_TEAM = 74V7G3NQ7Y;
 				GCC_ENABLE_OBJC_EXCEPTIONS = YES;
 				HEADER_SEARCH_PATHS = "$(SRCROOT)/RexEngine";

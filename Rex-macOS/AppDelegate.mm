@@ -21,7 +21,7 @@
                            |NSWindowStyleMaskResizable
                     backing:NSBackingStoreBuffered
                       defer:NO];
-    self.window.title = @"MetalBrawler";
+    self.window.title = @"MetalRex";
     self.window.releasedWhenClosed = NO;
 
     GameViewController *vc = [[GameViewController alloc] init];
