@@ -1,0 +1,13 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "build-macos-debug",
+      "type": "shell",
+      "command": "xcodebuild -project MetalRex.xcodeproj -scheme Rex-macOS -destination 'platform=macOS' -configuration Debug -derivedDataPath .build/DerivedData build",
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": [],
+      "group": { "kind": "build", "isDefault": true }
+    }
+  ]
+}

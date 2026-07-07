@@ -1,0 +1,17 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug Rex-macOS",
+      "program": "${workspaceFolder}/.build/DerivedData/Build/Products/Debug/Rex-macOS.app/Contents/MacOS/Rex-macOS",
+      "args": [],
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "build-macos-debug",
+      "env": {
+        "DYLD_LIBRARY_PATH": ""
+      }
+    }
+  ]
+}

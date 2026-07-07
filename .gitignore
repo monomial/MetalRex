@@ -1,0 +1,17 @@
+# Xcode
+*.xcworkspace
+*.xcuserdata
+xcuserdata/
+DerivedData/
+.build/
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Build artifacts
+build/

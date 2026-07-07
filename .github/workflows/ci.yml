@@ -1,0 +1,34 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Run logic tests
+        run: scripts/smoke.sh --autotest
+
+      - name: Build macOS app
+        run: |
+          xcodegen
+          xcodebuild -scheme Rex-macOS \
+                     -destination 'platform=macOS' \
+                     -derivedDataPath .build/DerivedData \
+                     CODE_SIGNING_ALLOWED=NO build -quiet
+
+      - name: Build tvOS app
+        run: |
+          xcodegen
+          xcodebuild -scheme Rex-tvOS \
+                     -destination 'generic/platform=tvOS' \
+                     -derivedDataPath .build/DerivedData \
+                     CODE_SIGNING_ALLOWED=NO build -quiet

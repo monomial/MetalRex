@@ -1,0 +1,8 @@
+*.usdz filter=lfs diff=lfs merge=lfs -text
+*.fbx filter=lfs diff=lfs merge=lfs -text
+*.glb filter=lfs diff=lfs merge=lfs -text
+*.gltf filter=lfs diff=lfs merge=lfs -text
+assets/audio/*.caf filter=lfs diff=lfs merge=lfs -text
+assets/audio/*.mp3 filter=lfs diff=lfs merge=lfs -text
+assets/audio/*.wav filter=lfs diff=lfs merge=lfs -text
+assets/audio/*.m4a filter=lfs diff=lfs merge=lfs -text

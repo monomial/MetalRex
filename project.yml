@@ -1,0 +1,118 @@
+name: MetalRex
+options:
+  bundleIdPrefix: com.michaelsmith.metalrex
+  deploymentTarget:
+    macOS: "14.0"
+    tvOS: "17.0"
+  xcodeVersion: "16.0"
+  generateEmptyDirectories: false
+
+# Files shown in the Xcode navigator for browsing only — not compiled or
+# bundled into any target (no build phase). Lets you read docs in Xcode.
+fileGroups:
+  - docs
+  - README.md
+  - project.yml
+
+targets:
+  Rex-macOS:
+    type: application
+    platform: macOS
+    deploymentTarget: "14.0"
+    sources:
+      - path: Rex-macOS
+      - path: RexEngine
+      # Shaders ship as bundle resources and compile at runtime (newLibraryWithSource).
+      # Build-time .metal compilation is deliberately avoided: the Codex sandbox that
+      # writes most of this code has no Metal toolchain, and its builds must stay green.
+      - path: Shaders
+        buildPhase: resources
+        type: folder
+      - path: assets
+        buildPhase: resources
+        type: folder
+    dependencies:
+      - sdk: Metal.framework
+      - sdk: MetalKit.framework
+      - sdk: ModelIO.framework
+      - sdk: Cocoa.framework
+      - sdk: AVFoundation.framework
+      - sdk: CoreHaptics.framework
+      - sdk: CoreGraphics.framework
+      - sdk: CoreText.framework
+      - sdk: ImageIO.framework
+      - sdk: GameController.framework
+      - sdk: QuartzCore.framework
+    settings:
+      base:
+        INFOPLIST_FILE: Rex-macOS/Info.plist
+        PRODUCT_BUNDLE_IDENTIFIER: com.michaelsmith.metalrex.macos
+        CLANG_CXX_LANGUAGE_STANDARD: c++20
+        CLANG_CXX_LIBRARY: libc++
+        GCC_ENABLE_OBJC_EXCEPTIONS: YES
+        ENABLE_DEBUG_DYLIB: NO
+        HEADER_SEARCH_PATHS: $(SRCROOT)/RexEngine
+        MTL_HEADER_SEARCH_PATHS: $(SRCROOT)/RexEngine
+        MACOSX_DEPLOYMENT_TARGET: "14.0"
+
+  Rex-tvOS:
+    type: application
+    platform: tvOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: Rex-tvOS
+      - path: RexEngine
+      - path: Shaders
+        buildPhase: resources
+        type: folder
+      - path: assets
+        buildPhase: resources
+        type: folder
+    dependencies:
+      - sdk: Metal.framework
+      - sdk: MetalKit.framework
+      - sdk: ModelIO.framework
+      - sdk: UIKit.framework
+      - sdk: AVFoundation.framework
+      - sdk: CoreHaptics.framework
+      - sdk: CoreGraphics.framework
+      - sdk: CoreText.framework
+      - sdk: ImageIO.framework
+      - sdk: GameController.framework
+      - sdk: QuartzCore.framework
+    settings:
+      base:
+        INFOPLIST_FILE: Rex-tvOS/Info.plist
+        PRODUCT_BUNDLE_IDENTIFIER: com.michaelsmith.metalrex.tvos
+        DEVELOPMENT_TEAM: 74V7G3NQ7Y
+        CLANG_CXX_LANGUAGE_STANDARD: c++20
+        CLANG_CXX_LIBRARY: libc++
+        GCC_ENABLE_OBJC_EXCEPTIONS: YES
+        HEADER_SEARCH_PATHS: $(SRCROOT)/RexEngine
+        MTL_HEADER_SEARCH_PATHS: $(SRCROOT)/RexEngine
+        TARGETED_DEVICE_FAMILY: "3"
+        TVOS_DEPLOYMENT_TARGET: "17.0"
+
+  RexLogicTests:
+    type: bundle.unit-test
+    platform: macOS
+    deploymentTarget: "14.0"
+    sources:
+      - path: RexLogicTests
+      - path: RexEngine
+    dependencies:
+      - sdk: Metal.framework
+      - sdk: MetalKit.framework
+      - sdk: ModelIO.framework
+      - sdk: Cocoa.framework
+      - sdk: AVFoundation.framework
+      - sdk: CoreHaptics.framework
+      - sdk: CoreText.framework
+      - sdk: QuartzCore.framework
+    settings:
+      base:
+        CLANG_CXX_LANGUAGE_STANDARD: c++20
+        CLANG_CXX_LIBRARY: libc++
+        GCC_ENABLE_OBJC_EXCEPTIONS: YES
+        HEADER_SEARCH_PATHS: "$(SRCROOT)/RexEngine $(SRCROOT)/RexLogicTests"
+        GENERATE_INFOPLIST_FILE: YES
