@@ -30,6 +30,7 @@ static simd_float4x4 make_ortho(float left, float right, float bottom, float top
     id<MTLDevice> _device;
     id<MTLRenderPipelineState> _pipeline;
     id<MTLDepthStencilState> _depthState;
+    id<MTLDepthStencilState> _overlayDepthState;
     id<MTLBuffer> _groundVB;
     simd_float4x4 _projection;
     float _halfW;
@@ -91,6 +92,16 @@ static simd_float4x4 make_ortho(float left, float right, float bottom, float top
     depthDescriptor.depthCompareFunction = MTLCompareFunctionLess;
     depthDescriptor.depthWriteEnabled = YES;
     _depthState = [_device newDepthStencilStateWithDescriptor:depthDescriptor];
+
+    // For screen-space overlay draws (reticle/targets/HUD) that intentionally
+    // ignore depth, Metal API validation rejects setDepthStencilState:nil once
+    // a real state has been set on the encoder — must pass an explicit
+    // depth-test-disabled state instead of nil.
+    MTLDepthStencilDescriptor *noDepthDescriptor = [MTLDepthStencilDescriptor new];
+    noDepthDescriptor.depthCompareFunction = MTLCompareFunctionAlways;
+    noDepthDescriptor.depthWriteEnabled = NO;
+    _overlayDepthState = [_device newDepthStencilStateWithDescriptor:noDepthDescriptor];
+
     _projection = make_ortho(-640.f, 640.f, -420.f, 420.f, -1.f, 1.f);
     _halfW = 640.f;
     _halfH = 420.f;
@@ -248,7 +259,7 @@ static simd_float4x4 make_ortho(float left, float right, float bottom, float top
     [encoder setVertexBytes:&uniforms length:sizeof(uniforms) atIndex:1];
     [encoder drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:6];
 
-    [encoder setDepthStencilState:nil];
+    [encoder setDepthStencilState:_overlayDepthState];
     if (world) {
         [self _drawM1Targets:world encoder:encoder];
         [self _drawReticles:world encoder:encoder];
