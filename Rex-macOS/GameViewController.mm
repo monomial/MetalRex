@@ -109,6 +109,12 @@
         case 33:  ReticleSystem_adjust_tuning( 0.00f, -0.03f,  0.00f); break; // [
         case 39:  ReticleSystem_adjust_tuning( 0.00f,  0.00f,  0.04f); break; // '
         case 41:  ReticleSystem_adjust_tuning( 0.00f,  0.00f, -0.04f); break; // ;
+        case 35:  ReticleSystem_adjust_fallback_tuning( 0.05f,  0.00f,  0.00f); break; // P — fallback friction scale up
+        case 31:  ReticleSystem_adjust_fallback_tuning(-0.05f,  0.00f,  0.00f); break; // O — fallback friction scale down
+        case 47:  ReticleSystem_adjust_fallback_tuning( 0.00f,  0.01f,  0.00f); break; // . — fallback magnet radius up
+        case 43:  ReticleSystem_adjust_fallback_tuning( 0.00f, -0.01f,  0.00f); break; // , — fallback magnet radius down
+        case 46:  ReticleSystem_adjust_fallback_tuning( 0.00f,  0.00f,  0.03f); break; // M — fallback magnet strength up
+        case 45:  ReticleSystem_adjust_fallback_tuning( 0.00f,  0.00f, -0.03f); break; // N — fallback magnet strength down
         default: [super keyDown:event];
     }
 }

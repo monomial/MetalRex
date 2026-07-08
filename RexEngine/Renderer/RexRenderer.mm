@@ -208,6 +208,7 @@ static simd_float4x4 make_ortho(float left, float right, float bottom, float top
         tuning.stillnessSmoothingAlpha,
         tuning.fallbackFrictionScale,
         tuning.fallbackMagnetStrength,
+        tuning.fallbackMagnetRadius / 0.3f,
     };
     const simd_float4 colors[] = {
         {0.25f, 0.62f, 1.0f, 1.f},
@@ -217,8 +218,9 @@ static simd_float4x4 make_ortho(float left, float right, float bottom, float top
         {0.92f, 0.82f, 0.25f, 1.f},
         {0.93f, 0.52f, 0.24f, 1.f},
         {0.84f, 0.42f, 0.95f, 1.f},
+        {0.84f, 0.42f, 0.95f, 1.f},
     };
-    for (int i = 0; i < 7; ++i) {
+    for (int i = 0; i < 8; ++i) {
         float baseX = -_halfW + 34.f;
         float baseY = _halfH - 32.f - (float)i * 15.f;
         float width = 120.f * std::min(1.f, std::max(0.f, values[i]));

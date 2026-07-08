@@ -1,6 +1,7 @@
 #import <XCTest/XCTest.h>
 #include "Simulation/World.h"
 #include "Simulation/Systems/ReticleSystem.h"
+#include <math.h>
 
 @interface ReticleInputTests : XCTestCase
 @end
@@ -104,25 +105,72 @@
 }
 
 - (void)test_stickOnlyFallbackFrictionReducesReticleSpeedOverTargetWithoutSnapping {
+    // A real target must be present and active for the over-target friction
+    // path to trigger at all — a prior version of this test set the reticle's
+    // position directly with no TargetComponent nearby, so overTarget was
+    // never true and this never actually exercised the friction/magnet code.
     World world;
-    world.reticle(0).x = 0.5f;
-    world.reticle(0).y = 0.5f;
+    world.update(1.f / 120.f, 1.f / 120.f);
+    const TargetComponent& target = world.target(0);
+    XCTAssertTrue(target.active);
+    world.reticle(0).x = target.screenX;
+    world.reticle(0).y = target.screenY;
+
     InputState input = {};
     input.stickX = 1.f;
     world.set_input(input, 0);
     world.update(1.f / 120.f, 1.f / 120.f);
-    float frictionDelta = world.reticle(0).x - 0.5f;
+    float frictionDelta = world.reticle(0).x - target.screenX;
 
     World clearWorld;
-    clearWorld.reticle(0).x = 0.95f;
-    clearWorld.reticle(0).y = 0.95f;
+    clearWorld.reticle(0).x = 0.f;
+    clearWorld.reticle(0).y = 0.f;
     clearWorld.set_input(input, 0);
-    world.update(1.f / 120.f, 1.f / 120.f);
     clearWorld.update(1.f / 120.f, 1.f / 120.f);
-    float clearDelta = clearWorld.reticle(0).x - 0.95f;
+    float clearDelta = clearWorld.reticle(0).x - 0.f;
 
     XCTAssertGreaterThan(clearDelta, frictionDelta);
-    XCTAssertLessThan(world.reticle(0).x, 0.6f);
+}
+
+- (void)test_stickOnlyFallbackAssistDoesNotOpposeInitialEscapeTick {
+    // Regresses a real bug: an earlier version of the magnet pull got
+    // STRONGER the closer the reticle was to the target — i.e. strongest
+    // exactly at distance zero, which is exactly where a player trying to
+    // move away starts from. Combined with friction cutting their own input,
+    // the net effect could stall or reverse a deliberate escape attempt on
+    // the very first tick, which reads as a soft snap-lock.
+    World world;
+    world.update(1.f / 120.f, 1.f / 120.f);
+    const TargetComponent& target = world.target(0);
+    world.reticle(0).x = target.screenX;
+    world.reticle(0).y = target.screenY;
+
+    InputState input = {};
+    input.stickX = 1.f;
+    world.set_input(input, 0);
+    world.update(1.f / 120.f, 1.f / 120.f);
+
+    XCTAssertGreaterThan(world.reticle(0).x, target.screenX);
+}
+
+- (void)test_stickOnlyFallbackAssistNeverPreventsEscapingATarget {
+    // Same bug, sustained: holding a deliberate escape direction for a full
+    // second must actually leave the target's box, not hover near it forever.
+    World world;
+    world.update(1.f / 120.f, 1.f / 120.f);
+    const TargetComponent& target = world.target(0);
+    world.reticle(0).x = target.screenX;
+    world.reticle(0).y = target.screenY;
+
+    InputState input = {};
+    input.stickX = 1.f;
+    world.set_input(input, 0);
+    for (int i = 0; i < 120; ++i) {
+        world.update(1.f / 120.f, 1.f / 120.f);
+    }
+
+    float dist = fabsf(world.reticle(0).x - target.screenX);
+    XCTAssertGreaterThan(dist, target.screenHalfW * 2.f);
 }
 
 - (void)test_fireMarksTargetHitByReticleScreenBounds {

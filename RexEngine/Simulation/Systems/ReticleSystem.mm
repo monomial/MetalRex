@@ -82,6 +82,14 @@ void ReticleSystem_adjust_tuning(float stickDelta, float gyroDelta, float smooth
     ReticleSystem_set_tuning(tuning);
 }
 
+void ReticleSystem_adjust_fallback_tuning(float frictionDelta, float radiusDelta, float strengthDelta) {
+    ReticleTuning tuning = s_tuning;
+    tuning.fallbackFrictionScale += frictionDelta;
+    tuning.fallbackMagnetRadius += radiusDelta;
+    tuning.fallbackMagnetStrength += strengthDelta;
+    ReticleSystem_set_tuning(tuning);
+}
+
 void ReticleSystem_update(World& world, float gameDt) {
     if (gameDt == 0.f) return;
 
@@ -153,10 +161,23 @@ void ReticleSystem_update(World& world, float gameDt) {
         if (reticle.stickOnlyAssist && nearest) {
             float dist = sqrtf(nearestDistSq);
             if (dist > 0.0001f) {
-                float pull = (1.f - dist / s_tuning.fallbackMagnetRadius)
-                           * s_tuning.fallbackMagnetStrength * gameDt;
-                dx += (nearest->screenX - reticle.x) / dist * pull;
-                dy += (nearest->screenY - reticle.y) / dist * pull;
+                float pullDirX = (nearest->screenX - reticle.x) / dist;
+                float pullDirY = (nearest->screenY - reticle.y) / dist;
+                // Never fight a deliberate escape: this is supposed to be friction
+                // (helps you stay put) plus a gentle assist (helps you settle in),
+                // not a tug-of-war. If the player's own input already has a
+                // component pointing away from the target, skip the pull this
+                // tick rather than opposing it — the previous unconditional pull
+                // (strongest exactly when closest, per the (1 - dist/radius)
+                // term) could match or exceed the player's escape velocity and
+                // read as a soft snap-lock.
+                float towardDot = dx * pullDirX + dy * pullDirY;
+                if (towardDot >= 0.f) {
+                    float pull = (1.f - dist / s_tuning.fallbackMagnetRadius)
+                               * s_tuning.fallbackMagnetStrength * gameDt;
+                    dx += pullDirX * pull;
+                    dy += pullDirY * pull;
+                }
             }
         }
 
