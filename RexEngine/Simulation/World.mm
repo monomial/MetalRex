@@ -96,18 +96,19 @@ void World::reset_m1_scene() {
     // and the T-Rex 15.22, a ratio of ~2.79 — so a 1.3-unit raptor pairs
     // with a 3.6-unit T-Rex. screenHalfH is still clamped to 0.20 in
     // RailCameraSystem, so a big dino can't blow up the on-screen hit box.
+    //
+    // Pursuers spawn BEHIND the jeep (the camera starts at rail distance 8
+    // facing backward), deep enough that the player sees them run up:
+    // raptor 6.5 units back, T-Rex 8 back and to the side, both chasing
+    // (see DinoBehaviorSystem).
     _targets[3].active = true;
     _targets[3].moving = true;
-    _targets[3].railDistance = 5.2f;
+    _targets[3].railDistance = 1.5f;
     _targets[3].halfWidth = 0.4f;
     _targets[3].halfHeight = 0.65f;
 
-    // T-Rex anchor: static (not part of the popup flicker set — see
-    // RailCameraSystem), same rail distance as the raptor and offset to the
-    // right, so the two dinos stand side by side at equal depth and their
-    // on-screen sizes compare directly.
     _targets[4].active = true;
-    _targets[4].railDistance = 5.2f;
+    _targets[4].railDistance = 0.f;
     _targets[4].lateralOffset = 1.6f;
     _targets[4].halfWidth = 1.0f;
     _targets[4].halfHeight = 1.81f;
@@ -122,8 +123,9 @@ void World::reset_m1_scene() {
     dino.active = true;
     dino.targetIndex = 3;
     dino.species = DinoSpecies::Velociraptor;
-    dino.walkSpeed = 0.9f;  // raptors dart in quickly
-    dino.idleDuration = 2.5f;
+    dino.chaseSpeed = 1.6f;  // jeep runs 1.2 — raptor gains 0.4/s
+    dino.attackRange = 2.4f;
+    dino.idleDuration = 1.2f;
     dino.tellEndNormalized = 0.28f;
     dino.interruptStartNormalized = 0.18f;
     dino.interruptEndNormalized = 0.46f;
@@ -139,8 +141,9 @@ void World::reset_m1_scene() {
     trexDino.active = true;
     trexDino.targetIndex = 4;
     trexDino.species = DinoSpecies::Trex;
-    trexDino.walkSpeed = 0.45f; // heavy stomp, slower than the raptor
-    trexDino.idleDuration = 3.5f; // offset from the raptor so attacks don't sync
+    trexDino.chaseSpeed = 1.4f;  // heavy stomp — gains on the jeep slowly
+    trexDino.attackRange = 3.2f; // longer reach, lunges from farther out
+    trexDino.idleDuration = 2.0f; // offset from the raptor so attacks don't sync
     trexDino.tellEndNormalized = 0.28f;
     trexDino.interruptStartNormalized = 0.18f;
     trexDino.interruptEndNormalized = 0.46f;

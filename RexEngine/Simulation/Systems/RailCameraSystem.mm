@@ -9,23 +9,10 @@ static float clamp01_local(float value) {
     return std::min(1.f, std::max(0.f, value));
 }
 
-static RexVec3 interpolate_look_at(const LevelChart& chart, float distance) {
-    const std::vector<LookAtBeat>& beats = chart.lookAtBeats;
-    if (beats.empty()) return chart.rail.position_at_distance(distance + 2.f);
-    if (distance <= beats.front().distance) return beats.front().target;
-    if (distance >= beats.back().distance) return beats.back().target;
-
-    for (size_t i = 1; i < beats.size(); ++i) {
-        if (distance <= beats[i].distance) {
-            const LookAtBeat& a = beats[i - 1];
-            const LookAtBeat& b = beats[i];
-            float span = b.distance - a.distance;
-            float alpha = span > 0.0001f ? (distance - a.distance) / span : 1.f;
-            return RexVec3_add(RexVec3_scale(a.target, 1.f - alpha), RexVec3_scale(b.target, alpha));
-        }
-    }
-    return beats.back().target;
-}
+// How far behind the jeep the camera aims. Far enough that a dino at attack
+// range sits between the camera and the aim point (well framed), close
+// enough that the view stays tight on the pursuers.
+static constexpr float kLookBackDistance = 4.0f;
 
 static void update_camera_basis(RailCameraState& camera, const LevelChart& chart) {
     float railLength = chart.rail.total_length();
@@ -45,7 +32,15 @@ static void update_camera_basis(RailCameraState& camera, const LevelChart& chart
     camera.rawT = chart.rail.raw_t_at_distance(camera.distance);
 
     RexVec3 position = chart.rail.position_at_distance(camera.distance);
-    RexVec3 lookAt = interpolate_look_at(chart, camera.distance);
+    // Jeep scenario: the camera rides the rail forward but FACES BACKWARD —
+    // the player is in the back of the jeep shooting at dinos chasing it.
+    // Aim at a point on the rail behind the jeep (clamped at the rail start,
+    // briefly relevant right after the test-scene loop wraps). The chart's
+    // authored lookAtBeats are unused in this scenario; they stay in the
+    // chart format for future cinematic camera sweeps.
+    float lookBack = camera.distance - kLookBackDistance;
+    if (lookBack < 0.f) lookBack = 0.f;
+    RexVec3 lookAt = chart.rail.position_at_distance(lookBack);
     simd_float3 eye = rex_to_simd(position);
     simd_float3 target = rex_to_simd(lookAt);
     simd_float3 forward = rex_safe_normalize(target - eye, rex_to_simd(chart.rail.tangent_at_distance(camera.distance)));
@@ -69,6 +64,10 @@ static void update_camera_basis(RailCameraState& camera, const LevelChart& chart
 
 void RailCameraSystem_reset(RailCameraState& camera, const LevelChart& chart) {
     camera = {};
+    // Start partway down the rail so there's road BEHIND the jeep for
+    // pursuers to spawn and chase on (the rail has no geometry before
+    // distance 0).
+    camera.distance = 8.f;
     camera.speed = 1.2f;
     camera.fovYRadians = 1.04719758f;
     camera.aspect = 16.f / 9.f;
@@ -101,29 +100,33 @@ static void update_targets(World& world, float gameDt) {
             target.active = phase < 2.25f;
         }
         if (target.moving) {
-            target.lateralOffset = sinf(camera.elapsed * 1.45f) * 0.9f;
-            // Small walk-cycle bob around ground level, not the old 0.43-0.67
-            // range (which, combined with the rail-relative Y this used to
-            // use, is what put the dino a full 1+ unit above the ground).
+            // Gentle side-to-side weave while chasing. The old ±0.9 at
+            // 1.45 rad/s read as the dino floating sideways in big arcs
+            // relative to everything else on screen.
+            target.lateralOffset = sinf(camera.elapsed * 0.8f) * 0.35f;
+            // Small run-cycle bob around ground level.
             target.verticalOffset = sinf(camera.elapsed * 2.1f) * 0.04f;
             target.active = true;
         }
 
-        // Hard iteration cap: this loop must never be able to hang. Without
-        // it, a camera stuck at (or oscillating near) the rail's end could
-        // make railDistance repeatedly overshoot the reset threshold and
-        // reset to a small value that's immediately behind camera.distance
-        // again, forever — which is exactly what caused a real freeze
-        // before the camera-looping fix above. The cap is defensive on top
-        // of that fix, not instead of it: this kind of loop should never be
-        // unbounded regardless of what other state can put the camera in.
-        int guard = 0;
-        while (target.railDistance < camera.distance + 2.2f && guard++ < 64) {
-            target.railDistance += 6.0f;
-            if (target.railDistance > chart.rail.total_length() - 1.0f) {
-                target.railDistance = 2.5f + (float)i * 1.4f;
-            }
+        // Targets live BEHIND the jeep (the camera faces backward at
+        // pursuers). gap = how far behind the camera this target is.
+        // - Fell too far back (the jeep outran it): recycle it closer, as a
+        //   fresh pursuer catching up.
+        // - Reached the jeep (or started out ahead of it, like the initial
+        //   box-target layout): pin it just behind — nothing may pass the
+        //   jeep. Dino movement itself stops at attackRange (> 1), so this
+        //   clamp is a safety net, not the gameplay path.
+        // No loop, so no hang path: one assignment always lands in range.
+        float gap = camera.distance - target.railDistance;
+        if (gap > 10.f) {
+            // Recycle deep, not close: a fresh pursuer should be seen
+            // running up from the distance, not popping in at arm's length.
+            gap = 5.f + (float)i * 0.8f;
+            target.railDistance = std::max(0.f, camera.distance - gap);
             target.wasHit = false;
+        } else if (gap < 1.0f) {
+            target.railDistance = std::max(0.f, camera.distance - 1.0f);
         }
 
         RexVec3 center = chart.rail.position_at_distance(target.railDistance);

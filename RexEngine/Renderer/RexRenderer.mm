@@ -71,9 +71,11 @@ struct SkinnedUniformsCPU {
     if (!self) return nil;
 
     _device = device;
+    // Extends behind the rail start (z < 0): the camera faces backward off
+    // the jeep, so the ground behind the run must exist too.
     const RexVertex verts[] = {
-        {{-8.f, kGroundWorldY, 0.f}}, {{ 8.f, kGroundWorldY, 0.f}}, {{-8.f, kGroundWorldY, 80.f}},
-        {{ 8.f, kGroundWorldY, 0.f}}, {{ 8.f, kGroundWorldY, 80.f}}, {{-8.f, kGroundWorldY, 80.f}},
+        {{-8.f, kGroundWorldY, -20.f}}, {{ 8.f, kGroundWorldY, -20.f}}, {{-8.f, kGroundWorldY, 80.f}},
+        {{ 8.f, kGroundWorldY, -20.f}}, {{ 8.f, kGroundWorldY, 80.f}}, {{-8.f, kGroundWorldY, 80.f}},
     };
     _groundVB = [_device newBufferWithBytes:verts length:sizeof(verts) options:MTLResourceStorageModeShared];
 

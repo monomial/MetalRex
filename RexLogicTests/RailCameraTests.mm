@@ -1,6 +1,7 @@
 #import <XCTest/XCTest.h>
 #include "Simulation/ChartLoader.h"
 #include "Simulation/World.h"
+#include <algorithm>
 #include <cmath>
 #include <vector>
 
@@ -75,18 +76,28 @@ static LevelChart curvedTestChart(void) {
     XCTAssertGreaterThan(fabsf((raw2 - raw1) - (raw3 - raw2)), 0.005f);
 }
 
-- (void)test_lookAtInterpolatesBetweenAuthoredDistanceBeats {
+- (void)test_cameraFacesBackwardAlongRail {
+    // Jeep scenario: the camera advances along the rail but aims at a rail
+    // point BEHIND it — the player shoots at pursuers from the back of the
+    // jeep. The chart's authored lookAtBeats are intentionally unused here.
     World world;
     LevelChart chart = curvedTestChart();
-    float midpoint = chart.rail.total_length() * 0.5f;
     world.replace_chart_for_tests(chart);
-    world.rail_camera().speed = midpoint * 120.f;
 
     world.update(1.f / 120.f, 1.f / 120.f);
 
-    XCTAssertEqualWithAccuracy(world.rail_camera().lookAtX, 3.f, 0.03f);
-    XCTAssertEqualWithAccuracy(world.rail_camera().lookAtY, 1.f, 0.03f);
-    XCTAssertEqualWithAccuracy(world.rail_camera().lookAtZ, 9.f, 0.03f);
+    const RailCameraState& camera = world.rail_camera();
+    RexVec3 expected = chart.rail.position_at_distance(std::max(0.f, camera.distance - 4.f));
+    XCTAssertEqualWithAccuracy(camera.lookAtX, expected.x, 0.01f);
+    XCTAssertEqualWithAccuracy(camera.lookAtY, expected.y, 0.01f);
+    XCTAssertEqualWithAccuracy(camera.lookAtZ, expected.z, 0.01f);
+
+    // View direction opposes the direction of travel.
+    RexVec3 tangent = chart.rail.tangent_at_distance(camera.distance);
+    float forwardDotTravel = (camera.lookAtX - camera.positionX) * tangent.x
+                           + (camera.lookAtY - camera.positionY) * tangent.y
+                           + (camera.lookAtZ - camera.positionZ) * tangent.z;
+    XCTAssertLessThan(forwardDotTravel, 0.f);
 }
 
 - (void)test_cameraReachingRailEndLoopsRatherThanHanging {

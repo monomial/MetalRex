@@ -24,6 +24,14 @@ static void tick(World& world, int count) {
     }
 }
 
+// Attacks are proximity-gated: the dino must be within attackRange behind
+// the jeep before enter_attack can fire. Tests that need an attack place the
+// dino at close range first.
+static void placeWithinAttackRange(World& world, DinoBehaviorComponent& dino) {
+    world.target(dino.targetIndex).railDistance =
+        world.rail_camera().distance - dino.attackRange + 0.5f;
+}
+
 - (void)test_interruptWithinWindowCancelsAttackAndTransitionsToJumpReaction {
     World world;
     EntityID dinoId = findDino(world);
@@ -33,6 +41,7 @@ static void tick(World& world, int count) {
     dino.idleDuration = 0.f;
     dino.interruptStartNormalized = 0.18f;
     dino.interruptEndNormalized = 0.60f;
+    placeWithinAttackRange(world, dino);
 
     tick(world, 8);
     world.target(dino.targetIndex).wasHit = true;
@@ -60,6 +69,7 @@ static void tick(World& world, int count) {
     // the miss is actually one this test can catch.
     dino.idleDuration = 0.f;
     dino.jumpReactionDuration = 0.1f;
+    placeWithinAttackRange(world, dino);
     tick(world, 5);
     dino.idleDuration = 5.f;
     tick(world, 40);
@@ -68,31 +78,35 @@ static void tick(World& world, int count) {
     XCTAssertEqual(dino.lastOutcome, DinoInterruptOutcome::Failed);
     XCTAssertTrue(dino.outcomeThisCycle);
     XCTAssertEqual(dino.state, DinoBehaviorState::Idle);
-    // The Idle state is the approach phase — the dino walks toward the
-    // camera, so it plays Walk, not Idle.
-    XCTAssertEqual(anim.currentClip, CharacterClipSlot::Walk);
+    // The Idle state is the chase phase — the dino runs after the jeep,
+    // so it plays Run, not Idle.
+    XCTAssertEqual(anim.currentClip, CharacterClipSlot::Run);
 }
 
-- (void)test_approachWalksTowardCameraAndStopsDuringAttack {
+- (void)test_chaseClosesGapFromBehindAndStopsDuringAttack {
     World world;
     EntityID dinoId = findDino(world);
     XCTAssertNotEqual(dinoId, kInvalidEntity);
 
     DinoBehaviorComponent& dino = world.get_component<DinoBehaviorComponent>(dinoId);
-    dino.idleDuration = 10.f; // stay in approach for the whole first phase
-    dino.walkSpeed = 0.9f;
+    dino.idleDuration = 10.f; // stay in the chase for the whole first phase
+    dino.chaseSpeed = 1.6f;
+
+    // Start well behind (outside attackRange, inside the recycle window).
+    world.target(dino.targetIndex).railDistance = world.rail_camera().distance - 6.f;
 
     float startDistance = world.target(dino.targetIndex).railDistance;
     tick(world, 12); // 0.1s
-    float walked = world.target(dino.targetIndex).railDistance;
-    // Walked toward the camera by walkSpeed * t (well clear of the respawn
-    // threshold, so RailCameraSystem doesn't recycle it mid-test).
-    XCTAssertEqualWithAccuracy(startDistance - walked, 0.9f * 0.1f, 0.002f);
+    float chased = world.target(dino.targetIndex).railDistance;
+    // Ran after the jeep by chaseSpeed * t (railDistance INCREASES —
+    // the dino chases from behind).
+    XCTAssertEqualWithAccuracy(chased - startDistance, 1.6f * 0.1f, 0.002f);
     XCTAssertEqual(world.get_component<AnimationComponent>(dinoId).currentClip,
-                   CharacterClipSlot::Walk);
+                   CharacterClipSlot::Run);
 
-    // Entering the attack cycle freezes the approach.
+    // Entering the attack cycle freezes the chase.
     dino.idleDuration = 0.f;
+    placeWithinAttackRange(world, dino);
     tick(world, 1);
     XCTAssertEqual(dino.state, DinoBehaviorState::Tell);
     float atAttackStart = world.target(dino.targetIndex).railDistance;

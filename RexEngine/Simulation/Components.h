@@ -148,11 +148,18 @@ struct DinoBehaviorComponent {
     DinoInterruptOutcome lastOutcome = DinoInterruptOutcome::None;
     bool outcomeThisCycle = false;
     float stateTime = 0.f;
+    // Minimum time back in the chase state before the next attack may
+    // begin — even if the dino is already within attackRange.
     float idleDuration = 0.75f;
-    // Rail-units/second the dino advances toward the camera during the
-    // Idle/approach state (0 = stand in place). Movement pauses during
-    // Tell/Attack/Interrupted/Landed — dinos stop to attack.
-    float walkSpeed = 0.5f;
+    // Rail-units/second the dino runs after the jeep during the
+    // Idle/chase state. Must exceed the camera speed to actually gain
+    // ground; the margin over camera speed is the effective closing rate.
+    // Movement pauses during Tell/Attack/Interrupted/Landed.
+    float chaseSpeed = 1.5f;
+    // The dino stops closing and may attack once it is within this many
+    // rail-units behind the jeep. Must stay > 1 (RailCameraSystem pins
+    // anything closer than 1 unit as a safety net).
+    float attackRange = 2.4f;
     float tellEndNormalized = 0.28f;
     float interruptStartNormalized = 0.18f;
     float interruptEndNormalized = 0.46f;
