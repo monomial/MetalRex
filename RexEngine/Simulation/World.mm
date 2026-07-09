@@ -2,6 +2,7 @@
 #include "Systems/InputSystem.h"
 #include "Systems/RailCameraSystem.h"
 #include "Systems/DinoBehaviorSystem.h"
+#include "Systems/PlayerHealthSystem.h"
 #include "Systems/ReticleSystem.h"
 #include "Systems/AnimationSystem.h"
 #import <Foundation/Foundation.h>
@@ -61,6 +62,8 @@ void World::reset_m1_scene() {
         _factions.remove(id);
         _dinoBehaviors.remove(id);
     }
+
+    _playerHealth = {};
 
     for (int i = 0; i < kRexMaxPlayers; ++i) {
         _reticles[i] = {};
@@ -163,6 +166,20 @@ void World::reset_m1_scene() {
     trexDino.interruptStartNormalized = 0.18f;
     trexDino.interruptEndNormalized = 0.46f;
     trexDino.jumpReactionDuration = 0.35f;
+    trexDino.attackDamage = 30; // heavier bite than a raptor's 15
+}
+
+void World::damage_player(int amount) {
+    if (_playerHealth.gameOver || _playerHealth.invulnTime > 0.f) return;
+    _playerHealth.health = std::max(0, _playerHealth.health - amount);
+    _playerHealth.hitFlashTime = 0.35f;
+    // Post-hit grace: without this, dinos whose attacks land in close
+    // succession could stack damage from a single bad moment into an
+    // instant death rather than a readable series of hits.
+    _playerHealth.invulnTime = 1.0f;
+    if (_playerHealth.health <= 0) {
+        _playerHealth.gameOver = true;
+    }
 }
 
 void World::replace_chart_for_tests(LevelChart chart) {
@@ -172,10 +189,19 @@ void World::replace_chart_for_tests(LevelChart chart) {
 
 void World::tick(float gameDt) {
     InputSystem_update(*this);
-    RailCameraSystem_update(*this, gameDt);
-    DinoBehaviorSystem_update(*this, gameDt);
-    ReticleSystem_update(*this, gameDt);
-    AnimationSystem_update(*this, gameDt);
+    // Always ticks: it owns the hit-flash/invulnerability timers and is the
+    // only thing watching for the "insert coin" fire press while frozen.
+    PlayerHealthSystem_update(*this, gameDt);
+    // While gameOver, the rail/dinos/reticle/animation freeze in place —
+    // an arcade-style "insert coin to continue" pause rather than gameplay
+    // continuing to run (and potentially killing the player again) while
+    // they can't even see a continue prompt yet.
+    if (!_playerHealth.gameOver) {
+        RailCameraSystem_update(*this, gameDt);
+        DinoBehaviorSystem_update(*this, gameDt);
+        ReticleSystem_update(*this, gameDt);
+        AnimationSystem_update(*this, gameDt);
+    }
     flush();
     ++_tickCount;
 }

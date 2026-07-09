@@ -175,4 +175,25 @@ struct DinoBehaviorComponent {
     float interruptStartNormalized = 0.18f;
     float interruptEndNormalized = 0.46f;
     float jumpReactionDuration = 0.35f;
+    // Damage dealt to the shared jeep/player health when this dino's attack
+    // lands unopposed (DinoInterruptOutcome::Failed) — see PlayerHealthSystem.
+    int attackDamage = 15;
+};
+
+// Shared jeep/player health — one pool for the whole co-op crew (arcade
+// reference: a shared vehicle, not per-player lives). Lives in World rather
+// than as a per-entity component since there's exactly one instance.
+struct PlayerHealthState {
+    int health = 100;
+    int maxHealth = 100;
+    float hitFlashTime = 0.f; // brief red screen flash on taking a hit
+    // Post-hit grace window: without this, dinos whose attack windows happen
+    // to land in the same tick (or the next) could stack damage from a
+    // single moment of bad luck into an instant death. Sized to be longer
+    // than one attack cycle so at most one hit registers per dino pass.
+    float invulnTime = 0.f;
+    // Arcade-style continue: on hitting 0 health the run freezes (rail stops,
+    // dinos stop) rather than ending outright. Pressing fire "inserts a coin"
+    // and resumes with health restored — see PlayerHealthSystem.
+    bool gameOver = false;
 };

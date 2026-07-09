@@ -152,6 +152,11 @@ void DinoBehaviorSystem_update(World& world, float gameDt) {
                     dino.outcomeThisCycle = true;
                     dino.state = DinoBehaviorState::Landed;
                     dino.stateTime = 0.f;
+                    // The attack finished without being interrupted — it
+                    // landed. World::damage_player applies its own
+                    // invulnerability gate, so a wave of dinos finishing
+                    // their attacks in the same tick doesn't all connect.
+                    world.damage_player(dino.attackDamage);
                     break;
                 }
                 break;

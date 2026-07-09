@@ -102,6 +102,14 @@ public:
     const LevelChart& chart() const { return _chart; }
     void replace_chart_for_tests(LevelChart chart);
 
+    const PlayerHealthState& player_health() const { return _playerHealth; }
+    PlayerHealthState& player_health() { return _playerHealth; }
+    // Applies dino attack damage, honoring the post-hit invulnerability
+    // window and no-op'ing while already in gameOver. Setting gameOver here
+    // (rather than in PlayerHealthSystem) keeps the health<=0 check next to
+    // the only place health actually decreases.
+    void damage_player(int amount);
+
 private:
     void flush();
     void reset_m1_scene();
@@ -129,6 +137,7 @@ private:
     TargetComponent _targets[kM1MaxTargets];
     RailCameraState _railCamera;
     LevelChart _chart;
+    PlayerHealthState _playerHealth;
 };
 
 template<typename T>
