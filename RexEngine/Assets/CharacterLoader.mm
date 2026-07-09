@@ -233,8 +233,12 @@ LoadedCharacter* CharacterLoader_load(NSString* meshPath,
         MDLAxisAlignedBoundingBox bb = mdlMeshes[0].boundingBox;
         result->meshHeight = bb.maxBounds.y - bb.minBounds.y;
         result->meshYMin   = bb.minBounds.y;
-        NSLog(@"CharacterLoader: mesh bounds Y %.2f–%.2f (height %.2f)",
-              bb.minBounds.y, bb.maxBounds.y, result->meshHeight);
+        result->meshZMin   = bb.minBounds.z;
+        result->meshZMax   = bb.maxBounds.z;
+        NSLog(@"CharacterLoader: mesh bounds X %.2f–%.2f  Y %.2f–%.2f  Z %.2f–%.2f",
+              bb.minBounds.x, bb.maxBounds.x,
+              bb.minBounds.y, bb.maxBounds.y,
+              bb.minBounds.z, bb.maxBounds.z);
     }
 
     // Try to extract the diffuse texture from the first submesh material.

@@ -18,7 +18,39 @@
     _mtkView.colorPixelFormat = MTLPixelFormatBGRA8Unorm;
     _mtkView.depthStencilPixelFormat = MTLPixelFormatDepth32Float;
     _mtkView.preferredFramesPerSecond = 120;
+    _mtkView.framebufferOnly = NO; // required for --capture-out='s drawable blit
     self.view = _mtkView;
+}
+
+// --capture-out=/some/path.png --capture-after=<seconds>: waits, captures one
+// frame of the app's own drawable (no interactive display/screencapture
+// permission needed — this reads the app's own Metal texture), and exits.
+// Ported from MetalBrawler's BrawlerAutoTest/BrawlerRenderer capture flow.
+- (void)_startCaptureIfRequested {
+    NSString *outPath = nil;
+    float afterSeconds = 2.0f;
+    for (NSString *arg in [NSProcessInfo processInfo].arguments) {
+        if ([arg hasPrefix:@"--capture-out="]) {
+            outPath = [arg substringFromIndex:[@"--capture-out=" length]];
+        } else if ([arg hasPrefix:@"--capture-after="]) {
+            afterSeconds = [[arg substringFromIndex:[@"--capture-after=" length]] floatValue];
+        }
+    }
+    if (!outPath) return;
+
+    __weak GameViewController *weakSelf = self;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(afterSeconds * NSEC_PER_SEC)),
+                   dispatch_get_main_queue(), ^{
+        GameViewController *vc = weakSelf;
+        if (!vc) return;
+        NSLog(@"capture: taking screenshot -> %@", outPath);
+        [vc->_host captureNextFrameToPath:outPath];
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.0 * NSEC_PER_SEC)),
+                       dispatch_get_main_queue(), ^{
+            NSLog(@"capture: done, exiting");
+            exit(0);
+        });
+    });
 }
 
 - (void)viewDidLoad {
@@ -61,6 +93,8 @@
     for (GCController *controller in [GCController controllers]) {
         [self _attachController:controller];
     }
+
+    [self _startCaptureIfRequested];
 }
 
 - (void)_feedKeyboardInput {

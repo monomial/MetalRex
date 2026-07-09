@@ -89,6 +89,10 @@
     }
 }
 
+- (void)captureNextFrameToPath:(NSString*)path {
+    [_renderer captureNextFrameToPath:path];
+}
+
 - (void)mtkView:(MTKView *)view drawableSizeWillChange:(CGSize)size {
     [_renderer updateDrawableSize:size];
 }

@@ -91,8 +91,17 @@ void World::reset_m1_scene() {
     _targets[3].active = true;
     _targets[3].moving = true;
     _targets[3].railDistance = 5.2f;
-    _targets[3].halfWidth = 0.16f;
-    _targets[3].halfHeight = 0.18f;
+    // Raptor visual scale, not a hit-box tuning value: RexRenderer derives
+    // the rendered mesh height directly from halfHeight (visualHeight =
+    // halfHeight * 2), so the old 0.18 (a leftover M1 placeholder-box size)
+    // rendered the raptor at 0.36 world units tall — a barely-visible sliver
+    // at rail distance, which is what actually caused the "black and thin"
+    // report (not a color/lighting bug: at a few pixels wide, shading is
+    // imperceptible regardless of correctness). 0.9 renders it at a plausible
+    // ~1.8-unit dinosaur height. screenHalfH is still clamped to 0.20 in
+    // RailCameraSystem, so this can't blow up the on-screen hit box.
+    _targets[3].halfWidth = 0.5f;
+    _targets[3].halfHeight = 0.9f;
 
     EntityID raptor = defer_create();
     AnimationComponent& anim = add_component<AnimationComponent>(raptor);

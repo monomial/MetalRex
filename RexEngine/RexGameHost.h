@@ -9,6 +9,8 @@
 
 - (void)advanceFrame:(float)dt;
 
+- (void)captureNextFrameToPath:(NSString*)path;
+
 - (void)setInputState:(InputState)state forPlayer:(int)playerIndex;
 - (InputState)currentInputStateForPlayer:(int)playerIndex;
 - (void)setInputState:(InputState)state;

@@ -29,6 +29,11 @@ struct LoadedCharacter {
     int            jointCount;
     float          meshHeight; // bounding-box Y extent in model units (used for auto-scale)
     float          meshYMin;   // lowest Y vertex (for ground alignment)
+    // Z bounds: for Z-up-authored meshes (the Quaternius dinos), Z is the
+    // real vertical axis — the renderer pitches those meshes upright and
+    // scales/grounds them off these instead of the Y bounds.
+    float          meshZMin;
+    float          meshZMax;
 
     BakedClip clips[(int)CharacterClipSlot::Count];
     bool      clipLoaded[(int)CharacterClipSlot::Count];
@@ -36,7 +41,7 @@ struct LoadedCharacter {
     LoadedCharacter()
         : vertexBuffer(nil), indexBuffer(nil), diffuseTexture(nil),
           indexCount(0), indexType(MTLIndexTypeUInt32), jointCount(0),
-          meshHeight(0.f), meshYMin(0.f) {
+          meshHeight(0.f), meshYMin(0.f), meshZMin(0.f), meshZMax(0.f) {
         memset(clipLoaded, 0, sizeof(clipLoaded));
     }
 };

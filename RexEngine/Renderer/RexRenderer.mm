@@ -8,10 +8,33 @@
 #include <algorithm>
 #include <vector>
 #include <simd/simd.h>
+#import <ImageIO/ImageIO.h>
 
 struct RexVertex {
     simd_float3 position;
 };
+
+// Writes a BGRA8 staging buffer as a PNG. Runs on the Metal completion thread.
+static void RexRenderer_writePNG(id<MTLBuffer> staging, NSUInteger w, NSUInteger h,
+                                  NSUInteger bpr, NSString *path) {
+    CGColorSpaceRef cs = CGColorSpaceCreateDeviceRGB();
+    CGBitmapInfo bitmapInfo = (CGBitmapInfo)kCGImageAlphaNoneSkipFirst | kCGBitmapByteOrder32Little;
+    CGContextRef ctx = CGBitmapContextCreate(staging.contents, w, h, 8, bpr, cs, bitmapInfo);
+    CGImageRef img = ctx ? CGBitmapContextCreateImage(ctx) : NULL;
+    if (img) {
+        NSURL *url = [NSURL fileURLWithPath:path];
+        CGImageDestinationRef dst = CGImageDestinationCreateWithURL(
+            (__bridge CFURLRef)url, (__bridge CFStringRef)@"public.png", 1, NULL);
+        if (dst) {
+            CGImageDestinationAddImage(dst, img, NULL);
+            CGImageDestinationFinalize(dst);
+            CFRelease(dst);
+        }
+        CGImageRelease(img);
+    }
+    if (ctx) CGContextRelease(ctx);
+    CGColorSpaceRelease(cs);
+}
 
 struct RexUniforms {
     simd_float4x4 mvp;
@@ -38,6 +61,7 @@ struct SkinnedUniformsCPU {
     float _halfW;
     float _halfH;
     float _aspect;
+    NSString *_pendingCapturePath; // --capture-out=: next frame -> PNG
 }
 
 - (instancetype)initWithDevice:(id<MTLDevice>)device
@@ -168,7 +192,12 @@ struct SkinnedUniformsCPU {
     _halfH = 420.f;
     _aspect = 16.f / 9.f;
 
-    NSString *dinoDir = [[NSBundle mainBundle] pathForResource:@"velociraptor"
+    // Using T-Rex, not Velociraptor: the Velociraptor FBX has a mesh/armature
+    // object-scale mismatch that corrupts its tail skinning (renders as a
+    // huge vertical spike) — investigated at length but not yet correctly
+    // fixed (see tools/convert_dinos_to_usdz.py). T-Rex's rig is far less
+    // affected. Swap back once the Velociraptor conversion is fixed.
+    NSString *dinoDir = [[NSBundle mainBundle] pathForResource:@"trex"
                                                         ofType:nil
                                                    inDirectory:@"assets/characters/dinos"];
     if (dinoDir.length) {
@@ -314,38 +343,50 @@ struct SkinnedUniformsCPU {
         const TargetComponent& target = world->target(dino.targetIndex);
         if (!target.active) continue;
 
+        // The Quaternius dino meshes are authored Z-up (Blender local space:
+        // +Z is the dino's up, +Y runs nose-to-tail, X is width — the T-Rex
+        // bounds make this unambiguous: Y extent 31 units vs Z 15 vs X 8; no
+        // dinosaur is 4x taller than long). The engine is Y-up, so without a
+        // pitch correction the dino stands vertically on its nose with the
+        // tail as a sky-pointing spike — which is exactly what every earlier
+        // "wrong angle / thin / spike" report was. Pitch -90° about X maps
+        // mesh +Z (its up) onto world +Y, and mesh -Y (its nose) onto world
+        // +Z, so vertical scale/grounding must use the mesh's Z bounds, not
+        // its Y bounds.
+        float meshUpExtent = _raptor->meshZMax - _raptor->meshZMin;
         float visualHeight = std::max(0.1f, target.halfHeight * 2.0f);
-        float scale = (_raptor->meshHeight > 0.0001f) ? visualHeight / _raptor->meshHeight : 1.0f;
+        float scale = (meshUpExtent > 0.0001f) ? visualHeight / meshUpExtent : 1.0f;
 
-        // Face the camera (yaw only, flattened): previously there was no
-        // rotation at all, so the raptor rendered in whatever direction it
-        // happened to be authored in Quaternius's file, which read as
-        // "facing backwards" — the model's front wasn't necessarily toward
-        // the player. This assumes the mesh's local +Z is its own forward;
-        // if it turns out to still face away after this, the fix is
-        // kRaptorForwardIsPositiveZ below, not more rotation math.
+        simd_float4x4 pitch = matrix_identity_float4x4;
+        pitch.columns[1] = (simd_float4){ 0.f, 0.f, -1.f, 0.f }; // mesh +Y (tail) -> world -Z
+        pitch.columns[2] = (simd_float4){ 0.f, 1.f, 0.f, 0.f };  // mesh +Z (up)   -> world +Y
+
+        // Face the camera (yaw about world Y). After the pitch above the
+        // mesh's nose points at world +Z, so aiming +Z at the camera is
+        // exactly atan2(dx, dz) with no half-turn correction.
         const RailCameraState& camera = world->rail_camera();
         float dx = camera.positionX - target.worldX;
         float dz = camera.positionZ - target.worldZ;
-        // Flipped from the previous attempt: builder confirmed on-device it
-        // was still facing away, so local +Z is the model's BACK, not front.
-        constexpr bool kRaptorForwardIsPositiveZ = false;
-        float yaw = atan2f(dx, dz) + (kRaptorForwardIsPositiveZ ? 0.f : (float)M_PI);
+        float yaw = atan2f(dx, dz);
         float cosYaw = cosf(yaw);
         float sinYaw = sinf(yaw);
 
-        simd_float4x4 modelRotation = matrix_identity_float4x4;
-        modelRotation.columns[0] = (simd_float4){ cosYaw, 0.f, -sinYaw, 0.f };
-        modelRotation.columns[1] = (simd_float4){ 0.f, 1.f, 0.f, 0.f };
-        modelRotation.columns[2] = (simd_float4){ sinYaw, 0.f, cosYaw, 0.f };
+        simd_float4x4 yawRotation = matrix_identity_float4x4;
+        yawRotation.columns[0] = (simd_float4){ cosYaw, 0.f, -sinYaw, 0.f };
+        yawRotation.columns[1] = (simd_float4){ 0.f, 1.f, 0.f, 0.f };
+        yawRotation.columns[2] = (simd_float4){ sinYaw, 0.f, cosYaw, 0.f };
+
+        simd_float4x4 modelRotation = simd_mul(yawRotation, pitch);
 
         simd_float4x4 model = modelRotation;
         model.columns[0] *= scale;
         model.columns[1] *= scale;
         model.columns[2] *= scale;
+        // After the pitch, a vertex's world height is its mesh-space Z, so
+        // ground alignment anchors meshZMin (the feet) at ground level.
         model.columns[3] = (simd_float4){
             target.worldX,
-            target.worldY - _raptor->meshYMin * scale - target.halfHeight,
+            target.worldY - _raptor->meshZMin * scale - target.halfHeight,
             target.worldZ,
             1.f
         };
@@ -494,7 +535,37 @@ struct SkinnedUniformsCPU {
 #endif
     [encoder endEncoding];
 
+    if (_pendingCapturePath) {
+        NSString *path = _pendingCapturePath;
+        _pendingCapturePath = nil;
+
+        id<MTLTexture> tex = view.currentDrawable.texture;
+        if (tex.framebufferOnly) {
+            NSLog(@"RexRenderer: capture skipped — view.framebufferOnly must be NO");
+        } else {
+            NSUInteger w = tex.width, h = tex.height;
+            NSUInteger bpr = ((w * 4 + 255) / 256) * 256; // blit requires 256-byte row alignment
+            id<MTLBuffer> staging = [tex.device newBufferWithLength:bpr * h
+                                                            options:MTLResourceStorageModeShared];
+            id<MTLBlitCommandEncoder> blit = [commandBuffer blitCommandEncoder];
+            [blit copyFromTexture:tex sourceSlice:0 sourceLevel:0
+                     sourceOrigin:MTLOriginMake(0, 0, 0)
+                       sourceSize:MTLSizeMake(w, h, 1)
+                         toBuffer:staging destinationOffset:0
+            destinationBytesPerRow:bpr destinationBytesPerImage:bpr * h];
+            [blit endEncoding];
+
+            [commandBuffer addCompletedHandler:^(id<MTLCommandBuffer> _) {
+                RexRenderer_writePNG(staging, w, h, bpr, path);
+            }];
+        }
+    }
+
     [commandBuffer presentDrawable:view.currentDrawable];
+}
+
+- (void)captureNextFrameToPath:(NSString*)path {
+    _pendingCapturePath = [path copy];
 }
 
 @end

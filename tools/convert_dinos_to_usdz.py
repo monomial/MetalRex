@@ -166,6 +166,26 @@ def convert_species(out_name, fbx_basename):
     print(f"Loaded {fbx_basename}: mesh='{mesh_obj.name}' "
           f"verts={len(mesh_obj.data.vertices)} bones={len(armature.data.bones)}")
 
+    # NOTE: these FBX files import with mismatched object-level scale between
+    # the mesh and its armature (e.g. Velociraptor: mesh object scale 3.52x,
+    # armature object scale 1x; Trex: mesh 1x, armature 3x). This corrupts
+    # skinning for some bones (confirmed on the Velociraptor's tail, which
+    # renders as a huge vertical spike). Tried and REJECTED so far:
+    #   - transform_apply() on both objects: only bakes whichever object's
+    #     own scale isn't already 1.0, so it does nothing for the object that
+    #     already reports scale 1.0 (leaves the mismatch as bad as before).
+    #   - Forcing armature.scale to match the mesh's before transform_apply:
+    #     compounds through Blender's parent-child hierarchy (mesh is
+    #     parented to the armature), making the mismatch worse, not better.
+    #   - Rescaling the armature's edit-bone geometry directly (bypassing
+    #     object-level .scale): avoids the compounding, but still didn't
+    #     converge bone and vertex data into a shared absolute frame.
+    # None of the three actually fixed the live-rendered skinning bug. This
+    # needs a correct model of how Blender's Armature-modifier deformation
+    # reconciles a mesh's parent-relative scale before it can be fixed
+    # properly — see conversation history for the investigation. Left
+    # unfixed for now; Trex is used as the active enemy instead (see
+    # RexRenderer.mm) since its rig is far less affected.
     bake_material_colors_to_vertex_color(mesh_obj)
     clips = match_clips(armature)
     print(f"  matched clips: {[a.name for a in clips.values()]}")
@@ -174,14 +194,27 @@ def convert_species(out_name, fbx_basename):
     os.makedirs(out_dir, exist_ok=True)
 
     # Base mesh (rest pose, no action assigned) — vertex colors, no materials.
+    #
+    # Unassigning the action (below) only detaches the action reference; it
+    # does NOT reset pose bone transforms back to rest. FBX import leaves the
+    # armature evaluated at whatever frame/action Blender auto-activated on
+    # load, and those non-identity pose-bone values stay put — so without
+    # forcing pose_position to REST, "base.usdz" exports a mid-animation pose
+    # as if it were the bind pose. This is what corrupted the raptor's tail:
+    # its bind-pose world Y ran up to ~6.9 units versus the mesh's actual
+    # ~3.77-unit height, flinging tail-skinned vertices far above the body.
+    # pose_position='REST' forces the depsgraph (and therefore the exporter)
+    # to evaluate true edit-bone rest transforms regardless of pose state.
     if armature.animation_data:
         armature.animation_data.action = None
+    armature.data.pose_position = 'REST'
     base_out = os.path.join(out_dir, "base.usdz")
     if up_to_date(fbx_path, base_out):
         print(f"  base up to date: {base_out}")
     else:
         export_usdz(base_out, animated=False, with_colors=True)
         print(f"  exported base: {base_out} ({os.path.getsize(base_out)} bytes)")
+    armature.data.pose_position = 'POSE'
 
     # Each canonical clip — same mesh+armature+colors, this action assigned,
     # frame range trimmed to the action's actual span. Matches the existing
