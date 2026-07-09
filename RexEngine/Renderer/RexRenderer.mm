@@ -45,6 +45,7 @@ struct SkinnedUniformsCPU {
     simd_float4x4 mvp;
     simd_float4x4 modelRotation; // must match SkinnedMesh.metal's SkinnedUniforms field-for-field
     simd_float4 color;
+    simd_float4 lightDir; // xyz: world-space direction toward the light
     float tintStrength;
 };
 
@@ -192,12 +193,15 @@ struct SkinnedUniformsCPU {
     _halfH = 420.f;
     _aspect = 16.f / 9.f;
 
-    // Using T-Rex, not Velociraptor: the Velociraptor FBX has a mesh/armature
-    // object-scale mismatch that corrupts its tail skinning (renders as a
-    // huge vertical spike) — investigated at length but not yet correctly
-    // fixed (see tools/convert_dinos_to_usdz.py). T-Rex's rig is far less
-    // affected. Swap back once the Velociraptor conversion is fixed.
-    NSString *dinoDir = [[NSBundle mainBundle] pathForResource:@"trex"
+    // Dev affordance: --dino=trex (etc.) overrides the species, so visual
+    // checks can flip between the six converted dinos without a code edit.
+    NSString *species = @"velociraptor";
+    for (NSString *arg in [NSProcessInfo processInfo].arguments) {
+        if ([arg hasPrefix:@"--dino="]) {
+            species = [arg substringFromIndex:[@"--dino=" length]];
+        }
+    }
+    NSString *dinoDir = [[NSBundle mainBundle] pathForResource:species
                                                         ofType:nil
                                                    inDirectory:@"assets/characters/dinos"];
     if (dinoDir.length) {
@@ -396,6 +400,12 @@ struct SkinnedUniformsCPU {
         uniforms.modelRotation = modelRotation;
         uniforms.color = target.wasHit ? (simd_float4){0.96f, 0.78f, 0.24f, 1.f}
                                        : (simd_float4){1.f, 1.f, 1.f, 1.f};
+        // Light from the camera's side, raised a bit so top surfaces read
+        // brighter than undersides (pure headlight lighting looks flat).
+        simd_float3 towardCamera = simd_normalize((simd_float3){
+            dx, camera.positionY - target.worldY, dz});
+        simd_float3 lightDir = simd_normalize(towardCamera + (simd_float3){0.f, 0.9f, 0.f});
+        uniforms.lightDir = (simd_float4){lightDir.x, lightDir.y, lightDir.z, 0.f};
         uniforms.tintStrength = target.wasHit ? 0.25f : 0.f;
         const AnimationComponent& anim = world->get_component<AnimationComponent>(id);
 

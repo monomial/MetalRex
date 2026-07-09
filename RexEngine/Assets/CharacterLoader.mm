@@ -2,6 +2,7 @@
 #import <ModelIO/ModelIO.h>
 #import <MetalKit/MetalKit.h>
 #include <simd/simd.h>
+#include <cfloat>
 #include <cstring>
 
 static MDLVertexDescriptor* makeSkinnedMDLVD() {
@@ -134,6 +135,80 @@ static void fillWhiteVertexColorIfMissing(MTKMesh *mesh, NSArray<MDLMesh*> *mdlM
     }
 }
 
+// UsdSkel meshes carry a geometry bind transform: the matrix mapping mesh
+// space into skeleton space. Blender puts the mesh-object vs armature-object
+// scale difference here (Quaternius dinos: Velociraptor 3.52x, Trex 0.333x —
+// they authored each species' mesh and armature at different object scales).
+// Skinning is only correct as boneMat * geomBind * vertex; ignoring geomBind
+// skinned the raptor's vertices 3.5x too small relative to its joint spacing
+// (body parts scattered along the skeleton — the "tail spike"), and the
+// T-Rex's 3x too large (overlapping/blobby). Baking it into the vertex data
+// once at load keeps the shader unchanged.
+static matrix_double4x4 meshGeometryBindTransform(MDLAsset *asset) {
+    __block matrix_double4x4 g = matrix_identity_double4x4;
+    walkAsset(asset, ^(MDLObject *o) {
+        if (![o isKindOfClass:[MDLMesh class]]) return;
+        id comp = [o componentConformingToProtocol:@protocol(MDLComponent)];
+        if ([comp isKindOfClass:[MDLAnimationBindComponent class]]) {
+            g = ((MDLAnimationBindComponent *)comp).geometryBindTransform;
+        }
+    });
+    return g;
+}
+
+static void applyGeometryBindTransform(MTKMesh *mesh, NSArray<MDLMesh*> *mdlMeshes,
+                                       matrix_double4x4 gd) {
+    if (!mesh.vertexBuffers.count || !mdlMeshes.count) return;
+    id<MTLBuffer> buffer = mesh.vertexBuffers[0].buffer;
+    if (!buffer.contents) return;
+
+    simd_float4x4 g;
+    for (int c = 0; c < 4; c++)
+        g.columns[c] = (simd_float4){(float)gd.columns[c][0], (float)gd.columns[c][1],
+                                     (float)gd.columns[c][2], (float)gd.columns[c][3]};
+    // Normals transform by the inverse-transpose of the linear part.
+    simd_float4x4 linear = g;
+    linear.columns[3] = (simd_float4){0.f, 0.f, 0.f, 1.f};
+    simd_float4x4 normalMat = simd_transpose(simd_inverse(linear));
+
+    NSUInteger vertexCount = mdlMeshes[0].vertexCount;
+    uint8_t *bytes = (uint8_t *)buffer.contents + mesh.vertexBuffers[0].offset;
+    for (NSUInteger i = 0; i < vertexCount; ++i) {
+        float *pos = (float *)(bytes + i * 72);
+        float *nrm = (float *)(bytes + i * 72 + 12);
+        simd_float4 p = simd_mul(g, (simd_float4){pos[0], pos[1], pos[2], 1.f});
+        simd_float4 n = simd_mul(normalMat, (simd_float4){nrm[0], nrm[1], nrm[2], 0.f});
+        simd_float3 n3 = simd_normalize((simd_float3){n.x, n.y, n.z});
+        pos[0] = p.x; pos[1] = p.y; pos[2] = p.z;
+        nrm[0] = n3.x; nrm[1] = n3.y; nrm[2] = n3.z;
+    }
+}
+
+// Post-transform bounds, measured from the actual vertex buffer (the MDLMesh
+// bounding box describes the pre-geomBind data).
+static void measureVertexBounds(MTKMesh *mesh, NSArray<MDLMesh*> *mdlMeshes,
+                                LoadedCharacter *result) {
+    if (!mesh.vertexBuffers.count || !mdlMeshes.count) return;
+    id<MTLBuffer> buffer = mesh.vertexBuffers[0].buffer;
+    if (!buffer.contents) return;
+    NSUInteger vertexCount = mdlMeshes[0].vertexCount;
+    if (!vertexCount) return;
+    uint8_t *bytes = (uint8_t *)buffer.contents + mesh.vertexBuffers[0].offset;
+    simd_float3 mn = { FLT_MAX,  FLT_MAX,  FLT_MAX};
+    simd_float3 mx = {-FLT_MAX, -FLT_MAX, -FLT_MAX};
+    for (NSUInteger i = 0; i < vertexCount; ++i) {
+        const float *pos = (const float *)(bytes + i * 72);
+        mn = simd_min(mn, (simd_float3){pos[0], pos[1], pos[2]});
+        mx = simd_max(mx, (simd_float3){pos[0], pos[1], pos[2]});
+    }
+    result->meshHeight = mx.y - mn.y;
+    result->meshYMin   = mn.y;
+    result->meshZMin   = mn.z;
+    result->meshZMax   = mx.z;
+    NSLog(@"CharacterLoader: mesh bounds X %.2f–%.2f  Y %.2f–%.2f  Z %.2f–%.2f",
+          mn.x, mx.x, mn.y, mx.y, mn.z, mx.z);
+}
+
 static id<MTLTexture> makeWhiteFallbackTexture(id<MTLDevice> device) {
     MTLTextureDescriptor *desc = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatRGBA8Unorm
                                                                                    width:1
@@ -228,18 +303,13 @@ LoadedCharacter* CharacterLoader_load(NSString* meshPath,
     fillWhiteVertexColorIfMissing(mtlMesh, mdlMeshes, hasAuthoredColor);
     NSLog(@"CharacterLoader: vertex color %@", hasAuthoredColor ? @"authored" : @"default white");
 
-    // Measure mesh height in model space so the renderer can auto-scale.
-    if (mdlMeshes.count) {
-        MDLAxisAlignedBoundingBox bb = mdlMeshes[0].boundingBox;
-        result->meshHeight = bb.maxBounds.y - bb.minBounds.y;
-        result->meshYMin   = bb.minBounds.y;
-        result->meshZMin   = bb.minBounds.z;
-        result->meshZMax   = bb.maxBounds.z;
-        NSLog(@"CharacterLoader: mesh bounds X %.2f–%.2f  Y %.2f–%.2f  Z %.2f–%.2f",
-              bb.minBounds.x, bb.maxBounds.x,
-              bb.minBounds.y, bb.maxBounds.y,
-              bb.minBounds.z, bb.maxBounds.z);
-    }
+    matrix_double4x4 geomBind = meshGeometryBindTransform(meshAsset);
+    NSLog(@"CharacterLoader: geometryBindTransform diag (%.4f, %.4f, %.4f)",
+          geomBind.columns[0][0], geomBind.columns[1][1], geomBind.columns[2][2]);
+    applyGeometryBindTransform(mtlMesh, mdlMeshes, geomBind);
+
+    // Measure mesh bounds (post-geomBind) so the renderer can auto-scale.
+    measureVertexBounds(mtlMesh, mdlMeshes, result);
 
     // Try to extract the diffuse texture from the first submesh material.
     if (mdlMeshes.count && mdlMeshes[0].submeshes.count) {

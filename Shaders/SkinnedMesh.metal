@@ -19,6 +19,7 @@ struct SkinnedOut {
     float4 vertexColor;
     float4 tint;         // faction color passed through
     float  tintStrength; // how strongly tint blends over the texture
+    float3 lightDir;     // world-space direction toward the light
 };
 
 struct SkinnedUniforms {
@@ -35,6 +36,12 @@ struct SkinnedUniforms {
                             // normal direction), not harmless once a model
                             // can also rotate.
     float4   color;        // faction tint
+    float4   lightDir;     // xyz: world-space direction toward the light.
+                           // Set per-character to point from the model
+                           // toward the camera (slightly raised) — a fixed
+                           // world-space light kept putting the camera-facing
+                           // side of rail-shooter enemies in shadow, since
+                           // they always face the camera.
     float    tintStrength; // 0 = pure texture, 1 = pure faction color
 };
 
@@ -65,6 +72,7 @@ vertex SkinnedOut skinned_vertex_main(
     out.vertexColor  = in.color;
     out.tint         = u.color;
     out.tintStrength = u.tintStrength;
+    out.lightDir     = u.lightDir.xyz;
     return out;
 }
 
@@ -88,10 +96,14 @@ fragment float4 skinned_fragment_main(
     // enemies so they read as distinct while sharing the player mesh.
     float3 base = mix(texColor.rgb * in.vertexColor.rgb, in.tint.rgb, in.tintStrength);
 
-    // Diffuse lighting with a fixed directional light.
-    float3 lightDir = normalize(float3(0.5, 0.8, 1.0));
-    float  diffuse  = saturate(dot(normalize(in.worldNormal), lightDir));
-    float  shade    = 0.3 + 0.7 * diffuse;
+    // Diffuse lighting from the per-character light direction (toward the
+    // camera — see SkinnedUniforms.lightDir).
+    float  diffuse  = saturate(dot(normalize(in.worldNormal), normalize(in.lightDir)));
+    float  shade    = 0.35 + 0.65 * diffuse;
 
-    return float4(base * shade, 1.0);
+    // Gamma-encode: vertex colors come from Blender material Base Color,
+    // which is linear, but the framebuffer is non-sRGB — writing linear
+    // values raw displays them far darker than authored (the dinos' earthy
+    // palette rendered near-black).
+    return float4(pow(base * shade, 1.0 / 2.2), 1.0);
 }
