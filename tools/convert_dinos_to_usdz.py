@@ -95,7 +95,15 @@ def bake_material_colors_to_vertex_color(mesh_obj):
     if not mat_colors:
         mat_colors = [(1.0, 1.0, 1.0, 1.0)]
 
-    color_attr = mesh.color_attributes.new(name="Color", type='BYTE_COLOR', domain='CORNER')
+    # Named "displayColor" (not an arbitrary name) so it round-trips through
+    # USD as the standard `primvars:displayColor` — ModelIO's USD reader maps
+    # that specific, well-known primvar name to MDLVertexAttributeColor
+    # ("color"). An arbitrarily-named color attribute (verified: "Color")
+    # exports fine and is readable by other USD tools, but ModelIO's own
+    # automatic MDL-semantic mapping doesn't recognize it, so CharacterLoader
+    # silently treated every dino as textureless-and-colorless (default white)
+    # despite the color data being genuinely present in the file.
+    color_attr = mesh.color_attributes.new(name="displayColor", type='BYTE_COLOR', domain='CORNER')
     for poly in mesh.polygons:
         color = mat_colors[poly.material_index] if poly.material_index < len(mat_colors) else (1.0, 1.0, 1.0, 1.0)
         for loop_index in poly.loop_indices:
