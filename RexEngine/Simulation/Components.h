@@ -94,29 +94,55 @@ struct RailCameraState {
 
 static constexpr int kMaxBones = 64;
 
-enum class AnimClipID : uint8_t {
+enum class CharacterClipSlot : uint8_t {
     Idle    = 0,
     Walk    = 1,
-    Attack  = 2,
-    Hurt    = 3,
-    Death   = 4,
-    Dodge   = 5,
-    Attack2 = 6,
-    Run     = 7,
+    Run     = 2,
+    Attack  = 3,
+    Jump    = 4,
+    Death   = 5,
     Count
 };
 
 struct AnimationComponent {
-    AnimClipID currentClip   = AnimClipID::Idle;
-    AnimClipID requestedClip = AnimClipID::Idle;
+    CharacterClipSlot currentClip   = CharacterClipSlot::Idle;
+    CharacterClipSlot requestedClip = CharacterClipSlot::Idle;
     float      clipTime  = 0.f;
     bool       looping   = true;
     bool       clipDone  = false;
     bool       dying     = false;
 
-    AnimClipID prevClip       = AnimClipID::Idle;
+    CharacterClipSlot prevClip       = CharacterClipSlot::Idle;
     float      prevClipTime   = 0.f;
     float      blendRemaining = 0.f;
     float      deathFade      = 1.f;
     float      boneMatrices[kMaxBones][16];
+};
+
+enum class DinoBehaviorState : uint8_t {
+    Idle = 0,
+    Tell,
+    Attack,
+    Interrupted,
+    Landed
+};
+
+enum class DinoInterruptOutcome : uint8_t {
+    None = 0,
+    Succeeded,
+    Failed
+};
+
+struct DinoBehaviorComponent {
+    bool active = false;
+    uint8_t targetIndex = 0;
+    DinoBehaviorState state = DinoBehaviorState::Idle;
+    DinoInterruptOutcome lastOutcome = DinoInterruptOutcome::None;
+    bool outcomeThisCycle = false;
+    float stateTime = 0.f;
+    float idleDuration = 0.75f;
+    float tellEndNormalized = 0.28f;
+    float interruptStartNormalized = 0.18f;
+    float interruptEndNormalized = 0.46f;
+    float jumpReactionDuration = 0.35f;
 };

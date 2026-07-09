@@ -1,6 +1,7 @@
 #include "World.h"
 #include "Systems/InputSystem.h"
 #include "Systems/RailCameraSystem.h"
+#include "Systems/DinoBehaviorSystem.h"
 #include "Systems/ReticleSystem.h"
 #include "Systems/AnimationSystem.h"
 #import <Foundation/Foundation.h>
@@ -14,6 +15,7 @@ template<> ComponentStorage<HealthComponent>& World::_pool() { return _healths; 
 template<> ComponentStorage<FactionComponent>& World::_pool() { return _factions; }
 template<> ComponentStorage<PlayerTagComponent>& World::_pool() { return _playerTags; }
 template<> ComponentStorage<AnimationComponent>& World::_pool() { return _animations; }
+template<> ComponentStorage<DinoBehaviorComponent>& World::_pool() { return _dinoBehaviors; }
 
 World::World()
     : _nextID(0)
@@ -48,11 +50,18 @@ void World::flush() {
         _factions.remove(id);
         _playerTags.remove(id);
         _animations.remove(id);
+        _dinoBehaviors.remove(id);
     }
     _deferredDestroyCount = 0;
 }
 
 void World::reset_m1_scene() {
+    for (EntityID id = 0; id < _nextID; ++id) {
+        _animations.remove(id);
+        _factions.remove(id);
+        _dinoBehaviors.remove(id);
+    }
+
     for (int i = 0; i < kRexMaxPlayers; ++i) {
         _reticles[i] = {};
         _reticles[i].playerIndex = (uint8_t)i;
@@ -81,6 +90,21 @@ void World::reset_m1_scene() {
     _targets[3].railDistance = 5.2f;
     _targets[3].halfWidth = 0.16f;
     _targets[3].halfHeight = 0.18f;
+
+    EntityID raptor = defer_create();
+    AnimationComponent& anim = add_component<AnimationComponent>(raptor);
+    anim.currentClip = CharacterClipSlot::Idle;
+    anim.requestedClip = CharacterClipSlot::Idle;
+    FactionComponent& faction = add_component<FactionComponent>(raptor);
+    faction.type = FactionComponent::Enemy;
+    DinoBehaviorComponent& dino = add_component<DinoBehaviorComponent>(raptor);
+    dino.active = true;
+    dino.targetIndex = 3;
+    dino.idleDuration = 0.8f;
+    dino.tellEndNormalized = 0.28f;
+    dino.interruptStartNormalized = 0.18f;
+    dino.interruptEndNormalized = 0.46f;
+    dino.jumpReactionDuration = 0.35f;
 }
 
 void World::replace_chart_for_tests(LevelChart chart) {
@@ -91,6 +115,7 @@ void World::replace_chart_for_tests(LevelChart chart) {
 void World::tick(float gameDt) {
     InputSystem_update(*this);
     RailCameraSystem_update(*this, gameDt);
+    DinoBehaviorSystem_update(*this, gameDt);
     ReticleSystem_update(*this, gameDt);
     AnimationSystem_update(*this, gameDt);
     flush();

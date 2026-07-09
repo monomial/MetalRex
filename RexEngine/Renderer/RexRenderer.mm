@@ -1,6 +1,8 @@
 #import "RexRenderer.h"
+#include "Assets/CharacterLoader.h"
 #include "Simulation/CameraMath.h"
 #include "Simulation/World.h"
+#include "Simulation/Systems/AnimationSystem.h"
 #include "Simulation/Systems/ReticleSystem.h"
 #include <TargetConditionals.h>
 #include <algorithm>
@@ -16,12 +18,21 @@ struct RexUniforms {
     simd_float4 color;
 };
 
+struct SkinnedUniformsCPU {
+    simd_float4x4 mvp;
+    simd_float4 color;
+    float tintStrength;
+};
+
 @implementation RexRenderer {
     id<MTLDevice> _device;
     id<MTLRenderPipelineState> _pipeline;
+    id<MTLRenderPipelineState> _skinnedPipeline;
     id<MTLDepthStencilState> _depthState;
     id<MTLDepthStencilState> _overlayDepthState;
+    id<MTLSamplerState> _sampler;
     id<MTLBuffer> _groundVB;
+    LoadedCharacter *_raptor;
     simd_float4x4 _overlayProjection;
     float _halfW;
     float _halfH;
@@ -79,6 +90,46 @@ struct RexUniforms {
         return nil;
     }
 
+    MTLRenderPipelineDescriptor *skinnedDescriptor = [MTLRenderPipelineDescriptor new];
+    skinnedDescriptor.vertexFunction = [library newFunctionWithName:@"skinned_vertex_main"];
+    skinnedDescriptor.fragmentFunction = [library newFunctionWithName:@"skinned_fragment_main"];
+    skinnedDescriptor.colorAttachments[0].pixelFormat = pixelFormat;
+    skinnedDescriptor.depthAttachmentPixelFormat = MTLPixelFormatDepth32Float;
+
+    // Metal's [[stage_in]] vertex attributes need an explicit MTLVertexDescriptor
+    // describing the interleaved buffer layout — it isn't inferred from the
+    // shader struct alone. Must match SkinnedVertex in SkinnedMesh.metal and
+    // LoadedCharacter's "72 B/vtx" comment exactly: pos(3f)+nrm(3f)+uv(2f)+
+    // color(4f)+jointIdx(4×ushort)+jointWeight(4f).
+    MTLVertexDescriptor *skinnedVertexDescriptor = [MTLVertexDescriptor new];
+    skinnedVertexDescriptor.attributes[0].format = MTLVertexFormatFloat3;   // position
+    skinnedVertexDescriptor.attributes[0].offset = 0;
+    skinnedVertexDescriptor.attributes[0].bufferIndex = 0;
+    skinnedVertexDescriptor.attributes[1].format = MTLVertexFormatFloat3;   // normal
+    skinnedVertexDescriptor.attributes[1].offset = 12;
+    skinnedVertexDescriptor.attributes[1].bufferIndex = 0;
+    skinnedVertexDescriptor.attributes[2].format = MTLVertexFormatFloat2;   // texcoord
+    skinnedVertexDescriptor.attributes[2].offset = 24;
+    skinnedVertexDescriptor.attributes[2].bufferIndex = 0;
+    skinnedVertexDescriptor.attributes[3].format = MTLVertexFormatFloat4;   // color
+    skinnedVertexDescriptor.attributes[3].offset = 32;
+    skinnedVertexDescriptor.attributes[3].bufferIndex = 0;
+    skinnedVertexDescriptor.attributes[4].format = MTLVertexFormatUShort4; // jointIdx
+    skinnedVertexDescriptor.attributes[4].offset = 48;
+    skinnedVertexDescriptor.attributes[4].bufferIndex = 0;
+    skinnedVertexDescriptor.attributes[5].format = MTLVertexFormatFloat4;   // jointWeight
+    skinnedVertexDescriptor.attributes[5].offset = 56;
+    skinnedVertexDescriptor.attributes[5].bufferIndex = 0;
+    skinnedVertexDescriptor.layouts[0].stride = 72;
+    skinnedVertexDescriptor.layouts[0].stepFunction = MTLVertexStepFunctionPerVertex;
+    skinnedDescriptor.vertexDescriptor = skinnedVertexDescriptor;
+
+    _skinnedPipeline = [_device newRenderPipelineStateWithDescriptor:skinnedDescriptor error:&error];
+    if (!_skinnedPipeline) {
+        NSLog(@"RexRenderer: skinned pipeline failed: %@", error);
+        return nil;
+    }
+
     MTLDepthStencilDescriptor *depthDescriptor = [MTLDepthStencilDescriptor new];
     depthDescriptor.depthCompareFunction = MTLCompareFunctionLess;
     depthDescriptor.depthWriteEnabled = YES;
@@ -93,12 +144,47 @@ struct RexUniforms {
     noDepthDescriptor.depthWriteEnabled = NO;
     _overlayDepthState = [_device newDepthStencilStateWithDescriptor:noDepthDescriptor];
 
+    MTLSamplerDescriptor *samplerDescriptor = [MTLSamplerDescriptor new];
+    samplerDescriptor.minFilter = MTLSamplerMinMagFilterLinear;
+    samplerDescriptor.magFilter = MTLSamplerMinMagFilterLinear;
+    samplerDescriptor.sAddressMode = MTLSamplerAddressModeRepeat;
+    samplerDescriptor.tAddressMode = MTLSamplerAddressModeRepeat;
+    _sampler = [_device newSamplerStateWithDescriptor:samplerDescriptor];
+
     _overlayProjection = Rex_make_ortho(-640.f, 640.f, -420.f, 420.f, -1.f, 1.f);
     _halfW = 640.f;
     _halfH = 420.f;
     _aspect = 16.f / 9.f;
 
+    NSString *dinoDir = [[NSBundle mainBundle] pathForResource:@"velociraptor"
+                                                        ofType:nil
+                                                   inDirectory:@"assets/characters/dinos"];
+    if (dinoDir.length) {
+        NSString *basePath = [dinoDir stringByAppendingPathComponent:@"base.usdz"];
+        NSMutableArray<NSString*> *clips = [NSMutableArray arrayWithCapacity:(NSUInteger)CharacterClipSlot::Count];
+        for (int i = 0; i < (int)CharacterClipSlot::Count; ++i) {
+            NSString *name = [NSString stringWithUTF8String:CharacterClipSlot_name((CharacterClipSlot)i)];
+            [clips addObject:[dinoDir stringByAppendingPathComponent:[name stringByAppendingPathExtension:@"usdz"]]];
+        }
+        @try {
+            try {
+                _raptor = CharacterLoader_load(basePath, clips, _device);
+                AnimationSystem_set_characters(nullptr, _raptor);
+            } catch (const std::exception& ex) {
+                NSLog(@"RexRenderer: raptor load failed: %s", ex.what());
+            }
+        } @catch (NSException *exception) {
+            NSLog(@"RexRenderer: raptor load failed: %@", exception.reason);
+        }
+    } else {
+        NSLog(@"RexRenderer: velociraptor asset directory missing");
+    }
+
     return self;
+}
+
+- (void)dealloc {
+    delete _raptor;
 }
 
 - (void)updateDrawableSize:(CGSize)size {
@@ -166,6 +252,16 @@ struct RexUniforms {
     simd_float3 cameraRight = (simd_float3){camera.rightX, camera.rightY, camera.rightZ};
     simd_float3 cameraUp = (simd_float3){camera.upX, camera.upY, camera.upZ};
     for (int i = 0; i < kM1MaxTargets; ++i) {
+        bool isDinoTarget = false;
+        for (EntityID id = 0; id < world->entity_count(); ++id) {
+            if (!world->has_component<DinoBehaviorComponent>(id)) continue;
+            const DinoBehaviorComponent& dino = world->get_component<DinoBehaviorComponent>(id);
+            if (dino.active && dino.targetIndex == i) {
+                isDinoTarget = true;
+                break;
+            }
+        }
+        if (isDinoTarget) continue;
         const TargetComponent& target = world->target(i);
         if (!target.active) continue;
         simd_float3 center = (simd_float3){target.worldX, target.worldY, target.worldZ};
@@ -185,6 +281,58 @@ struct RexUniforms {
               primitive:MTLPrimitiveTypeTriangle mvp:mvp encoder:encoder];
     [self _drawVertices:hit color:(simd_float4){0.96f, 0.78f, 0.24f, 1.f}
               primitive:MTLPrimitiveTypeTriangle mvp:mvp encoder:encoder];
+}
+
+- (void)_drawDinos:(World *)world
+               mvp:(simd_float4x4)viewProjection
+           encoder:(id<MTLRenderCommandEncoder>)encoder {
+    if (!_raptor || !_raptor->vertexBuffer || !_raptor->indexBuffer) return;
+
+    [encoder setRenderPipelineState:_skinnedPipeline];
+    [encoder setFragmentSamplerState:_sampler atIndex:0];
+    [encoder setFragmentTexture:_raptor->diffuseTexture atIndex:0];
+
+    for (EntityID id = 0; id < world->entity_count(); ++id) {
+        if (!world->has_component<DinoBehaviorComponent>(id)
+            || !world->has_component<AnimationComponent>(id)) {
+            continue;
+        }
+        const DinoBehaviorComponent& dino = world->get_component<DinoBehaviorComponent>(id);
+        if (!dino.active || dino.targetIndex >= kM1MaxTargets) continue;
+        const TargetComponent& target = world->target(dino.targetIndex);
+        if (!target.active) continue;
+
+        float visualHeight = std::max(0.1f, target.halfHeight * 2.0f);
+        float scale = (_raptor->meshHeight > 0.0001f) ? visualHeight / _raptor->meshHeight : 1.0f;
+        simd_float4x4 model = matrix_identity_float4x4;
+        model.columns[0].x = scale;
+        model.columns[1].y = scale;
+        model.columns[2].z = scale;
+        model.columns[3] = (simd_float4){
+            target.worldX,
+            target.worldY - _raptor->meshYMin * scale - target.halfHeight,
+            target.worldZ,
+            1.f
+        };
+
+        SkinnedUniformsCPU uniforms;
+        uniforms.mvp = simd_mul(viewProjection, model);
+        uniforms.color = target.wasHit ? (simd_float4){0.96f, 0.78f, 0.24f, 1.f}
+                                       : (simd_float4){1.f, 1.f, 1.f, 1.f};
+        uniforms.tintStrength = target.wasHit ? 0.25f : 0.f;
+        const AnimationComponent& anim = world->get_component<AnimationComponent>(id);
+
+        [encoder setVertexBuffer:_raptor->vertexBuffer offset:0 atIndex:0];
+        [encoder setVertexBytes:anim.boneMatrices length:sizeof(anim.boneMatrices) atIndex:1];
+        [encoder setVertexBytes:&uniforms length:sizeof(uniforms) atIndex:2];
+        [encoder drawIndexedPrimitives:MTLPrimitiveTypeTriangle
+                            indexCount:_raptor->indexCount
+                             indexType:_raptor->indexType
+                           indexBuffer:_raptor->indexBuffer
+                     indexBufferOffset:0];
+    }
+
+    [encoder setRenderPipelineState:_pipeline];
 }
 
 - (void)_drawReticles:(World *)world encoder:(id<MTLRenderCommandEncoder>)encoder {
@@ -279,6 +427,7 @@ struct RexUniforms {
     [encoder drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:6];
     if (world) {
         [self _drawM1Targets:world mvp:worldMVP encoder:encoder];
+        [self _drawDinos:world mvp:worldMVP encoder:encoder];
     }
 
     [encoder setDepthStencilState:_overlayDepthState];

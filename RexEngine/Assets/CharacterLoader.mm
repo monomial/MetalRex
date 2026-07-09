@@ -16,13 +16,55 @@ static MDLVertexDescriptor* makeSkinnedMDLVD() {
         initWithName:MDLVertexAttributeTextureCoordinate
               format:MDLVertexFormatFloat2 offset:24 bufferIndex:0];
     vd.attributes[3] = [[MDLVertexAttribute alloc]
-        initWithName:MDLVertexAttributeJointIndices
-              format:MDLVertexFormatUShort4 offset:32 bufferIndex:0];
+        initWithName:MDLVertexAttributeColor
+              format:MDLVertexFormatFloat4 offset:32 bufferIndex:0];
     vd.attributes[4] = [[MDLVertexAttribute alloc]
+        initWithName:MDLVertexAttributeJointIndices
+              format:MDLVertexFormatUShort4 offset:48 bufferIndex:0];
+    vd.attributes[5] = [[MDLVertexAttribute alloc]
         initWithName:MDLVertexAttributeJointWeights
-              format:MDLVertexFormatFloat4 offset:40 bufferIndex:0];
-    vd.layouts[0].stride = 56;
+              format:MDLVertexFormatFloat4 offset:56 bufferIndex:0];
+    vd.layouts[0].stride = 72;
     return vd;
+}
+
+const char* CharacterClipSlot_name(CharacterClipSlot slot) {
+    switch (slot) {
+        case CharacterClipSlot::Idle:   return "idle";
+        case CharacterClipSlot::Walk:   return "walk";
+        case CharacterClipSlot::Run:    return "run";
+        case CharacterClipSlot::Attack: return "attack";
+        case CharacterClipSlot::Jump:   return "jump";
+        case CharacterClipSlot::Death:  return "death";
+        case CharacterClipSlot::Count:  return "count";
+    }
+    return "unknown";
+}
+
+CharacterClipSlot CharacterClipSlot_from_name(NSString* name) {
+    NSString *lower = [name lowercaseString];
+    for (int i = 0; i < (int)CharacterClipSlot::Count; ++i) {
+        CharacterClipSlot slot = (CharacterClipSlot)i;
+        if ([lower isEqualToString:[NSString stringWithUTF8String:CharacterClipSlot_name(slot)]]) {
+            return slot;
+        }
+    }
+    @throw [NSException exceptionWithName:@"CharacterClipSlotValidation"
+                                   reason:[NSString stringWithFormat:@"unknown clip slot %@", name]
+                                 userInfo:nil];
+}
+
+void CharacterClipTable_validate_required(const bool loaded[(int)CharacterClipSlot::Count],
+                                          NSString* speciesName) {
+    for (int i = 0; i < (int)CharacterClipSlot::Count; ++i) {
+        if (!loaded[i]) {
+            NSString *reason = [NSString stringWithFormat:
+                @"CharacterLoader: %@ missing required %@ clip",
+                speciesName.length ? speciesName : @"species",
+                [NSString stringWithUTF8String:CharacterClipSlot_name((CharacterClipSlot)i)]];
+            throw std::runtime_error([reason UTF8String]);
+        }
+    }
 }
 
 static void walkAsset(MDLAsset *asset, void(^block)(MDLObject*)) {
@@ -59,6 +101,52 @@ static MDLPackedJointAnimation* findAnim(MDLAsset *asset) {
             found = (MDLPackedJointAnimation*)o;
     });
     return found;
+}
+
+static bool assetHasVertexColor(NSURL *meshURL) {
+    MDLAsset *asset = [[MDLAsset alloc] initWithURL:meshURL];
+    __block bool found = false;
+    walkAsset(asset, ^(MDLObject *o) {
+        if (found || ![o isKindOfClass:[MDLMesh class]]) return;
+        MDLMesh *mesh = (MDLMesh *)o;
+        for (MDLVertexAttribute *attr in mesh.vertexDescriptor.attributes) {
+            if ([attr.name isEqualToString:MDLVertexAttributeColor]) {
+                found = true;
+                return;
+            }
+        }
+    });
+    return found;
+}
+
+static void fillWhiteVertexColorIfMissing(MTKMesh *mesh, NSArray<MDLMesh*> *mdlMeshes, bool hasAuthoredColor) {
+    if (hasAuthoredColor || !mesh.vertexBuffers.count || !mdlMeshes.count) return;
+    id<MTLBuffer> buffer = mesh.vertexBuffers[0].buffer;
+    if (!buffer.contents) return;
+    NSUInteger vertexCount = mdlMeshes[0].vertexCount;
+    uint8_t *bytes = (uint8_t *)buffer.contents + mesh.vertexBuffers[0].offset;
+    for (NSUInteger i = 0; i < vertexCount; ++i) {
+        float *color = (float *)(bytes + i * 72 + 32);
+        color[0] = 1.f;
+        color[1] = 1.f;
+        color[2] = 1.f;
+        color[3] = 1.f;
+    }
+}
+
+static id<MTLTexture> makeWhiteFallbackTexture(id<MTLDevice> device) {
+    MTLTextureDescriptor *desc = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatRGBA8Unorm
+                                                                                   width:1
+                                                                                  height:1
+                                                                               mipmapped:NO];
+    desc.usage = MTLTextureUsageShaderRead;
+    id<MTLTexture> texture = [device newTextureWithDescriptor:desc];
+    const uint8_t white[4] = {255, 255, 255, 255};
+    [texture replaceRegion:MTLRegionMake2D(0, 0, 1, 1)
+               mipmapLevel:0
+                 withBytes:white
+               bytesPerRow:4];
+    return texture;
 }
 
 static simd_float4x4 buildTRS(simd_float3 t, simd_quatf r, simd_float3 s) {
@@ -104,6 +192,7 @@ LoadedCharacter* CharacterLoader_load(NSString* meshPath,
                                        NSArray<NSString*>* clipPaths,
                                        id<MTLDevice> device) {
     NSURL *meshURL = [NSURL fileURLWithPath:meshPath];
+    bool hasAuthoredColor = assetHasVertexColor(meshURL);
     MDLVertexDescriptor *mdlVD = makeSkinnedMDLVD();
     MTKMeshBufferAllocator *alloc = [[MTKMeshBufferAllocator alloc] initWithDevice:device];
 
@@ -136,6 +225,8 @@ LoadedCharacter* CharacterLoader_load(NSString* meshPath,
     result->indexBuffer  = sub.indexBuffer.buffer;
     result->indexCount   = sub.indexCount;
     result->indexType    = sub.indexType;
+    fillWhiteVertexColorIfMissing(mtlMesh, mdlMeshes, hasAuthoredColor);
+    NSLog(@"CharacterLoader: vertex color %@", hasAuthoredColor ? @"authored" : @"default white");
 
     // Measure mesh height in model space so the renderer can auto-scale.
     if (mdlMeshes.count) {
@@ -166,6 +257,10 @@ LoadedCharacter* CharacterLoader_load(NSString* meshPath,
         } else {
             NSLog(@"CharacterLoader: no diffuse texture in material");
         }
+    }
+    if (!result->diffuseTexture) {
+        result->diffuseTexture = makeWhiteFallbackTexture(device);
+        NSLog(@"CharacterLoader: using 1x1 white fallback texture");
     }
 
     // -----------------------------------------------------------------------
@@ -198,7 +293,7 @@ LoadedCharacter* CharacterLoader_load(NSString* meshPath,
     // -----------------------------------------------------------------------
     // Bake each animation clip
     // -----------------------------------------------------------------------
-    for (int ci = 0; ci < (int)AnimClipID::Count; ci++) {
+    for (int ci = 0; ci < (int)CharacterClipSlot::Count; ci++) {
         NSString *clipPath = (ci < (int)clipPaths.count) ? clipPaths[ci] : nil;
         if (!clipPath.length) continue;
         if (![[NSFileManager defaultManager] fileExistsAtPath:clipPath]) {
@@ -305,9 +400,11 @@ LoadedCharacter* CharacterLoader_load(NSString* meshPath,
         }
 
         result->clipLoaded[ci] = true;
-        NSLog(@"CharacterLoader: clip %d — %d frames, %d anim joints, %.2fs — %@",
-              ci, frames, aJ, (float)dur, clipPath.lastPathComponent);
+        NSLog(@"CharacterLoader: clip %s — %d frames, %d anim joints, %.2fs — %@",
+              CharacterClipSlot_name((CharacterClipSlot)ci), frames, aJ, (float)dur, clipPath.lastPathComponent);
     }
+
+    CharacterClipTable_validate_required(result->clipLoaded, meshPath.lastPathComponent);
 
     NSLog(@"CharacterLoader: loaded '%@' — %d joints, %lu indices",
           meshPath.lastPathComponent, jCount, (unsigned long)result->indexCount);

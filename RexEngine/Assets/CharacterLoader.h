@@ -1,6 +1,7 @@
 #pragma once
 #import <Metal/Metal.h>
 #include "Simulation/Components.h"
+#include <stdexcept>
 #include <vector>
 
 static constexpr int kBakedFPS = 30;
@@ -20,7 +21,7 @@ struct BakedClip {
 };
 
 struct LoadedCharacter {
-    id<MTLBuffer>  vertexBuffer; // interleaved: pos(3) nrm(3) uv(2) ji(4×ushort) jw(4) — 56 B/vtx
+    id<MTLBuffer>  vertexBuffer; // interleaved: pos(3) nrm(3) uv(2) color(4) ji(4×ushort) jw(4) — 72 B/vtx
     id<MTLBuffer>  indexBuffer;
     id<MTLTexture> diffuseTexture; // nil if not available
     NSUInteger     indexCount;
@@ -29,8 +30,8 @@ struct LoadedCharacter {
     float          meshHeight; // bounding-box Y extent in model units (used for auto-scale)
     float          meshYMin;   // lowest Y vertex (for ground alignment)
 
-    BakedClip clips[(int)AnimClipID::Count];
-    bool      clipLoaded[(int)AnimClipID::Count];
+    BakedClip clips[(int)CharacterClipSlot::Count];
+    bool      clipLoaded[(int)CharacterClipSlot::Count];
 
     LoadedCharacter()
         : vertexBuffer(nil), indexBuffer(nil), diffuseTexture(nil),
@@ -40,8 +41,13 @@ struct LoadedCharacter {
     }
 };
 
-// Loads the base mesh (With Skin FBX) and bakes each animation clip (Without Skin FBX).
-// clipPaths: NSArray indexed by (int)AnimClipID; nil entries are skipped.
+const char* CharacterClipSlot_name(CharacterClipSlot slot);
+CharacterClipSlot CharacterClipSlot_from_name(NSString* name);
+void CharacterClipTable_validate_required(const bool loaded[(int)CharacterClipSlot::Count],
+                                          NSString* speciesName);
+
+// Loads the base mesh and bakes each animation clip.
+// clipPaths: NSArray indexed by (int)CharacterClipSlot; nil entries are skipped.
 // Returns heap-allocated LoadedCharacter, or nullptr if mesh fails to load.
 LoadedCharacter* CharacterLoader_load(NSString* meshPath,
                                       NSArray<NSString*>* clipPaths,

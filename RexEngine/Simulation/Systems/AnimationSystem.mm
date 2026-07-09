@@ -14,18 +14,16 @@ void AnimationSystem_set_characters(const LoadedCharacter* player,
 
 // Fallback clip durations used before character assets are loaded.
 // These match the actual Mixamo clips we exported (idle 3.83s, walk 1.03s, etc.).
-static const float kClipDurationFallback[(int)AnimClipID::Count] = {
+static const float kClipDurationFallback[(int)CharacterClipSlot::Count] = {
     3.83f, // Idle    — looping
     1.03f, // Walk    — looping
-    1.03f, // Attack  — one-shot
-    1.50f, // Hurt    — one-shot
-    4.50f, // Death   — one-shot
-    2.40f, // Dodge   — one-shot (72 frames @ 30fps)
-    1.03f, // Attack2 — one-shot combo finisher (31 frames @ 30fps)
     0.80f, // Run     — looping
+    1.03f, // Attack  — one-shot
+    0.70f, // Jump    — one-shot interrupt reaction stand-in
+    4.50f, // Death   — one-shot
 };
 
-static float clip_duration(const LoadedCharacter* charData, AnimClipID id) {
+static float clip_duration(const LoadedCharacter* charData, CharacterClipSlot id) {
     if (charData && charData->clipLoaded[(int)id]) {
         float d = charData->clips[(int)id].duration();
         if (d > 0.f) return d;
@@ -33,8 +31,10 @@ static float clip_duration(const LoadedCharacter* charData, AnimClipID id) {
     return kClipDurationFallback[(int)id];
 }
 
-static bool clip_loops(AnimClipID id) {
-    return id == AnimClipID::Idle || id == AnimClipID::Walk || id == AnimClipID::Run;
+static bool clip_loops(CharacterClipSlot id) {
+    return id == CharacterClipSlot::Idle
+        || id == CharacterClipSlot::Walk
+        || id == CharacterClipSlot::Run;
 }
 
 // Cross-fade length for every clip transition. Long enough to kill the visual
@@ -44,7 +44,7 @@ static constexpr float kAnimBlendDuration = 0.1f;
 // All clip changes go through here so the cross-fade bookkeeping and the
 // clip-start events can't be forgotten at one of the transition sites.
 static void begin_transition(World& world, EntityID id,
-                             AnimationComponent& anim, AnimClipID next) {
+                             AnimationComponent& anim, CharacterClipSlot next) {
     anim.prevClip       = anim.currentClip;
     anim.prevClipTime   = anim.clipTime;
     anim.blendRemaining = kAnimBlendDuration;
@@ -54,15 +54,13 @@ static void begin_transition(World& world, EntityID id,
     anim.looping        = clip_loops(next);
 }
 
-static float clip_speed_multiplier(World& world, EntityID entity, AnimClipID id) {
+static float clip_speed_multiplier(World& world, EntityID entity, CharacterClipSlot id) {
     float mult = 1.f;
     switch (id) {
-        case AnimClipID::Attack:  mult = 4.0f; break;
-        case AnimClipID::Attack2: mult = 3.0f; break; // finisher lands a touch heavier
-        case AnimClipID::Hurt:    mult = 2.0f; break;
-        case AnimClipID::Dodge:   mult = 2.0f; break;
-        case AnimClipID::Death:   mult = 2.0f; break;
-        case AnimClipID::Run:     mult = 1.0f; break;
+        case CharacterClipSlot::Attack: mult = 4.0f; break;
+        case CharacterClipSlot::Jump:   mult = 2.0f; break;
+        case CharacterClipSlot::Death:  mult = 2.0f; break;
+        case CharacterClipSlot::Run:    mult = 1.0f; break;
         default:                  mult = 1.0f; break;
     }
     return mult;
@@ -101,7 +99,7 @@ void AnimationSystem_update(World& world, float gameDt) {
             if (anim.clipTime >= duration) {
                 anim.clipTime = duration;
                 anim.clipDone = true;
-                bool canTransition = !anim.dying || anim.requestedClip == AnimClipID::Death;
+                bool canTransition = !anim.dying || anim.requestedClip == CharacterClipSlot::Death;
                 if (canTransition && anim.requestedClip != anim.currentClip)
                     begin_transition(world, id, anim, anim.requestedClip);
             }
@@ -134,7 +132,7 @@ void AnimationSystem_update(World& world, float gameDt) {
         if (!world.has_component<AnimationComponent>(id)) continue;
         if (world.player_tags().present(id)) continue; // player death handled by game loop
         AnimationComponent& anim = world.get_component<AnimationComponent>(id);
-        if (anim.dying && anim.clipDone && anim.currentClip == AnimClipID::Death) {
+        if (anim.dying && anim.clipDone && anim.currentClip == CharacterClipSlot::Death) {
             anim.deathFade -= gameDt / kDeathFadeDuration;
             if (anim.deathFade <= 0.f)
                 world.defer_destroy(id);
@@ -142,12 +140,21 @@ void AnimationSystem_update(World& world, float gameDt) {
     }
 }
 
-void AnimationSystem_request_clip(World& world, EntityID entity, AnimClipID clip) {
+void AnimationSystem_request_clip(World& world, EntityID entity, CharacterClipSlot clip) {
     if (!world.has_component<AnimationComponent>(entity)) return;
     world.get_component<AnimationComponent>(entity).requestedClip = clip;
 }
 
-float AnimationSystem_clip_duration(World& world, EntityID entity, AnimClipID clip) {
+void AnimationSystem_force_clip(World& world, EntityID entity, CharacterClipSlot clip) {
+    if (!world.has_component<AnimationComponent>(entity)) return;
+    AnimationComponent& anim = world.get_component<AnimationComponent>(entity);
+    anim.requestedClip = clip;
+    if (anim.currentClip != clip) {
+        begin_transition(world, entity, anim, clip);
+    }
+}
+
+float AnimationSystem_clip_duration(World& world, EntityID entity, CharacterClipSlot clip) {
     const LoadedCharacter* charData = nullptr;
     if (world.has_component<FactionComponent>(entity)) {
         auto t = world.get_component<FactionComponent>(entity).type;

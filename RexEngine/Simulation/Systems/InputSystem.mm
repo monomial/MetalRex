@@ -32,7 +32,7 @@ void InputSystem_update(World& world) {
 
         if (world.has_component<AnimationComponent>(id)) {
             bool moving = (x * x + y * y) > 0.01f;
-            AnimationSystem_request_clip(world, id, moving ? AnimClipID::Walk : AnimClipID::Idle);
+            AnimationSystem_request_clip(world, id, moving ? CharacterClipSlot::Walk : CharacterClipSlot::Idle);
         }
     }
 }

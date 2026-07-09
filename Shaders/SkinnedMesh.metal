@@ -7,14 +7,16 @@ struct SkinnedVertex {
     float3  position    [[attribute(0)]];
     float3  normal      [[attribute(1)]];
     float2  texcoord    [[attribute(2)]];
-    ushort4 jointIdx    [[attribute(3)]];
-    float4  jointWeight [[attribute(4)]];
+    float4  color       [[attribute(3)]];
+    ushort4 jointIdx    [[attribute(4)]];
+    float4  jointWeight [[attribute(5)]];
 };
 
 struct SkinnedOut {
     float4 position [[position]];
     float3 worldNormal;
     float2 texcoord;
+    float4 vertexColor;
     float4 tint;         // faction color passed through
     float  tintStrength; // how strongly tint blends over the texture
 };
@@ -49,6 +51,7 @@ vertex SkinnedOut skinned_vertex_main(
     out.position     = u.mvp * skPos;
     out.worldNormal  = normalize(skNrm.xyz);
     out.texcoord     = in.texcoord;
+    out.vertexColor  = in.color;
     out.tint         = u.color;
     out.tintStrength = u.tintStrength;
     return out;
@@ -72,7 +75,7 @@ fragment float4 skinned_fragment_main(
 
     // Faction tint blend — subtle for players (texture dominates), heavy for
     // enemies so they read as distinct while sharing the player mesh.
-    float3 base = mix(texColor.rgb, in.tint.rgb, in.tintStrength);
+    float3 base = mix(texColor.rgb * in.vertexColor.rgb, in.tint.rgb, in.tintStrength);
 
     // Diffuse lighting with a fixed directional light.
     float3 lightDir = normalize(float3(0.5, 0.8, 1.0));

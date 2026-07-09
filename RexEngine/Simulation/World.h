@@ -80,6 +80,7 @@ public:
     ComponentStorage<FactionComponent>& factions() { return _factions; }
     ComponentStorage<PlayerTagComponent>& player_tags() { return _playerTags; }
     ComponentStorage<AnimationComponent>& animations() { return _animations; }
+    ComponentStorage<DinoBehaviorComponent>& dino_behaviors() { return _dinoBehaviors; }
     ReticleComponent& reticle(int playerIndex) {
         assert(playerIndex >= 0 && playerIndex < kRexMaxPlayers);
         return _reticles[playerIndex];
@@ -123,6 +124,7 @@ private:
     ComponentStorage<FactionComponent> _factions;
     ComponentStorage<PlayerTagComponent> _playerTags;
     ComponentStorage<AnimationComponent> _animations;
+    ComponentStorage<DinoBehaviorComponent> _dinoBehaviors;
     ReticleComponent _reticles[kRexMaxPlayers];
     TargetComponent _targets[kM1MaxTargets];
     RailCameraState _railCamera;
@@ -147,3 +149,4 @@ template<> ComponentStorage<HealthComponent>& World::_pool<HealthComponent>();
 template<> ComponentStorage<FactionComponent>& World::_pool<FactionComponent>();
 template<> ComponentStorage<PlayerTagComponent>& World::_pool<PlayerTagComponent>();
 template<> ComponentStorage<AnimationComponent>& World::_pool<AnimationComponent>();
+template<> ComponentStorage<DinoBehaviorComponent>& World::_pool<DinoBehaviorComponent>();

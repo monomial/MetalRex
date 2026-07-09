@@ -44,6 +44,7 @@
 		55A86DCEF1BA728C2F3193D2 /* World.mm in Sources */ = {isa = PBXBuildFile; fileRef = 6C3CE5C8074A8EC650F1C61B /* World.mm */; };
 		5609C0A143A8D8A92EAA4AC2 /* CoreText.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F133AD737FDF28F461217E8A /* CoreText.framework */; };
 		57CE9D78492786C208959764 /* main.mm in Sources */ = {isa = PBXBuildFile; fileRef = A76351B00D3C69B10C9A91A7 /* main.mm */; };
+		589AA2BD07EAC8474926F6C1 /* DinoBehaviorSystem.mm in Sources */ = {isa = PBXBuildFile; fileRef = DC48A4FFFCED309C5A20C805 /* DinoBehaviorSystem.mm */; };
 		5B0048B6C980D91AF25B8F31 /* World.mm in Sources */ = {isa = PBXBuildFile; fileRef = 6C3CE5C8074A8EC650F1C61B /* World.mm */; };
 		5C826A0FD6F44503E15EE165 /* InputSystem.mm in Sources */ = {isa = PBXBuildFile; fileRef = E24115F77C07DE877C58A1D9 /* InputSystem.mm */; };
 		5D8A4EFC028257CD4B4FE7CE /* HapticsEngine.mm in Sources */ = {isa = PBXBuildFile; fileRef = DF0E49C9D1B509090135F40B /* HapticsEngine.mm */; };
@@ -63,6 +64,7 @@
 		88625F037988C89DA4E57FF3 /* CoreText.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F133AD737FDF28F461217E8A /* CoreText.framework */; };
 		8B1C6CBBFC9EE370F9D4CDBE /* ModelIO.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FF21A3D89DFCD32DB2F372CF /* ModelIO.framework */; };
 		8BAFF9F5AE214206D0F91DA0 /* ModelIO.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FF21A3D89DFCD32DB2F372CF /* ModelIO.framework */; };
+		9114D48188976190A0D49A49 /* DinoBehaviorSystem.mm in Sources */ = {isa = PBXBuildFile; fileRef = DC48A4FFFCED309C5A20C805 /* DinoBehaviorSystem.mm */; };
 		92980B08BEDC019E4DD967FB /* RexRenderer.mm in Sources */ = {isa = PBXBuildFile; fileRef = D19215428D510F18874F5DC5 /* RexRenderer.mm */; };
 		94729FDF10BC4E37667B3F1C /* AppDelegate.mm in Sources */ = {isa = PBXBuildFile; fileRef = D4D32BBDB71C4CE1CF154191 /* AppDelegate.mm */; };
 		94F73AC9AAF1B4F827DB2ADC /* ImageIO.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = EBCCBADB86BCC3BC079D9397 /* ImageIO.framework */; };
@@ -84,6 +86,8 @@
 		BF82031A273824896A149CC4 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 2DC8B19B98734D8A5BCB46C7 /* Assets.xcassets */; };
 		CC8A8DEDDE3586398DD26B1E /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = EB68E680D43E6A243EE60DAE /* Cocoa.framework */; };
 		CEF2EA681102A26BB102CD5F /* Shaders in Resources */ = {isa = PBXBuildFile; fileRef = 105B2556BDC7A289744004EC /* Shaders */; };
+		D1AF1DB4EF5DCED0DFAFA6F0 /* DinoBehaviorTests.mm in Sources */ = {isa = PBXBuildFile; fileRef = EA80D5C012615225879CF397 /* DinoBehaviorTests.mm */; };
+		D257549259C4FD1D7C87227C /* DinoBehaviorSystem.mm in Sources */ = {isa = PBXBuildFile; fileRef = DC48A4FFFCED309C5A20C805 /* DinoBehaviorSystem.mm */; };
 		D496A27D1EFE7F1558662C86 /* AVFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 06C96980F27DD82DD5C0F838 /* AVFoundation.framework */; };
 		DA5A71C41D646251B75EB44F /* ScreenShakeSystem.mm in Sources */ = {isa = PBXBuildFile; fileRef = 0604376B2E287273A588D819 /* ScreenShakeSystem.mm */; };
 		E081CFE97D46CDF3BAFB4563 /* RailSpline.mm in Sources */ = {isa = PBXBuildFile; fileRef = 40E98F035D1058105BC446ED /* RailSpline.mm */; };
@@ -161,16 +165,20 @@
 		AF70F53A5C81D63A0A3CAE5F /* RailCameraTests.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = RailCameraTests.mm; sourceTree = "<group>"; };
 		B071ADC542095BF0F8CD7E64 /* InputSystem.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = InputSystem.h; sourceTree = "<group>"; };
 		B83DE11BFAEAC7DDE1053DA3 /* ReticleInputTests.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = ReticleInputTests.mm; sourceTree = "<group>"; };
+		BB3B5CBD52BAF7B79D5FFC1B /* DinoBehaviorSystem.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = DinoBehaviorSystem.h; sourceTree = "<group>"; };
 		BC1452D0655C80FE714C62EE /* ChartLoader.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ChartLoader.h; sourceTree = "<group>"; };
 		C32528CD28DE93AE376944FF /* PLAN-M1.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = "PLAN-M1.md"; sourceTree = "<group>"; };
 		D19215428D510F18874F5DC5 /* RexRenderer.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = RexRenderer.mm; sourceTree = "<group>"; };
+		D4512AAC63BD685BFAB6F7E4 /* PLAN-M3.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = "PLAN-M3.md"; sourceTree = "<group>"; };
 		D4D32BBDB71C4CE1CF154191 /* AppDelegate.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = AppDelegate.mm; sourceTree = "<group>"; };
+		DC48A4FFFCED309C5A20C805 /* DinoBehaviorSystem.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = DinoBehaviorSystem.mm; sourceTree = "<group>"; };
 		DDE8330981F4B3171E516CDD /* AnimationSystem.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = AnimationSystem.mm; sourceTree = "<group>"; };
 		DF0E49C9D1B509090135F40B /* HapticsEngine.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = HapticsEngine.mm; sourceTree = "<group>"; };
 		E24115F77C07DE877C58A1D9 /* InputSystem.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = InputSystem.mm; sourceTree = "<group>"; };
 		E25BD5FFF62774CB8050E1A2 /* HapticsEngine.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = HapticsEngine.h; sourceTree = "<group>"; };
 		E2CD79E815BBA360995598A8 /* MetalKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = MetalKit.framework; path = System/Library/Frameworks/MetalKit.framework; sourceTree = SDKROOT; };
 		E661802610C9D27E46EB4BA9 /* UIKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UIKit.framework; path = System/Library/Frameworks/UIKit.framework; sourceTree = SDKROOT; };
+		EA80D5C012615225879CF397 /* DinoBehaviorTests.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = DinoBehaviorTests.mm; sourceTree = "<group>"; };
 		EB68E680D43E6A243EE60DAE /* Cocoa.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Cocoa.framework; path = System/Library/Frameworks/Cocoa.framework; sourceTree = SDKROOT; };
 		EB7B41B03A8E026B414C7DA3 /* project.yml */ = {isa = PBXFileReference; lastKnownFileType = text.yaml; path = project.yml; sourceTree = "<group>"; };
 		EBCCBADB86BCC3BC079D9397 /* ImageIO.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = ImageIO.framework; path = System/Library/Frameworks/ImageIO.framework; sourceTree = SDKROOT; };
@@ -268,6 +276,7 @@
 			isa = PBXGroup;
 			children = (
 				EC0C28A795440865E01D6BDB /* ChartLoaderTests.mm */,
+				EA80D5C012615225879CF397 /* DinoBehaviorTests.mm */,
 				AF70F53A5C81D63A0A3CAE5F /* RailCameraTests.mm */,
 				B83DE11BFAEAC7DDE1053DA3 /* ReticleInputTests.mm */,
 				62B42ED1E2636BF79323DFDA /* WorldSmokeTests.mm */,
@@ -373,6 +382,8 @@
 			children = (
 				AE2D0D4CC6CEEC753D54A8E2 /* AnimationSystem.h */,
 				DDE8330981F4B3171E516CDD /* AnimationSystem.mm */,
+				BB3B5CBD52BAF7B79D5FFC1B /* DinoBehaviorSystem.h */,
+				DC48A4FFFCED309C5A20C805 /* DinoBehaviorSystem.mm */,
 				B071ADC542095BF0F8CD7E64 /* InputSystem.h */,
 				E24115F77C07DE877C58A1D9 /* InputSystem.mm */,
 				943AC821EF117BD8736BA3B2 /* PhysicsSystem.h */,
@@ -393,6 +404,7 @@
 				4FE3EA6AD3A9F146AD19CDD4 /* DESIGN.md */,
 				C32528CD28DE93AE376944FF /* PLAN-M1.md */,
 				44240F80D2BF011C75CD0B47 /* PLAN-M2.md */,
+				D4512AAC63BD685BFAB6F7E4 /* PLAN-M3.md */,
 				86E62A1F5C179CF49ED651D2 /* TODOS.md */,
 			);
 			path = docs;
@@ -568,6 +580,7 @@
 				31606CC8BF1AF50087CE8D4F /* AudioEngine.mm in Sources */,
 				A1CED7364AAFDFDA8360962C /* CharacterLoader.mm in Sources */,
 				026C5D46C2CF7F50D45B18E0 /* ChartLoader.mm in Sources */,
+				9114D48188976190A0D49A49 /* DinoBehaviorSystem.mm in Sources */,
 				7A21BE1133729902E327ED12 /* GameViewController.mm in Sources */,
 				3150906CA4247E855782DC5A /* HapticsEngine.mm in Sources */,
 				860E6CDE09E8A15BFCD8C42D /* InputSystem.mm in Sources */,
@@ -593,6 +606,8 @@
 				2746852A475BCA27D42DF89B /* CharacterLoader.mm in Sources */,
 				04FAD9843FC745871671B78A /* ChartLoader.mm in Sources */,
 				3DFBAA24F2984154510FCA2C /* ChartLoaderTests.mm in Sources */,
+				589AA2BD07EAC8474926F6C1 /* DinoBehaviorSystem.mm in Sources */,
+				D1AF1DB4EF5DCED0DFAFA6F0 /* DinoBehaviorTests.mm in Sources */,
 				0D99D6CE30057EF551EE5069 /* HapticsEngine.mm in Sources */,
 				5C826A0FD6F44503E15EE165 /* InputSystem.mm in Sources */,
 				AF2F683A80A8998A9AD78C43 /* ParticleSim.cpp in Sources */,
@@ -619,6 +634,7 @@
 				ACEE1ADC2FDEFDE0EA723E2C /* AudioEngine.mm in Sources */,
 				EB78733079BAA5A7702561D9 /* CharacterLoader.mm in Sources */,
 				9B228E502AD1AA29F07E487C /* ChartLoader.mm in Sources */,
+				D257549259C4FD1D7C87227C /* DinoBehaviorSystem.mm in Sources */,
 				4F73DEAFE2E7C817EFB73766 /* GameViewController.mm in Sources */,
 				5D8A4EFC028257CD4B4FE7CE /* HapticsEngine.mm in Sources */,
 				4B0CBEA08D2A70E4D360AA17 /* InputSystem.mm in Sources */,
