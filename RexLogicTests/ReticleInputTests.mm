@@ -188,17 +188,17 @@
     XCTAssertTrue(world.target(0).wasHit);
 }
 
-- (void)test_movingTargetUpdatesWhileCameraDolliesForward {
+- (void)test_movingTargetUpdatesWhileRailCameraMovesForward {
     World world;
     world.update(1.f / 120.f, 1.f / 120.f);
-    float firstCameraZ = world.rail_camera().dollyZ;
+    float firstCameraDistance = world.rail_camera().distance;
     float firstX = world.target(3).screenX;
 
     for (int i = 0; i < 60; ++i) {
         world.update(1.f / 120.f, 1.f / 120.f);
     }
 
-    XCTAssertGreaterThan(world.rail_camera().dollyZ, firstCameraZ);
+    XCTAssertGreaterThan(world.rail_camera().distance, firstCameraDistance);
     XCTAssertNotEqualWithAccuracy(world.target(3).screenX, firstX, 0.0001f);
     XCTAssertTrue(world.target(3).active);
 }

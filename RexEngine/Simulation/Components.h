@@ -54,6 +54,9 @@ struct TargetComponent {
     bool active = false;
     bool moving = false;
     bool wasHit = false;
+    float railDistance = 0.f;
+    float lateralOffset = 0.f;
+    float verticalOffset = 0.f;
     float worldX = 0.f;
     float worldY = 0.f;
     float worldZ = 0.f;
@@ -68,8 +71,25 @@ struct TargetComponent {
 
 struct RailCameraState {
     float elapsed = 0.f;
-    float dollyZ = 0.f;
-    float dollySpeed = 1.2f;
+    float distance = 0.f;
+    float rawT = 0.f;
+    float speed = 1.2f;
+    float fovYRadians = 1.04719758f;
+    float aspect = 16.f / 9.f;
+    float nearZ = 0.1f;
+    float farZ = 120.f;
+    float positionX = 0.f;
+    float positionY = 0.f;
+    float positionZ = 0.f;
+    float lookAtX = 0.f;
+    float lookAtY = 0.f;
+    float lookAtZ = 1.f;
+    float rightX = 1.f;
+    float rightY = 0.f;
+    float rightZ = 0.f;
+    float upX = 0.f;
+    float upY = 1.f;
+    float upZ = 0.f;
 };
 
 static constexpr int kMaxBones = 64;

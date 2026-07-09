@@ -1,5 +1,6 @@
 #include "World.h"
 #include "Systems/InputSystem.h"
+#include "Systems/RailCameraSystem.h"
 #include "Systems/ReticleSystem.h"
 #include "Systems/AnimationSystem.h"
 #import <Foundation/Foundation.h>
@@ -23,6 +24,7 @@ World::World()
     , _inputs{}
     , _tickCount(0)
 {
+    _chart = ChartLoader_load_default();
     reset_m1_scene();
 }
 
@@ -59,13 +61,13 @@ void World::reset_m1_scene() {
         _reticles[i].y = 0.5f;
     }
 
-    _railCamera = {};
+    RailCameraSystem_reset(_railCamera, _chart);
 
     for (int i = 0; i < kM1MaxTargets; ++i) {
         _targets[i] = {};
-        _targets[i].worldZ = 2.0f + (float)i * 1.2f;
-        _targets[i].worldX = ((i % 3) - 1) * 0.75f;
-        _targets[i].worldY = -0.15f + 0.18f * (float)(i % 2);
+        _targets[i].railDistance = 2.5f + (float)i * 1.4f;
+        _targets[i].lateralOffset = ((i % 3) - 1) * 0.75f;
+        _targets[i].verticalOffset = 0.35f + 0.18f * (float)(i % 2);
         _targets[i].timerOffset = (float)i * 0.65f;
         _targets[i].halfWidth = 0.18f;
         _targets[i].halfHeight = 0.22f;
@@ -76,13 +78,19 @@ void World::reset_m1_scene() {
     _targets[2].active = true;
     _targets[3].active = true;
     _targets[3].moving = true;
-    _targets[3].worldZ = 4.5f;
+    _targets[3].railDistance = 5.2f;
     _targets[3].halfWidth = 0.16f;
     _targets[3].halfHeight = 0.18f;
 }
 
+void World::replace_chart_for_tests(LevelChart chart) {
+    _chart = chart;
+    reset_m1_scene();
+}
+
 void World::tick(float gameDt) {
     InputSystem_update(*this);
+    RailCameraSystem_update(*this, gameDt);
     ReticleSystem_update(*this, gameDt);
     AnimationSystem_update(*this, gameDt);
     flush();

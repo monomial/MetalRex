@@ -101,6 +101,9 @@ targets:
     sources:
       - path: RexLogicTests
       - path: RexEngine
+      - path: assets
+        buildPhase: resources
+        type: folder
     dependencies:
       - sdk: Metal.framework
       - sdk: MetalKit.framework

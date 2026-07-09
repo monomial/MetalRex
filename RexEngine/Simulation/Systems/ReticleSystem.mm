@@ -23,38 +23,6 @@ static bool point_inside(const ReticleComponent& reticle, const TargetComponent&
         && fabsf(reticle.y - target.screenY) <= target.screenHalfH;
 }
 
-static void update_camera_and_targets(World& world, float gameDt) {
-    RailCameraState& camera = world.rail_camera();
-    camera.elapsed += gameDt;
-    camera.dollyZ = camera.elapsed * camera.dollySpeed;
-
-    for (int i = 0; i < kM1MaxTargets; ++i) {
-        TargetComponent& target = world.target(i);
-        if (i == 0 || i == 1 || i == 2 || i == 4 || i == 5) {
-            float phase = fmodf(camera.elapsed + target.timerOffset, 3.0f);
-            target.active = phase < 2.25f;
-        }
-        if (target.moving) {
-            target.worldX = sinf(camera.elapsed * 1.45f) * 0.9f;
-            target.worldY = 0.08f + sinf(camera.elapsed * 2.1f) * 0.08f;
-            target.active = true;
-        }
-
-        float relativeZ = target.worldZ - camera.dollyZ;
-        while (relativeZ < 1.2f) {
-            target.worldZ += 5.6f;
-            relativeZ = target.worldZ - camera.dollyZ;
-            target.wasHit = false;
-        }
-
-        float perspective = 1.f / std::max(1.0f, relativeZ);
-        target.screenX = clamp01(0.5f + target.worldX * perspective * 0.55f);
-        target.screenY = clamp01(0.52f + target.worldY * perspective * 0.65f);
-        target.screenHalfW = clamp_range(target.halfWidth * perspective * 0.65f, 0.025f, 0.09f);
-        target.screenHalfH = clamp_range(target.halfHeight * perspective * 0.72f, 0.035f, 0.12f);
-    }
-}
-
 ReticleTuning ReticleSystem_tuning() {
     return s_tuning;
 }
@@ -92,8 +60,6 @@ void ReticleSystem_adjust_fallback_tuning(float frictionDelta, float radiusDelta
 
 void ReticleSystem_update(World& world, float gameDt) {
     if (gameDt == 0.f) return;
-
-    update_camera_and_targets(world, gameDt);
 
     for (int player = 0; player < kRexMaxPlayers; ++player) {
         ReticleComponent& reticle = world.reticle(player);

@@ -3,6 +3,7 @@
 #include <vector>
 #include <cassert>
 #include "Components.h"
+#include "ChartLoader.h"
 #include "Platform/InputState.h"
 #include "EventBus.h"
 
@@ -97,6 +98,8 @@ public:
     }
     const RailCameraState& rail_camera() const { return _railCamera; }
     RailCameraState& rail_camera() { return _railCamera; }
+    const LevelChart& chart() const { return _chart; }
+    void replace_chart_for_tests(LevelChart chart);
 
 private:
     void flush();
@@ -123,6 +126,7 @@ private:
     ReticleComponent _reticles[kRexMaxPlayers];
     TargetComponent _targets[kM1MaxTargets];
     RailCameraState _railCamera;
+    LevelChart _chart;
 };
 
 template<typename T>

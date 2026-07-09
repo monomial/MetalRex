@@ -1,4 +1,5 @@
 #import "RexRenderer.h"
+#include "Simulation/CameraMath.h"
 #include "Simulation/World.h"
 #include "Simulation/Systems/ReticleSystem.h"
 #include <TargetConditionals.h>
@@ -15,26 +16,16 @@ struct RexUniforms {
     simd_float4 color;
 };
 
-static simd_float4x4 make_ortho(float left, float right, float bottom, float top, float nearZ, float farZ) {
-    simd_float4x4 m = matrix_identity_float4x4;
-    m.columns[0].x = 2.f / (right - left);
-    m.columns[1].y = 2.f / (top - bottom);
-    m.columns[2].z = 1.f / (farZ - nearZ);
-    m.columns[3].x = -(right + left) / (right - left);
-    m.columns[3].y = -(top + bottom) / (top - bottom);
-    m.columns[3].z = -nearZ / (farZ - nearZ);
-    return m;
-}
-
 @implementation RexRenderer {
     id<MTLDevice> _device;
     id<MTLRenderPipelineState> _pipeline;
     id<MTLDepthStencilState> _depthState;
     id<MTLDepthStencilState> _overlayDepthState;
     id<MTLBuffer> _groundVB;
-    simd_float4x4 _projection;
+    simd_float4x4 _overlayProjection;
     float _halfW;
     float _halfH;
+    float _aspect;
 }
 
 - (instancetype)initWithDevice:(id<MTLDevice>)device
@@ -44,8 +35,8 @@ static simd_float4x4 make_ortho(float left, float right, float bottom, float top
 
     _device = device;
     const RexVertex verts[] = {
-        {{-600.f, -380.f, 0.f}}, {{ 600.f, -380.f, 0.f}}, {{-600.f,  380.f, 0.f}},
-        {{ 600.f, -380.f, 0.f}}, {{ 600.f,  380.f, 0.f}}, {{-600.f,  380.f, 0.f}},
+        {{-8.f, -0.45f, 0.f}}, {{ 8.f, -0.45f, 0.f}}, {{-8.f, -0.45f, 80.f}},
+        {{ 8.f, -0.45f, 0.f}}, {{ 8.f, -0.45f, 80.f}}, {{-8.f, -0.45f, 80.f}},
     };
     _groundVB = [_device newBufferWithBytes:verts length:sizeof(verts) options:MTLResourceStorageModeShared];
 
@@ -102,9 +93,10 @@ static simd_float4x4 make_ortho(float left, float right, float bottom, float top
     noDepthDescriptor.depthWriteEnabled = NO;
     _overlayDepthState = [_device newDepthStencilStateWithDescriptor:noDepthDescriptor];
 
-    _projection = make_ortho(-640.f, 640.f, -420.f, 420.f, -1.f, 1.f);
+    _overlayProjection = Rex_make_ortho(-640.f, 640.f, -420.f, 420.f, -1.f, 1.f);
     _halfW = 640.f;
     _halfH = 420.f;
+    _aspect = 16.f / 9.f;
 
     return self;
 }
@@ -114,9 +106,10 @@ static simd_float4x4 make_ortho(float left, float right, float bottom, float top
     float aspect = (float)size.width / (float)size.height;
     float halfH = 420.f;
     float halfW = halfH * aspect;
-    _projection = make_ortho(-halfW, halfW, -halfH, halfH, -1.f, 1.f);
+    _overlayProjection = Rex_make_ortho(-halfW, halfW, -halfH, halfH, -1.f, 1.f);
     _halfW = halfW;
     _halfH = halfH;
+    _aspect = aspect;
 }
 
 - (simd_float3)_screenPointX:(float)x y:(float)y z:(float)z {
@@ -126,10 +119,11 @@ static simd_float4x4 make_ortho(float left, float right, float bottom, float top
 - (void)_drawVertices:(const std::vector<RexVertex>&)vertices
                 color:(simd_float4)color
              primitive:(MTLPrimitiveType)primitive
+                   mvp:(simd_float4x4)mvp
               encoder:(id<MTLRenderCommandEncoder>)encoder {
     if (vertices.empty()) return;
     RexUniforms uniforms;
-    uniforms.mvp = _projection;
+    uniforms.mvp = mvp;
     uniforms.color = color;
     [encoder setVertexBytes:vertices.data()
                      length:sizeof(RexVertex) * vertices.size()
@@ -155,21 +149,42 @@ static simd_float4x4 make_ortho(float left, float right, float bottom, float top
     vertices.push_back({{l, t, z}});
 }
 
-- (void)_drawM1Targets:(World *)world encoder:(id<MTLRenderCommandEncoder>)encoder {
+- (simd_float4x4)_worldViewProjection:(const RailCameraState&)camera {
+    simd_float3 eye = (simd_float3){camera.positionX, camera.positionY, camera.positionZ};
+    simd_float3 lookAt = (simd_float3){camera.lookAtX, camera.lookAtY, camera.lookAtZ};
+    simd_float4x4 view = Rex_make_look_at(eye, lookAt, (simd_float3){0.f, 1.f, 0.f});
+    simd_float4x4 projection = Rex_make_perspective(camera.fovYRadians, _aspect, camera.nearZ, camera.farZ);
+    return simd_mul(projection, view);
+}
+
+- (void)_drawM1Targets:(World *)world
+                   mvp:(simd_float4x4)mvp
+               encoder:(id<MTLRenderCommandEncoder>)encoder {
     std::vector<RexVertex> active;
     std::vector<RexVertex> hit;
+    const RailCameraState& camera = world->rail_camera();
+    simd_float3 cameraRight = (simd_float3){camera.rightX, camera.rightY, camera.rightZ};
+    simd_float3 cameraUp = (simd_float3){camera.upX, camera.upY, camera.upZ};
     for (int i = 0; i < kM1MaxTargets; ++i) {
         const TargetComponent& target = world->target(i);
         if (!target.active) continue;
-        simd_float3 center = [self _screenPointX:target.screenX y:target.screenY z:0.02f];
-        float w = target.screenHalfW * _halfW * 2.f;
-        float h = target.screenHalfH * _halfH * 2.f;
-        [self _appendQuad:(target.wasHit ? hit : active) center:center halfW:w halfH:h];
+        simd_float3 center = (simd_float3){target.worldX, target.worldY, target.worldZ};
+        std::vector<RexVertex>& vertices = target.wasHit ? hit : active;
+        simd_float3 lb = center - cameraRight * target.halfWidth - cameraUp * target.halfHeight;
+        simd_float3 rb = center + cameraRight * target.halfWidth - cameraUp * target.halfHeight;
+        simd_float3 lt = center - cameraRight * target.halfWidth + cameraUp * target.halfHeight;
+        simd_float3 rt = center + cameraRight * target.halfWidth + cameraUp * target.halfHeight;
+        vertices.push_back({lb});
+        vertices.push_back({rb});
+        vertices.push_back({lt});
+        vertices.push_back({rb});
+        vertices.push_back({rt});
+        vertices.push_back({lt});
     }
     [self _drawVertices:active color:(simd_float4){0.82f, 0.27f, 0.18f, 1.f}
-              primitive:MTLPrimitiveTypeTriangle encoder:encoder];
+              primitive:MTLPrimitiveTypeTriangle mvp:mvp encoder:encoder];
     [self _drawVertices:hit color:(simd_float4){0.96f, 0.78f, 0.24f, 1.f}
-              primitive:MTLPrimitiveTypeTriangle encoder:encoder];
+              primitive:MTLPrimitiveTypeTriangle mvp:mvp encoder:encoder];
 }
 
 - (void)_drawReticles:(World *)world encoder:(id<MTLRenderCommandEncoder>)encoder {
@@ -193,7 +208,7 @@ static simd_float4x4 make_ortho(float left, float right, float bottom, float top
         simd_float4 color = reticle.gyroAvailable
                           ? (simd_float4){0.16f, 0.85f, 0.95f, 1.f}
                           : (simd_float4){0.92f, 0.92f, 0.92f, 1.f};
-        [self _drawVertices:lines color:color primitive:MTLPrimitiveTypeLine encoder:encoder];
+        [self _drawVertices:lines color:color primitive:MTLPrimitiveTypeLine mvp:_overlayProjection encoder:encoder];
     }
 }
 
@@ -227,12 +242,12 @@ static simd_float4x4 make_ortho(float left, float right, float bottom, float top
         std::vector<RexVertex> bg;
         [self _appendQuad:bg center:(simd_float3){baseX + 60.f, baseY, 0.06f} halfW:60.f halfH:4.f];
         [self _drawVertices:bg color:(simd_float4){0.08f, 0.09f, 0.10f, 0.9f}
-                  primitive:MTLPrimitiveTypeTriangle encoder:encoder];
+                  primitive:MTLPrimitiveTypeTriangle mvp:_overlayProjection encoder:encoder];
 
         std::vector<RexVertex> bar;
         [self _appendQuad:bar center:(simd_float3){baseX + width * 0.5f, baseY, 0.07f}
                     halfW:width * 0.5f halfH:4.f];
-        [self _drawVertices:bar color:colors[i] primitive:MTLPrimitiveTypeTriangle encoder:encoder];
+        [self _drawVertices:bar color:colors[i] primitive:MTLPrimitiveTypeTriangle mvp:_overlayProjection encoder:encoder];
     }
 }
 #endif
@@ -240,9 +255,9 @@ static simd_float4x4 make_ortho(float left, float right, float bottom, float top
 - (void)drawWorld:(World*)world
            inView:(MTKView*)view
     commandBuffer:(id<MTLCommandBuffer>)commandBuffer {
-    (void)world;
     MTLRenderPassDescriptor *pass = view.currentRenderPassDescriptor;
     if (!pass || !view.currentDrawable) return;
+    if (world) world->rail_camera().aspect = _aspect;
 
     pass.colorAttachments[0].clearColor = MTLClearColorMake(0.36, 0.39, 0.42, 1.0);
     pass.colorAttachments[0].loadAction = MTLLoadActionClear;
@@ -256,14 +271,18 @@ static simd_float4x4 make_ortho(float left, float right, float bottom, float top
     [encoder setDepthStencilState:_depthState];
     [encoder setVertexBuffer:_groundVB offset:0 atIndex:0];
     RexUniforms uniforms;
-    uniforms.mvp = _projection;
+    simd_float4x4 worldMVP = world ? [self _worldViewProjection:world->rail_camera()]
+                                   : Rex_make_perspective(1.04719758f, _aspect, 0.1f, 120.f);
+    uniforms.mvp = worldMVP;
     uniforms.color = (simd_float4){0.48f, 0.49f, 0.48f, 1.f};
     [encoder setVertexBytes:&uniforms length:sizeof(uniforms) atIndex:1];
     [encoder drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:6];
+    if (world) {
+        [self _drawM1Targets:world mvp:worldMVP encoder:encoder];
+    }
 
     [encoder setDepthStencilState:_overlayDepthState];
     if (world) {
-        [self _drawM1Targets:world encoder:encoder];
         [self _drawReticles:world encoder:encoder];
     }
 #if TARGET_OS_OSX

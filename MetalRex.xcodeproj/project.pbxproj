@@ -7,6 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		026C5D46C2CF7F50D45B18E0 /* ChartLoader.mm in Sources */ = {isa = PBXBuildFile; fileRef = 023616D91291A9D8D903896B /* ChartLoader.mm */; };
+		04FAD9843FC745871671B78A /* ChartLoader.mm in Sources */ = {isa = PBXBuildFile; fileRef = 023616D91291A9D8D903896B /* ChartLoader.mm */; };
+		0B5C2B32FE0B1CE49F9E620B /* RailCameraSystem.mm in Sources */ = {isa = PBXBuildFile; fileRef = 80FAA2F6BAC5124039F91CD7 /* RailCameraSystem.mm */; };
 		0C6E607D0A3D5DE997BA013B /* ScreenShakeSystem.mm in Sources */ = {isa = PBXBuildFile; fileRef = 0604376B2E287273A588D819 /* ScreenShakeSystem.mm */; };
 		0D99D6CE30057EF551EE5069 /* HapticsEngine.mm in Sources */ = {isa = PBXBuildFile; fileRef = DF0E49C9D1B509090135F40B /* HapticsEngine.mm */; };
 		11E836CEB88EC88F05CD7E21 /* PhysicsSystem.mm in Sources */ = {isa = PBXBuildFile; fileRef = 19CFD438813570373EF78E93 /* PhysicsSystem.mm */; };
@@ -20,9 +23,12 @@
 		2746852A475BCA27D42DF89B /* CharacterLoader.mm in Sources */ = {isa = PBXBuildFile; fileRef = 87D7247D05FC2A57F6DAEB29 /* CharacterLoader.mm */; };
 		2A15B1C8242BCC5FD967AB39 /* ReticleSystem.mm in Sources */ = {isa = PBXBuildFile; fileRef = 8F6E7A678A2B416F70E70AF5 /* ReticleSystem.mm */; };
 		2D77B10BA8A494E6439F3402 /* PhysicsSystem.mm in Sources */ = {isa = PBXBuildFile; fileRef = 19CFD438813570373EF78E93 /* PhysicsSystem.mm */; };
+		2EC8E8AB639141907A09EB4D /* assets in Resources */ = {isa = PBXBuildFile; fileRef = 9285B510089C9CA623582EE1 /* assets */; };
+		2EFB4AC8C7BD7B546D979E43 /* RailSpline.mm in Sources */ = {isa = PBXBuildFile; fileRef = 40E98F035D1058105BC446ED /* RailSpline.mm */; };
 		3150906CA4247E855782DC5A /* HapticsEngine.mm in Sources */ = {isa = PBXBuildFile; fileRef = DF0E49C9D1B509090135F40B /* HapticsEngine.mm */; };
 		31606CC8BF1AF50087CE8D4F /* AudioEngine.mm in Sources */ = {isa = PBXBuildFile; fileRef = 2A7C75196D06EAC27F9A64E2 /* AudioEngine.mm */; };
 		34FBCF33F85835AEA0467F83 /* CoreHaptics.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 60C0E90E9C621BF1852AFA13 /* CoreHaptics.framework */; };
+		3DFBAA24F2984154510FCA2C /* ChartLoaderTests.mm in Sources */ = {isa = PBXBuildFile; fileRef = EC0C28A795440865E01D6BDB /* ChartLoaderTests.mm */; };
 		44407FF0359B21C599ED6F47 /* RexGameHost.mm in Sources */ = {isa = PBXBuildFile; fileRef = 34A962C9761AE26A1155D1F1 /* RexGameHost.mm */; };
 		4B06A94AD6DF538453690CA4 /* CoreGraphics.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 34892C62ADBBD67118CC0D23 /* CoreGraphics.framework */; };
 		4B0CBEA08D2A70E4D360AA17 /* InputSystem.mm in Sources */ = {isa = PBXBuildFile; fileRef = E24115F77C07DE877C58A1D9 /* InputSystem.mm */; };
@@ -32,6 +38,7 @@
 		51EF8CD88C45BF1C1BF99187 /* ScreenShakeSystem.mm in Sources */ = {isa = PBXBuildFile; fileRef = 0604376B2E287273A588D819 /* ScreenShakeSystem.mm */; };
 		5218353F3036242B883DED5D /* AudioEngine.mm in Sources */ = {isa = PBXBuildFile; fileRef = 2A7C75196D06EAC27F9A64E2 /* AudioEngine.mm */; };
 		52DE2C276ADF9CB7D67CDBCE /* Shaders in Resources */ = {isa = PBXBuildFile; fileRef = 105B2556BDC7A289744004EC /* Shaders */; };
+		53CEBFAD4A739E0D58639967 /* RailCameraTests.mm in Sources */ = {isa = PBXBuildFile; fileRef = AF70F53A5C81D63A0A3CAE5F /* RailCameraTests.mm */; };
 		53D31E51FC66CBF7823E9A38 /* GameController.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1D4170C632E74E0BC0DCAC6E /* GameController.framework */; };
 		54A7215423247D999718DBFA /* Metal.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8E8A637542BCA18FBFE4B6C0 /* Metal.framework */; };
 		55A86DCEF1BA728C2F3193D2 /* World.mm in Sources */ = {isa = PBXBuildFile; fileRef = 6C3CE5C8074A8EC650F1C61B /* World.mm */; };
@@ -50,6 +57,7 @@
 		7FE1BC27DA2779E17864BAC5 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 00D4BFD242748220523ECF71 /* Assets.xcassets */; };
 		80AAA43C2537DED109B1F885 /* CoreHaptics.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 60C0E90E9C621BF1852AFA13 /* CoreHaptics.framework */; };
 		80AD01AAB6C768EB1B4E4D4F /* RexRenderer.mm in Sources */ = {isa = PBXBuildFile; fileRef = D19215428D510F18874F5DC5 /* RexRenderer.mm */; };
+		84A86A9EF8BF321FD7043AB2 /* RailCameraSystem.mm in Sources */ = {isa = PBXBuildFile; fileRef = 80FAA2F6BAC5124039F91CD7 /* RailCameraSystem.mm */; };
 		860E6CDE09E8A15BFCD8C42D /* InputSystem.mm in Sources */ = {isa = PBXBuildFile; fileRef = E24115F77C07DE877C58A1D9 /* InputSystem.mm */; };
 		876C6B4D41C5B7ED5A2D1A3D /* RexGameHost.mm in Sources */ = {isa = PBXBuildFile; fileRef = 34A962C9761AE26A1155D1F1 /* RexGameHost.mm */; };
 		88625F037988C89DA4E57FF3 /* CoreText.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F133AD737FDF28F461217E8A /* CoreText.framework */; };
@@ -60,6 +68,8 @@
 		94F73AC9AAF1B4F827DB2ADC /* ImageIO.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = EBCCBADB86BCC3BC079D9397 /* ImageIO.framework */; };
 		992A2BF914C0273D6867A7FA /* AppDelegate.mm in Sources */ = {isa = PBXBuildFile; fileRef = 5A0AF114A95B797C661E0AB0 /* AppDelegate.mm */; };
 		9A45C1EEF96AE8BBEE3914BA /* CoreText.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F133AD737FDF28F461217E8A /* CoreText.framework */; };
+		9B228E502AD1AA29F07E487C /* ChartLoader.mm in Sources */ = {isa = PBXBuildFile; fileRef = 023616D91291A9D8D903896B /* ChartLoader.mm */; };
+		9B5D3922D400E87983E81452 /* RailCameraSystem.mm in Sources */ = {isa = PBXBuildFile; fileRef = 80FAA2F6BAC5124039F91CD7 /* RailCameraSystem.mm */; };
 		9D7F92C0E116BA302E450479 /* AnimationSystem.mm in Sources */ = {isa = PBXBuildFile; fileRef = DDE8330981F4B3171E516CDD /* AnimationSystem.mm */; };
 		9DFA10B6A181EE634D4AF2DB /* ReticleSystem.mm in Sources */ = {isa = PBXBuildFile; fileRef = 8F6E7A678A2B416F70E70AF5 /* ReticleSystem.mm */; };
 		9FA9CD7302F86C3918B8D857 /* QuartzCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F2E58A68AFED6E15C76E9CFA /* QuartzCore.framework */; };
@@ -76,6 +86,7 @@
 		CEF2EA681102A26BB102CD5F /* Shaders in Resources */ = {isa = PBXBuildFile; fileRef = 105B2556BDC7A289744004EC /* Shaders */; };
 		D496A27D1EFE7F1558662C86 /* AVFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 06C96980F27DD82DD5C0F838 /* AVFoundation.framework */; };
 		DA5A71C41D646251B75EB44F /* ScreenShakeSystem.mm in Sources */ = {isa = PBXBuildFile; fileRef = 0604376B2E287273A588D819 /* ScreenShakeSystem.mm */; };
+		E081CFE97D46CDF3BAFB4563 /* RailSpline.mm in Sources */ = {isa = PBXBuildFile; fileRef = 40E98F035D1058105BC446ED /* RailSpline.mm */; };
 		E5511D06193C0D25488A245E /* Metal.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8E8A637542BCA18FBFE4B6C0 /* Metal.framework */; };
 		E5A4738C9AB9B77B0E68D3E7 /* ParticleSim.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 97C15A79A4F325FCF1A47F0D /* ParticleSim.cpp */; };
 		E5C334F603C17707D610E205 /* World.mm in Sources */ = {isa = PBXBuildFile; fileRef = 6C3CE5C8074A8EC650F1C61B /* World.mm */; };
@@ -84,6 +95,7 @@
 		E8F03B8C2135C7C6908F45A3 /* assets in Resources */ = {isa = PBXBuildFile; fileRef = 9285B510089C9CA623582EE1 /* assets */; };
 		EB78733079BAA5A7702561D9 /* CharacterLoader.mm in Sources */ = {isa = PBXBuildFile; fileRef = 87D7247D05FC2A57F6DAEB29 /* CharacterLoader.mm */; };
 		EDABEAF2FD55A471D92554E9 /* QuartzCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F2E58A68AFED6E15C76E9CFA /* QuartzCore.framework */; };
+		EE79FB4ABB4D731EA3B7C4A4 /* RailSpline.mm in Sources */ = {isa = PBXBuildFile; fileRef = 40E98F035D1058105BC446ED /* RailSpline.mm */; };
 		F1D3072F9C3B03185B6F9C30 /* AVFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 06C96980F27DD82DD5C0F838 /* AVFoundation.framework */; };
 		F846B1150C0C17CFFC22A92D /* MetalKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E2CD79E815BBA360995598A8 /* MetalKit.framework */; };
 		F9F6A408AD8362AAF404B8F1 /* ReticleInputTests.mm in Sources */ = {isa = PBXBuildFile; fileRef = B83DE11BFAEAC7DDE1053DA3 /* ReticleInputTests.mm */; };
@@ -92,6 +104,7 @@
 
 /* Begin PBXFileReference section */
 		00D4BFD242748220523ECF71 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		023616D91291A9D8D903896B /* ChartLoader.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = ChartLoader.mm; sourceTree = "<group>"; };
 		0604376B2E287273A588D819 /* ScreenShakeSystem.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = ScreenShakeSystem.mm; sourceTree = "<group>"; };
 		06C96980F27DD82DD5C0F838 /* AVFoundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AVFoundation.framework; path = System/Library/Frameworks/AVFoundation.framework; sourceTree = SDKROOT; };
 		0AAB5666AC65C1A045CAABD0 /* GameViewController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = GameViewController.h; sourceTree = "<group>"; };
@@ -103,17 +116,22 @@
 		2726887279D805614D70EAC1 /* CharacterLoader.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = CharacterLoader.h; sourceTree = "<group>"; };
 		2A7C75196D06EAC27F9A64E2 /* AudioEngine.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = AudioEngine.mm; sourceTree = "<group>"; };
 		2B53E6DF22E58127DB39ACF7 /* RexRenderer.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = RexRenderer.h; sourceTree = "<group>"; };
+		2CFD6B42E517EC4F93E57EDD /* RailSpline.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = RailSpline.h; sourceTree = "<group>"; };
 		2DC8B19B98734D8A5BCB46C7 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		322F98B61C57C3BA906BA5A4 /* Components.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = Components.h; sourceTree = "<group>"; };
 		32BFDE2E89C9BCDDAD0C49D8 /* RexGameHost.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = RexGameHost.h; sourceTree = "<group>"; };
 		34892C62ADBBD67118CC0D23 /* CoreGraphics.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreGraphics.framework; path = System/Library/Frameworks/CoreGraphics.framework; sourceTree = SDKROOT; };
 		34A962C9761AE26A1155D1F1 /* RexGameHost.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = RexGameHost.mm; sourceTree = "<group>"; };
 		36C9F6F43FE862FE83C07921 /* GameViewController.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = GameViewController.mm; sourceTree = "<group>"; };
+		40E98F035D1058105BC446ED /* RailSpline.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = RailSpline.mm; sourceTree = "<group>"; };
+		44240F80D2BF011C75CD0B47 /* PLAN-M2.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = "PLAN-M2.md"; sourceTree = "<group>"; };
 		452B29F363637142692AC819 /* AppDelegate.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AppDelegate.h; sourceTree = "<group>"; };
 		491A92F807F1BB828D515220 /* Rex-tvOS.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = "Rex-tvOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		49A159A237585A1FAB6AA782 /* GameViewController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = GameViewController.h; sourceTree = "<group>"; };
+		4B41DE97DAC43FDAF06D8614 /* CameraMath.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = CameraMath.h; sourceTree = "<group>"; };
 		4FE3EA6AD3A9F146AD19CDD4 /* DESIGN.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = DESIGN.md; sourceTree = "<group>"; };
 		50CE385CDDEA3219EBC451EB /* main.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = main.mm; sourceTree = "<group>"; };
+		57FBDE0173D75A5CDBDDD039 /* RailCameraSystem.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = RailCameraSystem.h; sourceTree = "<group>"; };
 		5A0AF114A95B797C661E0AB0 /* AppDelegate.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = AppDelegate.mm; sourceTree = "<group>"; };
 		5D9746D33D5825D9A0BD0235 /* SceneDelegate.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SceneDelegate.h; sourceTree = "<group>"; };
 		6018D8CDCD626BCE41A6C233 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
@@ -124,6 +142,7 @@
 		6FBDA8732F625A70A7CA9536 /* AppDelegate.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AppDelegate.h; sourceTree = "<group>"; };
 		7649D00B3DF5927FEFD9A797 /* Rex-macOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Rex-macOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		7BFD5A5F7E2D037FF4148A45 /* AudioEngine.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AudioEngine.h; sourceTree = "<group>"; };
+		80FAA2F6BAC5124039F91CD7 /* RailCameraSystem.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = RailCameraSystem.mm; sourceTree = "<group>"; };
 		86E62A1F5C179CF49ED651D2 /* TODOS.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = TODOS.md; sourceTree = "<group>"; };
 		86FC80FD0678A689BCFAC968 /* ReticleSystem.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ReticleSystem.h; sourceTree = "<group>"; };
 		87D7247D05FC2A57F6DAEB29 /* CharacterLoader.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = CharacterLoader.mm; sourceTree = "<group>"; };
@@ -139,8 +158,10 @@
 		A76351B00D3C69B10C9A91A7 /* main.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = main.mm; sourceTree = "<group>"; };
 		ABAB2B43F9A5A68DA6B8DD97 /* ScreenShakeSystem.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ScreenShakeSystem.h; sourceTree = "<group>"; };
 		AE2D0D4CC6CEEC753D54A8E2 /* AnimationSystem.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AnimationSystem.h; sourceTree = "<group>"; };
+		AF70F53A5C81D63A0A3CAE5F /* RailCameraTests.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = RailCameraTests.mm; sourceTree = "<group>"; };
 		B071ADC542095BF0F8CD7E64 /* InputSystem.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = InputSystem.h; sourceTree = "<group>"; };
 		B83DE11BFAEAC7DDE1053DA3 /* ReticleInputTests.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = ReticleInputTests.mm; sourceTree = "<group>"; };
+		BC1452D0655C80FE714C62EE /* ChartLoader.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ChartLoader.h; sourceTree = "<group>"; };
 		C32528CD28DE93AE376944FF /* PLAN-M1.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = "PLAN-M1.md"; sourceTree = "<group>"; };
 		D19215428D510F18874F5DC5 /* RexRenderer.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = RexRenderer.mm; sourceTree = "<group>"; };
 		D4D32BBDB71C4CE1CF154191 /* AppDelegate.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = AppDelegate.mm; sourceTree = "<group>"; };
@@ -153,6 +174,7 @@
 		EB68E680D43E6A243EE60DAE /* Cocoa.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Cocoa.framework; path = System/Library/Frameworks/Cocoa.framework; sourceTree = SDKROOT; };
 		EB7B41B03A8E026B414C7DA3 /* project.yml */ = {isa = PBXFileReference; lastKnownFileType = text.yaml; path = project.yml; sourceTree = "<group>"; };
 		EBCCBADB86BCC3BC079D9397 /* ImageIO.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = ImageIO.framework; path = System/Library/Frameworks/ImageIO.framework; sourceTree = SDKROOT; };
+		EC0C28A795440865E01D6BDB /* ChartLoaderTests.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = ChartLoaderTests.mm; sourceTree = "<group>"; };
 		ED88C80248F776C6E3864AED /* GameViewController.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = GameViewController.mm; sourceTree = "<group>"; };
 		F133AD737FDF28F461217E8A /* CoreText.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreText.framework; path = System/Library/Frameworks/CoreText.framework; sourceTree = SDKROOT; };
 		F2E58A68AFED6E15C76E9CFA /* QuartzCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = QuartzCore.framework; path = System/Library/Frameworks/QuartzCore.framework; sourceTree = SDKROOT; };
@@ -245,6 +267,8 @@
 		4611987C1DE633582A1DBCCA /* RexLogicTests */ = {
 			isa = PBXGroup;
 			children = (
+				EC0C28A795440865E01D6BDB /* ChartLoaderTests.mm */,
+				AF70F53A5C81D63A0A3CAE5F /* RailCameraTests.mm */,
 				B83DE11BFAEAC7DDE1053DA3 /* ReticleInputTests.mm */,
 				62B42ED1E2636BF79323DFDA /* WorldSmokeTests.mm */,
 			);
@@ -313,8 +337,13 @@
 		9B7534EE5ADBC566F8521AC3 /* Simulation */ = {
 			isa = PBXGroup;
 			children = (
+				4B41DE97DAC43FDAF06D8614 /* CameraMath.h */,
+				BC1452D0655C80FE714C62EE /* ChartLoader.h */,
+				023616D91291A9D8D903896B /* ChartLoader.mm */,
 				322F98B61C57C3BA906BA5A4 /* Components.h */,
 				A40566C90DE1D326A699485D /* EventBus.h */,
+				2CFD6B42E517EC4F93E57EDD /* RailSpline.h */,
+				40E98F035D1058105BC446ED /* RailSpline.mm */,
 				889784DA7C9603A764262513 /* World.h */,
 				6C3CE5C8074A8EC650F1C61B /* World.mm */,
 				E6F6B296854DDEFC35D134A5 /* Systems */,
@@ -348,6 +377,8 @@
 				E24115F77C07DE877C58A1D9 /* InputSystem.mm */,
 				943AC821EF117BD8736BA3B2 /* PhysicsSystem.h */,
 				19CFD438813570373EF78E93 /* PhysicsSystem.mm */,
+				57FBDE0173D75A5CDBDDD039 /* RailCameraSystem.h */,
+				80FAA2F6BAC5124039F91CD7 /* RailCameraSystem.mm */,
 				86FC80FD0678A689BCFAC968 /* ReticleSystem.h */,
 				8F6E7A678A2B416F70E70AF5 /* ReticleSystem.mm */,
 				ABAB2B43F9A5A68DA6B8DD97 /* ScreenShakeSystem.h */,
@@ -361,6 +392,7 @@
 			children = (
 				4FE3EA6AD3A9F146AD19CDD4 /* DESIGN.md */,
 				C32528CD28DE93AE376944FF /* PLAN-M1.md */,
+				44240F80D2BF011C75CD0B47 /* PLAN-M2.md */,
 				86E62A1F5C179CF49ED651D2 /* TODOS.md */,
 			);
 			path = docs;
@@ -427,6 +459,7 @@
 			buildConfigurationList = 9365D05489108F77FF030FBD /* Build configuration list for PBXNativeTarget "RexLogicTests" */;
 			buildPhases = (
 				8E2F365260F35E4E957D9138 /* Sources */,
+				300CBD22A973D077CB184FEA /* Resources */,
 				3F4654295768D2F9CC2DAA2E /* Frameworks */,
 			);
 			buildRules = (
@@ -495,6 +528,14 @@
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		300CBD22A973D077CB184FEA /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				2EC8E8AB639141907A09EB4D /* assets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		72330900D5EF1B0FCF8DD678 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -526,11 +567,14 @@
 				94729FDF10BC4E37667B3F1C /* AppDelegate.mm in Sources */,
 				31606CC8BF1AF50087CE8D4F /* AudioEngine.mm in Sources */,
 				A1CED7364AAFDFDA8360962C /* CharacterLoader.mm in Sources */,
+				026C5D46C2CF7F50D45B18E0 /* ChartLoader.mm in Sources */,
 				7A21BE1133729902E327ED12 /* GameViewController.mm in Sources */,
 				3150906CA4247E855782DC5A /* HapticsEngine.mm in Sources */,
 				860E6CDE09E8A15BFCD8C42D /* InputSystem.mm in Sources */,
 				E5A4738C9AB9B77B0E68D3E7 /* ParticleSim.cpp in Sources */,
 				11E836CEB88EC88F05CD7E21 /* PhysicsSystem.mm in Sources */,
+				0B5C2B32FE0B1CE49F9E620B /* RailCameraSystem.mm in Sources */,
+				EE79FB4ABB4D731EA3B7C4A4 /* RailSpline.mm in Sources */,
 				2A15B1C8242BCC5FD967AB39 /* ReticleSystem.mm in Sources */,
 				44407FF0359B21C599ED6F47 /* RexGameHost.mm in Sources */,
 				E6F1C9196281110372883778 /* RexRenderer.mm in Sources */,
@@ -547,10 +591,15 @@
 				1DCF0E2D00C57D754E3466C4 /* AnimationSystem.mm in Sources */,
 				5218353F3036242B883DED5D /* AudioEngine.mm in Sources */,
 				2746852A475BCA27D42DF89B /* CharacterLoader.mm in Sources */,
+				04FAD9843FC745871671B78A /* ChartLoader.mm in Sources */,
+				3DFBAA24F2984154510FCA2C /* ChartLoaderTests.mm in Sources */,
 				0D99D6CE30057EF551EE5069 /* HapticsEngine.mm in Sources */,
 				5C826A0FD6F44503E15EE165 /* InputSystem.mm in Sources */,
 				AF2F683A80A8998A9AD78C43 /* ParticleSim.cpp in Sources */,
 				155C9A2701741481F0484438 /* PhysicsSystem.mm in Sources */,
+				84A86A9EF8BF321FD7043AB2 /* RailCameraSystem.mm in Sources */,
+				53CEBFAD4A739E0D58639967 /* RailCameraTests.mm in Sources */,
+				2EFB4AC8C7BD7B546D979E43 /* RailSpline.mm in Sources */,
 				F9F6A408AD8362AAF404B8F1 /* ReticleInputTests.mm in Sources */,
 				E6925E39BD6C1C8A7702E539 /* ReticleSystem.mm in Sources */,
 				AC7DF45263A8E4167C55744B /* RexGameHost.mm in Sources */,
@@ -569,11 +618,14 @@
 				992A2BF914C0273D6867A7FA /* AppDelegate.mm in Sources */,
 				ACEE1ADC2FDEFDE0EA723E2C /* AudioEngine.mm in Sources */,
 				EB78733079BAA5A7702561D9 /* CharacterLoader.mm in Sources */,
+				9B228E502AD1AA29F07E487C /* ChartLoader.mm in Sources */,
 				4F73DEAFE2E7C817EFB73766 /* GameViewController.mm in Sources */,
 				5D8A4EFC028257CD4B4FE7CE /* HapticsEngine.mm in Sources */,
 				4B0CBEA08D2A70E4D360AA17 /* InputSystem.mm in Sources */,
 				5F94F7F9E9B3CE1353D5E11C /* ParticleSim.cpp in Sources */,
 				2D77B10BA8A494E6439F3402 /* PhysicsSystem.mm in Sources */,
+				9B5D3922D400E87983E81452 /* RailCameraSystem.mm in Sources */,
+				E081CFE97D46CDF3BAFB4563 /* RailSpline.mm in Sources */,
 				9DFA10B6A181EE634D4AF2DB /* ReticleSystem.mm in Sources */,
 				876C6B4D41C5B7ED5A2D1A3D /* RexGameHost.mm in Sources */,
 				92980B08BEDC019E4DD967FB /* RexRenderer.mm in Sources */,
