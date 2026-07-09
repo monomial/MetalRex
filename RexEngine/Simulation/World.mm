@@ -77,20 +77,8 @@ void World::reset_m1_scene() {
 
     for (int i = 0; i < kM1MaxTargets; ++i) {
         _targets[i] = {};
-        _targets[i].railDistance = 2.5f + (float)i * 1.4f;
-        _targets[i].lateralOffset = ((i % 3) - 1) * 0.75f;
-        // 0 = resting exactly on the ground (see RailCameraSystem's
-        // ground-anchored Y computation) — was 0.35-0.53, a leftover from
-        // the pre-M2 fake-perspective scheme that floated everything.
-        _targets[i].verticalOffset = 0.f;
         _targets[i].timerOffset = (float)i * 0.65f;
-        _targets[i].halfWidth = 0.18f;
-        _targets[i].halfHeight = 0.22f;
     }
-
-    _targets[0].active = true;
-    _targets[1].active = true;
-    _targets[2].active = true;
 
     // Dino visual scale, not a hit-box tuning value: RexRenderer derives the
     // rendered mesh height directly from halfHeight (visualHeight =
@@ -101,40 +89,60 @@ void World::reset_m1_scene() {
     // RailCameraSystem, so a big dino can't blow up the on-screen hit box.
     //
     // Pursuers spawn BEHIND the jeep (the camera starts at rail distance 8
-    // facing backward), deep enough that the player sees them run up:
-    // raptor 6.5 units back, T-Rex 8 back and to the side, both chasing
-    // (see DinoBehaviorSystem).
-    _targets[3].active = true;
-    _targets[3].moving = true;
-    _targets[3].railDistance = 1.5f;
-    _targets[3].halfWidth = 0.4f;
-    _targets[3].halfHeight = 0.65f;
+    // facing backward), deep enough that the player sees them run up. Each
+    // raptor's idleDuration/chaseSpeed is staggered so their attack windows
+    // roll rather than sync into one simultaneous scrum — a wave of pursuers
+    // taking turns lunging, like the arcade reference, rather than all four
+    // attacking in lockstep.
+    struct RaptorSpawn {
+        int targetIndex;
+        float railDistance;
+        float lateralOffset;
+        float chaseSpeed;
+        float idleDuration;
+    };
+    static constexpr RaptorSpawn kRaptorSpawns[] = {
+        {0, 3.0f, -1.1f, 1.55f, 0.9f},
+        {1, 4.6f,  1.1f, 1.65f, 1.7f},
+        {2, 6.2f, -0.6f, 1.50f, 2.3f},
+        {3, 1.5f,  0.0f, 1.60f, 1.2f},
+    };
+    for (const RaptorSpawn& spawn : kRaptorSpawns) {
+        TargetComponent& target = _targets[spawn.targetIndex];
+        target.active = true;
+        target.moving = true;
+        target.railDistance = spawn.railDistance;
+        target.lateralOffset = spawn.lateralOffset;
+        target.halfWidth = 0.4f;
+        target.halfHeight = 0.65f;
+
+        EntityID raptor = defer_create();
+        AnimationComponent& anim = add_component<AnimationComponent>(raptor);
+        anim.currentClip = CharacterClipSlot::Idle;
+        anim.requestedClip = CharacterClipSlot::Idle;
+        FactionComponent& faction = add_component<FactionComponent>(raptor);
+        faction.type = FactionComponent::Enemy;
+        DinoBehaviorComponent& dino = add_component<DinoBehaviorComponent>(raptor);
+        dino.active = true;
+        dino.targetIndex = (uint8_t)spawn.targetIndex;
+        dino.species = DinoSpecies::Velociraptor;
+        dino.chaseSpeed = spawn.chaseSpeed; // jeep runs 1.2 — raptor gains ground
+        dino.attackRange = 2.4f;
+        dino.idleDuration = spawn.idleDuration;
+        dino.maxHealth = 3;
+        dino.health = 3;
+        dino.tellEndNormalized = 0.28f;
+        dino.interruptStartNormalized = 0.18f;
+        dino.interruptEndNormalized = 0.46f;
+        dino.jumpReactionDuration = 0.35f;
+    }
 
     _targets[4].active = true;
+    _targets[4].moving = true;
     _targets[4].railDistance = 0.f;
     _targets[4].lateralOffset = 1.6f;
     _targets[4].halfWidth = 1.0f;
     _targets[4].halfHeight = 1.81f;
-
-    EntityID raptor = defer_create();
-    AnimationComponent& anim = add_component<AnimationComponent>(raptor);
-    anim.currentClip = CharacterClipSlot::Idle;
-    anim.requestedClip = CharacterClipSlot::Idle;
-    FactionComponent& faction = add_component<FactionComponent>(raptor);
-    faction.type = FactionComponent::Enemy;
-    DinoBehaviorComponent& dino = add_component<DinoBehaviorComponent>(raptor);
-    dino.active = true;
-    dino.targetIndex = 3;
-    dino.species = DinoSpecies::Velociraptor;
-    dino.chaseSpeed = 1.6f;  // jeep runs 1.2 — raptor gains 0.4/s
-    dino.attackRange = 2.4f;
-    dino.idleDuration = 1.2f;
-    dino.maxHealth = 3;
-    dino.health = 3;
-    dino.tellEndNormalized = 0.28f;
-    dino.interruptStartNormalized = 0.18f;
-    dino.interruptEndNormalized = 0.46f;
-    dino.jumpReactionDuration = 0.35f;
 
     EntityID trex = defer_create();
     AnimationComponent& trexAnim = add_component<AnimationComponent>(trex);
@@ -148,7 +156,7 @@ void World::reset_m1_scene() {
     trexDino.species = DinoSpecies::Trex;
     trexDino.chaseSpeed = 1.4f;  // heavy stomp — gains on the jeep slowly
     trexDino.attackRange = 3.2f; // longer reach, lunges from farther out
-    trexDino.idleDuration = 2.0f; // offset from the raptor so attacks don't sync
+    trexDino.idleDuration = 2.8f; // offset from the raptor wave so attacks don't sync
     trexDino.maxHealth = 8;      // boss-weight: soaks far more than a raptor
     trexDino.health = 8;
     trexDino.tellEndNormalized = 0.28f;
