@@ -9,6 +9,7 @@
 #include <vector>
 #include <simd/simd.h>
 #import <ImageIO/ImageIO.h>
+#import <QuartzCore/QuartzCore.h>
 
 struct RexVertex {
     simd_float3 position;
@@ -63,6 +64,18 @@ struct SkinnedUniformsCPU {
     float _halfH;
     float _aspect;
     NSString *_pendingCapturePath; // --capture-out=: next frame -> PNG
+
+    // Shot tracer effects (renderer-local cosmetics; the sim only exposes
+    // ReticleComponent::shotCount, which is diffed per frame to spawn these).
+    struct ShotTracer {
+        float startX, startY;   // overlay px — gun muzzle anchor
+        float endX, endY;       // overlay px — reticle at the moment of the shot
+        float age;              // seconds
+        int player;
+    };
+    std::vector<ShotTracer> _tracers;
+    uint32_t _lastShotCount[kRexMaxPlayers];
+    CFTimeInterval _lastOverlayTime;
 }
 
 - (instancetype)initWithDevice:(id<MTLDevice>)device
@@ -429,7 +442,36 @@ struct SkinnedUniformsCPU {
     [encoder setRenderPipelineState:_pipeline];
 }
 
+// Appends a solid quad along the segment (x0,y0)->(x1,y1) with the given
+// half-width, as two triangles, into `out` (overlay pixel space).
+static void appendSegmentQuad(std::vector<RexVertex>& out,
+                              float x0, float y0, float x1, float y1,
+                              float halfWidth, float z) {
+    float dx = x1 - x0;
+    float dy = y1 - y0;
+    float len = sqrtf(dx * dx + dy * dy);
+    if (len < 0.0001f) return;
+    float nx = -dy / len * halfWidth;
+    float ny =  dx / len * halfWidth;
+    out.push_back({{x0 + nx, y0 + ny, z}});
+    out.push_back({{x0 - nx, y0 - ny, z}});
+    out.push_back({{x1 + nx, y1 + ny, z}});
+    out.push_back({{x0 - nx, y0 - ny, z}});
+    out.push_back({{x1 - nx, y1 - ny, z}});
+    out.push_back({{x1 + nx, y1 + ny, z}});
+}
+
+// Where each player's gun sits on screen (normalized x; y is the bottom
+// edge): P1 left of center, P2 right, like two shooters in the jeep bed.
+static const float kGunAnchorX[kRexMaxPlayers] = {0.42f, 0.58f, 0.30f, 0.70f};
+
 - (void)_drawReticles:(World *)world encoder:(id<MTLRenderCommandEncoder>)encoder {
+    // Frame dt for the tracer animation (cosmetic only, so wall-clock is fine).
+    CFTimeInterval now = CACurrentMediaTime();
+    float frameDt = (_lastOverlayTime > 0.0) ? (float)(now - _lastOverlayTime) : (1.f / 60.f);
+    frameDt = std::min(frameDt, 0.05f);
+    _lastOverlayTime = now;
+
     for (int i = 0; i < kRexMaxPlayers; ++i) {
         const ReticleComponent& reticle = world->reticle(i);
         if (!reticle.active) continue;
@@ -457,6 +499,29 @@ struct SkinnedUniformsCPU {
             {0.98f, 0.80f, 0.30f, 1.f},
         };
         simd_float4 color = kReticleColors[i];
+
+        // Laser pointer: a thin beam from this player's gun muzzle (bottom
+        // edge of the screen) to their reticle, arcade-style. Drawn first so
+        // the crosshair renders on top of it.
+        simd_float3 muzzle = [self _screenPointX:kGunAnchorX[i] y:0.02f z:0.04f];
+        {
+            std::vector<RexVertex> beam;
+            appendSegmentQuad(beam, muzzle.x, muzzle.y, c.x, c.y, 1.5f, 0.04f);
+            simd_float4 beamColor = {color.x, color.y, color.z, 0.30f};
+            [self _drawVertices:beam color:beamColor
+                      primitive:MTLPrimitiveTypeTriangle mvp:_overlayProjection encoder:encoder];
+        }
+
+        // New shots since last frame -> spawn tracers along the beam path.
+        uint32_t shots = reticle.shotCount;
+        if (shots != _lastShotCount[i]) {
+            uint32_t newShots = shots - _lastShotCount[i];
+            _lastShotCount[i] = shots;
+            for (uint32_t s = 0; s < newShots && s < 3; ++s) {
+                _tracers.push_back({muzzle.x, muzzle.y, c.x, c.y, 0.f, i});
+            }
+        }
+
         [self _drawVertices:lines color:color primitive:MTLPrimitiveTypeLine mvp:_overlayProjection encoder:encoder];
 
         // Steady ring around the crosshair (the arcade reference sight is a
@@ -492,6 +557,51 @@ struct SkinnedUniformsCPU {
             simd_float4 flashColor = {1.f, 0.92f, 0.55f, alpha};
             [self _drawVertices:ring color:flashColor primitive:MTLPrimitiveTypeLine mvp:_overlayProjection encoder:encoder];
         }
+    }
+
+    // Advance + draw shot tracers: a bright round streaking from the muzzle
+    // to where the reticle was when the trigger was pulled — red glow with a
+    // white-hot core, plus a brief muzzle flash at the gun end.
+    constexpr float kTracerDuration = 0.11f;
+    std::vector<RexVertex> glow;
+    std::vector<RexVertex> core;
+    std::vector<RexVertex> flash;
+    for (auto& tracer : _tracers) {
+        tracer.age += frameDt;
+        float t = tracer.age / kTracerDuration;
+        if (t > 1.f) continue;
+        float headT = t;
+        float tailT = std::max(0.f, t - 0.30f);
+        float hx = tracer.startX + (tracer.endX - tracer.startX) * headT;
+        float hy = tracer.startY + (tracer.endY - tracer.startY) * headT;
+        float tx = tracer.startX + (tracer.endX - tracer.startX) * tailT;
+        float ty = tracer.startY + (tracer.endY - tracer.startY) * tailT;
+        appendSegmentQuad(glow, tx, ty, hx, hy, 4.5f, 0.045f);
+        appendSegmentQuad(core, tx, ty, hx, hy, 1.5f, 0.05f);
+
+        if (tracer.age < 0.045f) {
+            // Muzzle flash: a small X burst at the gun end of the beam.
+            float r = 10.f;
+            appendSegmentQuad(flash, tracer.startX - r, tracer.startY - r,
+                              tracer.startX + r, tracer.startY + r, 2.5f, 0.05f);
+            appendSegmentQuad(flash, tracer.startX - r, tracer.startY + r,
+                              tracer.startX + r, tracer.startY - r, 2.5f, 0.05f);
+        }
+    }
+    _tracers.erase(std::remove_if(_tracers.begin(), _tracers.end(),
+                                  [](const ShotTracer& tracer) {
+                                      return tracer.age >= kTracerDuration;
+                                  }),
+                   _tracers.end());
+    if (!glow.empty()) {
+        [self _drawVertices:glow color:(simd_float4){1.f, 0.28f, 0.20f, 0.55f}
+                  primitive:MTLPrimitiveTypeTriangle mvp:_overlayProjection encoder:encoder];
+        [self _drawVertices:core color:(simd_float4){1.f, 0.98f, 0.92f, 0.95f}
+                  primitive:MTLPrimitiveTypeTriangle mvp:_overlayProjection encoder:encoder];
+    }
+    if (!flash.empty()) {
+        [self _drawVertices:flash color:(simd_float4){1.f, 0.85f, 0.45f, 0.9f}
+                  primitive:MTLPrimitiveTypeTriangle mvp:_overlayProjection encoder:encoder];
     }
 }
 

@@ -11,6 +11,12 @@
     RexGameHost *_host;
     GCController *_controller;
     BOOL _left, _right, _up, _down, _fire, _recenter, _pause;
+    // Controller state mirrored into ivars by the GCController handlers.
+    // The 120Hz feed below is the ONLY writer of the host's input state —
+    // handlers must never read-modify-write it themselves (see
+    // _feedKeyboardInput for the latch bug that pattern caused).
+    float _padStickX, _padStickY;
+    BOOL _padFire, _padRecenter;
     BOOL _autoFire;                 // --auto-fire: pulse the trigger for headless captures
     CFTimeInterval _lastAutoFire;
 }
@@ -102,17 +108,28 @@
     [self _startCaptureIfRequested];
 }
 
+// Composes the full player-0 input fresh every tick from keyboard ivars +
+// controller ivars. It must NOT start from the host's stored state: the old
+// `state.fire = state.fire || _fire` read back this method's own previous
+// write, so one spacebar press latched fire=true forever — which played
+// exactly like an always-on auto-fire.
 - (void)_feedKeyboardInput {
     float x = (_right ? 1.f : 0.f) - (_left ? 1.f : 0.f);
     float y = (_up ? 1.f : 0.f) - (_down ? 1.f : 0.f);
-    InputState state = [_host currentInputStateForPlayer:0];
+    InputState state = {};
     if (!_controller || _left || _right || _up || _down) {
         state.stickX = x;
         state.stickY = y;
+    } else {
+        state.stickX = _padStickX;
+        state.stickY = _padStickY;
     }
-    state.recenter = state.recenter || (bool)_recenter;
-    state.fire = state.fire || (bool)_fire;
-    state.pause = state.pause || (bool)_pause;
+    // Spacebar and the pad trigger are both HELD fire — the machine gun
+    // fires for as long as they're down, with ReticleSystem's cooldown
+    // setting the cadence.
+    state.fire = (bool)_fire || (bool)_padFire;
+    state.recenter = (bool)_recenter || (bool)_padRecenter;
+    state.pause = (bool)_pause;
 
     if (_autoFire) {
         CFTimeInterval now = CACurrentMediaTime();
@@ -131,7 +148,6 @@
         state.gyroDeltaY = 0.f;
     }
     [_host setInputState:state forPlayer:0];
-    _fire = NO;
     _recenter = NO;
     _pause = NO;
 }
@@ -176,6 +192,7 @@
         case 124: _right = NO; break;
         case 126: _up = NO; break;
         case 125: _down = NO; break;
+        case 49:  _fire = NO; break; // spacebar released — stop firing
         default: [super keyUp:event];
     }
 }
@@ -189,6 +206,10 @@
     if (_controller != controller) return;
     if (_controller.motion) _controller.motion.sensorsActive = NO;
     _controller = nil;
+    _padStickX = 0.f;
+    _padStickY = 0.f;
+    _padFire = NO;
+    _padRecenter = NO;
     [_host setInputState:{} forPlayer:0];
 }
 
@@ -201,28 +222,25 @@
     GCExtendedGamepad *gamepad = controller.extendedGamepad;
     if (!gamepad) return;
 
+    // Handlers only mirror controller state into ivars; _feedKeyboardInput
+    // is the single writer of the host's input state. The old handlers did
+    // read-modify-write on the host state directly, racing the 120Hz feed.
     __weak GameViewController *weakSelf = self;
     gamepad.rightThumbstick.valueChangedHandler = ^(GCControllerDirectionPad *pad, float x, float y) {
         GameViewController *vc = weakSelf;
         if (!vc) return;
-        InputState state = [vc->_host currentInputStateForPlayer:0];
-        state.stickX = x;
-        state.stickY = y;
-        [vc->_host setInputState:state forPlayer:0];
+        vc->_padStickX = x;
+        vc->_padStickY = y;
     };
     gamepad.buttonA.valueChangedHandler = ^(GCControllerButtonInput *button, float value, BOOL pressed) {
         GameViewController *vc = weakSelf;
         if (!vc) return;
-        InputState state = [vc->_host currentInputStateForPlayer:0];
-        state.fire = pressed;
-        [vc->_host setInputState:state forPlayer:0];
+        vc->_padFire = pressed;
     };
     gamepad.buttonB.valueChangedHandler = ^(GCControllerButtonInput *button, float value, BOOL pressed) {
         GameViewController *vc = weakSelf;
         if (!vc) return;
-        InputState state = [vc->_host currentInputStateForPlayer:0];
-        state.recenter = pressed;
-        [vc->_host setInputState:state forPlayer:0];
+        vc->_padRecenter = pressed;
     };
 }
 

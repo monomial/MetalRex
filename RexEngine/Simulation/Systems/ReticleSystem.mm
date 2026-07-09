@@ -162,6 +162,7 @@ void ReticleSystem_update(World& world, float gameDt) {
         if (input.fire && reticle.fireCooldown <= 0.f) {
             reticle.fireCooldown = kFireCooldown;
             reticle.fireFlashTime = kFireFlashDuration;
+            reticle.shotCount += 1;
             for (int i = 0; i < kM1MaxTargets; ++i) {
                 TargetComponent& target = world.target(i);
                 if (point_inside(reticle, target)) target.wasHit = true;

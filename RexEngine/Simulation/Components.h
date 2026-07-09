@@ -51,6 +51,8 @@ struct ReticleComponent {
     float fireFlashTime = 0.f; // counts down from kFireFlashDuration on fire; 0 = no flash
     float fireCooldown = 0.f;  // min time between shots — a held trigger fires
                                // at the cadence, not once per 120Hz tick
+    uint32_t shotCount = 0;    // total shots fired — the renderer diffs this
+                               // across frames to spawn tracer effects
 };
 
 struct TargetComponent {
