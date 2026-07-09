@@ -7,6 +7,9 @@ class World;
 // hit-test itself doesn't use this at all.
 static constexpr float kFireFlashDuration = 0.12f;
 
+// Minimum time between shots (held trigger fires at this cadence).
+static constexpr float kFireCooldown = 0.18f;
+
 struct ReticleTuning {
     float stickSensitivityH = 0.72f;
     float stickSensitivityV = 0.58f;

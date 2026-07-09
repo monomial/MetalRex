@@ -49,6 +49,8 @@ struct ReticleComponent {
     float smoothingAlpha = 0.f;
     float stillnessThreshold = 0.f;
     float fireFlashTime = 0.f; // counts down from kFireFlashDuration on fire; 0 = no flash
+    float fireCooldown = 0.f;  // min time between shots — a held trigger fires
+                               // at the cadence, not once per 120Hz tick
 };
 
 struct TargetComponent {
@@ -125,7 +127,8 @@ enum class DinoBehaviorState : uint8_t {
     Tell,
     Attack,
     Interrupted,
-    Landed
+    Landed,
+    Dying
 };
 
 enum class DinoInterruptOutcome : uint8_t {
@@ -160,6 +163,12 @@ struct DinoBehaviorComponent {
     // rail-units behind the jeep. Must stay > 1 (RailCameraSystem pins
     // anything closer than 1 unit as a safety net).
     float attackRange = 2.4f;
+    // Shots to kill. At 0 the dino enters Dying: Death clip, screen-door
+    // fade, then respawns deep behind the jeep with health restored.
+    int maxHealth = 3;
+    int health = 3;
+    // Brief tint flash on taking a hit (renderer reads this).
+    float hitFlashTime = 0.f;
     float tellEndNormalized = 0.28f;
     float interruptStartNormalized = 0.18f;
     float interruptEndNormalized = 0.46f;

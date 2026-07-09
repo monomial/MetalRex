@@ -1,5 +1,6 @@
 #import "GameViewController.h"
 #import <MetalKit/MetalKit.h>
+#import <QuartzCore/QuartzCore.h>
 #import <GameController/GameController.h>
 #import "RexGameHost.h"
 #include "Simulation/Systems/ReticleSystem.h"
@@ -10,6 +11,8 @@
     RexGameHost *_host;
     GCController *_controller;
     BOOL _left, _right, _up, _down, _fire, _recenter, _pause;
+    BOOL _autoFire;                 // --auto-fire: pulse the trigger for headless captures
+    CFTimeInterval _lastAutoFire;
 }
 
 - (void)loadView {
@@ -94,6 +97,8 @@
         [self _attachController:controller];
     }
 
+    _autoFire = [[NSProcessInfo processInfo].arguments containsObject:@"--auto-fire"];
+
     [self _startCaptureIfRequested];
 }
 
@@ -108,6 +113,14 @@
     state.recenter = state.recenter || (bool)_recenter;
     state.fire = state.fire || (bool)_fire;
     state.pause = state.pause || (bool)_pause;
+
+    if (_autoFire) {
+        CFTimeInterval now = CACurrentMediaTime();
+        if (now - _lastAutoFire > 0.3) {
+            state.fire = true;
+            _lastAutoFire = now;
+        }
+    }
 
     GCMotion *motion = _controller.motion;
     if (motion && motion.sensorsActive) {

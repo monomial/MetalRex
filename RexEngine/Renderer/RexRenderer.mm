@@ -397,19 +397,24 @@ struct SkinnedUniformsCPU {
             1.f
         };
 
+        const AnimationComponent& anim = world->get_component<AnimationComponent>(id);
+
         SkinnedUniformsCPU uniforms;
         uniforms.mvp = simd_mul(viewProjection, model);
         uniforms.modelRotation = modelRotation;
-        uniforms.color = target.wasHit ? (simd_float4){0.96f, 0.78f, 0.24f, 1.f}
-                                       : (simd_float4){1.f, 1.f, 1.f, 1.f};
+        // Hit flash while hitFlashTime runs; the alpha channel carries
+        // deathFade — the shader screen-door-dissolves the corpse as it
+        // drops below 1.
+        bool hitFlash = dino.hitFlashTime > 0.f;
+        uniforms.color = hitFlash ? (simd_float4){0.96f, 0.78f, 0.24f, anim.deathFade}
+                                  : (simd_float4){1.f, 1.f, 1.f, anim.deathFade};
         // Light from the camera's side, raised a bit so top surfaces read
         // brighter than undersides (pure headlight lighting looks flat).
         simd_float3 towardCamera = simd_normalize((simd_float3){
             dx, camera.positionY - target.worldY, dz});
         simd_float3 lightDir = simd_normalize(towardCamera + (simd_float3){0.f, 0.9f, 0.f});
         uniforms.lightDir = (simd_float4){lightDir.x, lightDir.y, lightDir.z, 0.f};
-        uniforms.tintStrength = target.wasHit ? 0.25f : 0.f;
-        const AnimationComponent& anim = world->get_component<AnimationComponent>(id);
+        uniforms.tintStrength = hitFlash ? 0.45f : 0.f;
 
         [encoder setVertexBuffer:character->vertexBuffer offset:0 atIndex:0];
         [encoder setVertexBytes:anim.boneMatrices length:sizeof(anim.boneMatrices) atIndex:1];
@@ -442,10 +447,32 @@ struct SkinnedUniformsCPU {
         lines.push_back({{c.x, c.y + gap, c.z}});
         lines.push_back({{c.x, c.y + len, c.z}});
 
-        simd_float4 color = reticle.gyroAvailable
-                          ? (simd_float4){0.16f, 0.85f, 0.95f, 1.f}
-                          : (simd_float4){0.92f, 0.92f, 0.92f, 1.f};
+        // Per-player reticle colors (arcade style — each player instantly
+        // knows which sight is theirs): P1 warm pink/red, P2 cyan, then
+        // green/amber for 3P/4P if that ever ships.
+        static const simd_float4 kReticleColors[kRexMaxPlayers] = {
+            {1.00f, 0.42f, 0.55f, 1.f},
+            {0.16f, 0.85f, 0.95f, 1.f},
+            {0.45f, 0.95f, 0.45f, 1.f},
+            {0.98f, 0.80f, 0.30f, 1.f},
+        };
+        simd_float4 color = kReticleColors[i];
         [self _drawVertices:lines color:color primitive:MTLPrimitiveTypeLine mvp:_overlayProjection encoder:encoder];
+
+        // Steady ring around the crosshair (the arcade reference sight is a
+        // circle with a cross inside it), in the same per-player color.
+        {
+            const float radius = 30.f;
+            const int kSegments = 28;
+            std::vector<RexVertex> ring;
+            for (int s = 0; s < kSegments; ++s) {
+                float a0 = (float)s / kSegments * 2.f * (float)M_PI;
+                float a1 = (float)(s + 1) / kSegments * 2.f * (float)M_PI;
+                ring.push_back({{c.x + cosf(a0) * radius, c.y + sinf(a0) * radius, c.z}});
+                ring.push_back({{c.x + cosf(a1) * radius, c.y + sinf(a1) * radius, c.z}});
+            }
+            [self _drawVertices:ring color:color primitive:MTLPrimitiveTypeLine mvp:_overlayProjection encoder:encoder];
+        }
 
         // Fire flash: a ring that expands and fades over kFireFlashDuration.
         // Previously firing had zero visual feedback at the moment of the

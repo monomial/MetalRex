@@ -115,6 +115,52 @@ static void placeWithinAttackRange(World& world, DinoBehaviorComponent& dino) {
                                atAttackStart, 0.0001f);
 }
 
+- (void)test_shotsDrainHealthThenDeathThenRespawnBehindJeep {
+    World world;
+    EntityID dinoId = findDino(world);
+    XCTAssertNotEqual(dinoId, kInvalidEntity);
+
+    DinoBehaviorComponent& dino = world.get_component<DinoBehaviorComponent>(dinoId);
+    dino.idleDuration = 100.f; // never attack during this test
+    int startHealth = dino.health;
+    XCTAssertGreaterThan(startHealth, 1);
+
+    // Each shot drains one health and starts a hit flash.
+    world.target(dino.targetIndex).wasHit = true;
+    tick(world, 1);
+    XCTAssertEqual(dino.health, startHealth - 1);
+    XCTAssertGreaterThan(dino.hitFlashTime, 0.f);
+    XCTAssertEqual(dino.state, DinoBehaviorState::Idle);
+
+    // Drain the rest: death cuts through to the Death clip.
+    for (int shot = 1; shot < startHealth; ++shot) {
+        world.target(dino.targetIndex).wasHit = true;
+        tick(world, 1);
+    }
+    XCTAssertEqual(dino.health, 0);
+    XCTAssertEqual(dino.state, DinoBehaviorState::Dying);
+    XCTAssertEqual(world.get_component<AnimationComponent>(dinoId).currentClip,
+                   CharacterClipSlot::Death);
+
+    // Shots at a corpse do nothing further.
+    world.target(dino.targetIndex).wasHit = true;
+    tick(world, 1);
+    XCTAssertEqual(dino.health, 0);
+    XCTAssertEqual(dino.state, DinoBehaviorState::Dying);
+
+    // Death clip (fallback 4.5s at the 2x death speed multiplier = 2.25s)
+    // plus the 0.8s dissolve, then the dino respawns deep behind the jeep
+    // with health restored.
+    tick(world, 450);
+    XCTAssertEqual(dino.state, DinoBehaviorState::Idle);
+    XCTAssertEqual(dino.health, dino.maxHealth);
+    XCTAssertEqualWithAccuracy(world.get_component<AnimationComponent>(dinoId).deathFade,
+                               1.f, 0.0001f);
+    float gap = world.rail_camera().distance - world.target(dino.targetIndex).railDistance;
+    XCTAssertGreaterThan(gap, 4.f);
+    XCTAssertLessThanOrEqual(gap, 10.f);
+}
+
 - (void)test_incompletePerSpeciesClipTableFailsLoudly {
     bool loaded[(int)CharacterClipSlot::Count] = {};
     for (int i = 0; i < (int)CharacterClipSlot::Count; ++i) loaded[i] = true;

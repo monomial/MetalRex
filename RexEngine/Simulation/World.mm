@@ -65,8 +65,11 @@ void World::reset_m1_scene() {
     for (int i = 0; i < kRexMaxPlayers; ++i) {
         _reticles[i] = {};
         _reticles[i].playerIndex = (uint8_t)i;
-        _reticles[i].active = (i == 0);
-        _reticles[i].x = 0.5f;
+        // P1 and P2 both active (2P is a day-one design goal; a real join
+        // flow lands in M5b). P1 starts centered; P2 starts offset right so
+        // the two reticles don't stack before anyone moves them.
+        _reticles[i].active = (i <= 1);
+        _reticles[i].x = (i == 1) ? 0.62f : 0.5f;
         _reticles[i].y = 0.5f;
     }
 
@@ -126,6 +129,8 @@ void World::reset_m1_scene() {
     dino.chaseSpeed = 1.6f;  // jeep runs 1.2 — raptor gains 0.4/s
     dino.attackRange = 2.4f;
     dino.idleDuration = 1.2f;
+    dino.maxHealth = 3;
+    dino.health = 3;
     dino.tellEndNormalized = 0.28f;
     dino.interruptStartNormalized = 0.18f;
     dino.interruptEndNormalized = 0.46f;
@@ -144,6 +149,8 @@ void World::reset_m1_scene() {
     trexDino.chaseSpeed = 1.4f;  // heavy stomp — gains on the jeep slowly
     trexDino.attackRange = 3.2f; // longer reach, lunges from farther out
     trexDino.idleDuration = 2.0f; // offset from the raptor so attacks don't sync
+    trexDino.maxHealth = 8;      // boss-weight: soaks far more than a raptor
+    trexDino.health = 8;
     trexDino.tellEndNormalized = 0.28f;
     trexDino.interruptStartNormalized = 0.18f;
     trexDino.interruptEndNormalized = 0.46f;

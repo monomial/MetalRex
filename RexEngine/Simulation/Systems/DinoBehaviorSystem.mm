@@ -33,6 +33,20 @@ static void enter_chase(World& world, EntityID id, DinoBehaviorComponent& dino) 
     AnimationSystem_force_clip(world, id, CharacterClipSlot::Run);
 }
 
+static void respawn(World& world, EntityID id, DinoBehaviorComponent& dino) {
+    dino.health = dino.maxHealth;
+    dino.hitFlashTime = 0.f;
+    if (world.has_component<AnimationComponent>(id)) {
+        world.get_component<AnimationComponent>(id).deathFade = 1.f;
+    }
+    if (dino.targetIndex < kM1MaxTargets) {
+        TargetComponent& target = world.target(dino.targetIndex);
+        target.railDistance = std::max(0.f, world.rail_camera().distance - 9.f);
+        target.wasHit = false;
+    }
+    enter_chase(world, id, dino);
+}
+
 void DinoBehaviorSystem_update(World& world, float gameDt) {
     if (gameDt == 0.f) return;
 
@@ -45,6 +59,33 @@ void DinoBehaviorSystem_update(World& world, float gameDt) {
         dino.stateTime += gameDt;
         AnimationComponent* anim = world.has_component<AnimationComponent>(id)
                                  ? &world.get_component<AnimationComponent>(id) : nullptr;
+
+        // Consume this tick's hit (ReticleSystem sets target.wasHit on a
+        // successful shot). Every hit does damage; whether it ALSO
+        // interrupts an attack depends on the interrupt window below.
+        bool wasShot = false;
+        if (dino.targetIndex < kM1MaxTargets) {
+            TargetComponent& target = world.target(dino.targetIndex);
+            if (target.wasHit) {
+                wasShot = true;
+                target.wasHit = false;
+            }
+        }
+        if (dino.hitFlashTime > 0.f) {
+            dino.hitFlashTime = std::max(0.f, dino.hitFlashTime - gameDt);
+        }
+        if (wasShot && dino.state != DinoBehaviorState::Dying) {
+            dino.health -= 1;
+            dino.hitFlashTime = 0.2f;
+            if (dino.health <= 0) {
+                dino.state = DinoBehaviorState::Dying;
+                dino.stateTime = 0.f;
+                // Force: death must cut through whatever is playing,
+                // including a mid-flight Attack.
+                AnimationSystem_force_clip(world, id, CharacterClipSlot::Death);
+                continue;
+            }
+        }
 
         switch (dino.state) {
             case DinoBehaviorState::Idle: {
@@ -92,10 +133,7 @@ void DinoBehaviorSystem_update(World& world, float gameDt) {
 
                 bool inWindow = progress >= dino.interruptStartNormalized
                              && progress <= dino.interruptEndNormalized;
-                bool hit = dino.targetIndex < kM1MaxTargets
-                        && world.target(dino.targetIndex).wasHit;
-                if (hit && inWindow) {
-                    world.target(dino.targetIndex).wasHit = false;
+                if (wasShot && inWindow) {
                     dino.lastOutcome = DinoInterruptOutcome::Succeeded;
                     dino.outcomeThisCycle = true;
                     dino.state = DinoBehaviorState::Interrupted;
@@ -129,6 +167,28 @@ void DinoBehaviorSystem_update(World& world, float gameDt) {
             case DinoBehaviorState::Landed:
                 enter_chase(world, id, dino);
                 break;
+
+            case DinoBehaviorState::Dying: {
+                if (!anim) {
+                    respawn(world, id, dino);
+                    break;
+                }
+                // Death clip plays through, then the corpse dissolves
+                // (renderer feeds deathFade to the shader's screen-door
+                // discard), then the dino respawns deep behind the jeep as
+                // a fresh pursuer. anim->dying is deliberately NOT set:
+                // that flag routes into AnimationSystem's fade-and-destroy
+                // path, and these entities are permanent — they recycle.
+                bool deathDone = anim->clipDone
+                              && anim->currentClip == CharacterClipSlot::Death;
+                if (deathDone) {
+                    anim->deathFade -= gameDt / 0.8f;
+                    if (anim->deathFade <= 0.f) {
+                        respawn(world, id, dino);
+                    }
+                }
+                break;
+            }
         }
     }
 }
