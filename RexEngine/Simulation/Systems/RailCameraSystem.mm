@@ -88,7 +88,10 @@ static void update_targets(World& world, float gameDt) {
         }
         if (target.moving) {
             target.lateralOffset = sinf(camera.elapsed * 1.45f) * 0.9f;
-            target.verticalOffset = 0.55f + sinf(camera.elapsed * 2.1f) * 0.12f;
+            // Small walk-cycle bob around ground level, not the old 0.43-0.67
+            // range (which, combined with the rail-relative Y this used to
+            // use, is what put the dino a full 1+ unit above the ground).
+            target.verticalOffset = sinf(camera.elapsed * 2.1f) * 0.04f;
             target.active = true;
         }
 
@@ -105,9 +108,18 @@ static void update_targets(World& world, float gameDt) {
         simd_float3 forward = rex_safe_normalize(rex_to_simd(tangent), (simd_float3){0.f, 0.f, 1.f});
         simd_float3 right = rex_safe_normalize(simd_cross((simd_float3){0.f, 1.f, 0.f}, forward),
                                                (simd_float3){1.f, 0.f, 0.f});
+        // Y is anchored to the ground plane, NOT the rail's own Y (which
+        // varies with the camera's height along the chart) — target.worldY
+        // is consumed as "box center height" by both the box-target renderer
+        // and (via CharacterLoader's meshYMin/halfHeight alignment) the
+        // skinned-dino renderer, so ground + halfHeight puts feet exactly on
+        // the ground when verticalOffset is 0. Previously this used
+        // center.y (the rail's height, 0.25-0.55 across the M2 test chart)
+        // with a large verticalOffset (0.35-0.67) on top, which floated
+        // targets roughly 1.2-1.5 world units above the actual ground.
         simd_float3 worldCenter = rex_to_simd(center)
-                                + right * target.lateralOffset
-                                + (simd_float3){0.f, target.verticalOffset, 0.f};
+                                + right * target.lateralOffset;
+        worldCenter.y = kGroundWorldY + target.halfHeight + target.verticalOffset;
         target.worldX = worldCenter.x;
         target.worldY = worldCenter.y;
         target.worldZ = worldCenter.z;

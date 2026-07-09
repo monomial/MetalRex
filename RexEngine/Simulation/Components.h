@@ -48,6 +48,7 @@ struct ReticleComponent {
     float gyroSensitivityV = 0.f;
     float smoothingAlpha = 0.f;
     float stillnessThreshold = 0.f;
+    float fireFlashTime = 0.f; // counts down from kFireFlashDuration on fire; 0 = no flash
 };
 
 struct TargetComponent {

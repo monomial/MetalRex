@@ -4,6 +4,14 @@
 #include <cmath>
 #include <simd/simd.h>
 
+// World-space Y of the ground plane. Shared by the renderer's ground quad
+// and by target/dino placement so they can't drift apart — before this,
+// target height was computed relative to the rail's own Y (which varies
+// 0.25-0.55 across the M2 test chart's control points) with no reference
+// to the ground at all, so dinos rendered floating ~1.2-1.5 units above
+// the actual ground plane.
+static constexpr float kGroundWorldY = -0.45f;
+
 static inline simd_float3 rex_to_simd(RexVec3 v) {
     return (simd_float3){v.x, v.y, v.z};
 }

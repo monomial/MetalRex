@@ -46,8 +46,8 @@ struct SkinnedUniformsCPU {
 
     _device = device;
     const RexVertex verts[] = {
-        {{-8.f, -0.45f, 0.f}}, {{ 8.f, -0.45f, 0.f}}, {{-8.f, -0.45f, 80.f}},
-        {{ 8.f, -0.45f, 0.f}}, {{ 8.f, -0.45f, 80.f}}, {{-8.f, -0.45f, 80.f}},
+        {{-8.f, kGroundWorldY, 0.f}}, {{ 8.f, kGroundWorldY, 0.f}}, {{-8.f, kGroundWorldY, 80.f}},
+        {{ 8.f, kGroundWorldY, 0.f}}, {{ 8.f, kGroundWorldY, 80.f}}, {{-8.f, kGroundWorldY, 80.f}},
     };
     _groundVB = [_device newBufferWithBytes:verts length:sizeof(verts) options:MTLResourceStorageModeShared];
 
@@ -84,6 +84,17 @@ struct SkinnedUniformsCPU {
     pipelineDescriptor.fragmentFunction = [library newFunctionWithName:@"rex_fragment"];
     pipelineDescriptor.colorAttachments[0].pixelFormat = pixelFormat;
     pipelineDescriptor.depthAttachmentPixelFormat = MTLPixelFormatDepth32Float;
+    // Alpha blending: every existing draw call passes alpha=1 (opaque, no
+    // visual change), but the new fire-flash ring fades via alpha<1 and
+    // needs this to actually be respected rather than rendered fully opaque
+    // for its whole lifetime.
+    pipelineDescriptor.colorAttachments[0].blendingEnabled = YES;
+    pipelineDescriptor.colorAttachments[0].rgbBlendOperation = MTLBlendOperationAdd;
+    pipelineDescriptor.colorAttachments[0].alphaBlendOperation = MTLBlendOperationAdd;
+    pipelineDescriptor.colorAttachments[0].sourceRGBBlendFactor = MTLBlendFactorSourceAlpha;
+    pipelineDescriptor.colorAttachments[0].sourceAlphaBlendFactor = MTLBlendFactorSourceAlpha;
+    pipelineDescriptor.colorAttachments[0].destinationRGBBlendFactor = MTLBlendFactorOneMinusSourceAlpha;
+    pipelineDescriptor.colorAttachments[0].destinationAlphaBlendFactor = MTLBlendFactorOneMinusSourceAlpha;
     _pipeline = [_device newRenderPipelineStateWithDescriptor:pipelineDescriptor error:&error];
     if (!_pipeline) {
         NSLog(@"RexRenderer: pipeline failed: %@", error);
@@ -304,10 +315,26 @@ struct SkinnedUniformsCPU {
 
         float visualHeight = std::max(0.1f, target.halfHeight * 2.0f);
         float scale = (_raptor->meshHeight > 0.0001f) ? visualHeight / _raptor->meshHeight : 1.0f;
+
+        // Face the camera (yaw only, flattened): previously there was no
+        // rotation at all, so the raptor rendered in whatever direction it
+        // happened to be authored in Quaternius's file, which read as
+        // "facing backwards" — the model's front wasn't necessarily toward
+        // the player. This assumes the mesh's local +Z is its own forward;
+        // if it turns out to still face away after this, the fix is
+        // kRaptorForwardIsPositiveZ below, not more rotation math.
+        const RailCameraState& camera = world->rail_camera();
+        float dx = camera.positionX - target.worldX;
+        float dz = camera.positionZ - target.worldZ;
+        constexpr bool kRaptorForwardIsPositiveZ = true;
+        float yaw = atan2f(dx, dz) + (kRaptorForwardIsPositiveZ ? 0.f : (float)M_PI);
+        float cosYaw = cosf(yaw);
+        float sinYaw = sinf(yaw);
+
         simd_float4x4 model = matrix_identity_float4x4;
-        model.columns[0].x = scale;
-        model.columns[1].y = scale;
-        model.columns[2].z = scale;
+        model.columns[0] = (simd_float4){ cosYaw * scale, 0.f, -sinYaw * scale, 0.f };
+        model.columns[1] = (simd_float4){ 0.f, scale, 0.f, 0.f };
+        model.columns[2] = (simd_float4){ sinYaw * scale, 0.f, cosYaw * scale, 0.f };
         model.columns[3] = (simd_float4){
             target.worldX,
             target.worldY - _raptor->meshYMin * scale - target.halfHeight,
@@ -357,6 +384,25 @@ struct SkinnedUniformsCPU {
                           ? (simd_float4){0.16f, 0.85f, 0.95f, 1.f}
                           : (simd_float4){0.92f, 0.92f, 0.92f, 1.f};
         [self _drawVertices:lines color:color primitive:MTLPrimitiveTypeLine mvp:_overlayProjection encoder:encoder];
+
+        // Fire flash: a ring that expands and fades over kFireFlashDuration.
+        // Previously firing had zero visual feedback at the moment of the
+        // shot itself — only a successful hit changed anything on screen.
+        if (reticle.fireFlashTime > 0.f) {
+            float t = 1.f - (reticle.fireFlashTime / kFireFlashDuration); // 0 -> 1
+            float radius = 10.f + t * 26.f;
+            float alpha = 1.f - t;
+            const int kSegments = 12;
+            std::vector<RexVertex> ring;
+            for (int s = 0; s < kSegments; ++s) {
+                float a0 = (float)s / kSegments * 2.f * (float)M_PI;
+                float a1 = (float)(s + 1) / kSegments * 2.f * (float)M_PI;
+                ring.push_back({{c.x + cosf(a0) * radius, c.y + sinf(a0) * radius, c.z}});
+                ring.push_back({{c.x + cosf(a1) * radius, c.y + sinf(a1) * radius, c.z}});
+            }
+            simd_float4 flashColor = {1.f, 0.92f, 0.55f, alpha};
+            [self _drawVertices:ring color:flashColor primitive:MTLPrimitiveTypeLine mvp:_overlayProjection encoder:encoder];
+        }
     }
 }
 

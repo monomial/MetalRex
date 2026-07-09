@@ -76,7 +76,10 @@ void World::reset_m1_scene() {
         _targets[i] = {};
         _targets[i].railDistance = 2.5f + (float)i * 1.4f;
         _targets[i].lateralOffset = ((i % 3) - 1) * 0.75f;
-        _targets[i].verticalOffset = 0.35f + 0.18f * (float)(i % 2);
+        // 0 = resting exactly on the ground (see RailCameraSystem's
+        // ground-anchored Y computation) — was 0.35-0.53, a leftover from
+        // the pre-M2 fake-perspective scheme that floated everything.
+        _targets[i].verticalOffset = 0.f;
         _targets[i].timerOffset = (float)i * 0.65f;
         _targets[i].halfWidth = 0.18f;
         _targets[i].halfHeight = 0.22f;

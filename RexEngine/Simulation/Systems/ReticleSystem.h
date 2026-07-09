@@ -1,6 +1,12 @@
 #pragma once
 class World;
 
+// How long the fire-flash visual lasts, in seconds. Shared between
+// ReticleSystem (sets ReticleComponent::fireFlashTime on fire) and the
+// renderer (fades a ring around the reticle over this duration) — the
+// hit-test itself doesn't use this at all.
+static constexpr float kFireFlashDuration = 0.12f;
+
 struct ReticleTuning {
     float stickSensitivityH = 0.72f;
     float stickSensitivityV = 0.58f;

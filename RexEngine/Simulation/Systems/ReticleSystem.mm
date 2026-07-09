@@ -151,10 +151,13 @@ void ReticleSystem_update(World& world, float gameDt) {
         reticle.y = clamp01(reticle.y + dy);
 
         if (input.fire) {
+            reticle.fireFlashTime = kFireFlashDuration;
             for (int i = 0; i < kM1MaxTargets; ++i) {
                 TargetComponent& target = world.target(i);
                 if (point_inside(reticle, target)) target.wasHit = true;
             }
+        } else if (reticle.fireFlashTime > 0.f) {
+            reticle.fireFlashTime = std::max(0.f, reticle.fireFlashTime - gameDt);
         }
     }
 }
