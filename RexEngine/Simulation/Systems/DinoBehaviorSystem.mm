@@ -19,16 +19,18 @@ static void enter_attack(World& world, EntityID id, DinoBehaviorComponent& dino)
     AnimationSystem_request_clip(world, id, CharacterClipSlot::Attack);
 }
 
-static void enter_idle(World& world, EntityID id, DinoBehaviorComponent& dino) {
+static void enter_approach(World& world, EntityID id, DinoBehaviorComponent& dino) {
     dino.state = DinoBehaviorState::Idle;
     dino.stateTime = 0.f;
+    // The Idle state is the approach phase: the dino walks toward the camera
+    // (see the Idle case below), so it plays Walk, not Idle.
     // Force, not request: reached from Interrupted's jumpReactionDuration
     // timeout, which (at the default 0.35s vs. Jump's own ~0.70s fallback
     // duration) fires WHILE Jump is still playing. A graceful request would
     // silently queue behind Jump finishing on its own, so the dino would
     // keep playing the reaction well after the state machine already moved
-    // on to Idle.
-    AnimationSystem_force_clip(world, id, CharacterClipSlot::Idle);
+    // on.
+    AnimationSystem_force_clip(world, id, CharacterClipSlot::Walk);
 }
 
 void DinoBehaviorSystem_update(World& world, float gameDt) {
@@ -46,6 +48,18 @@ void DinoBehaviorSystem_update(World& world, float gameDt) {
 
         switch (dino.state) {
             case DinoBehaviorState::Idle:
+                // Approach phase: walk toward the camera. The dino's world
+                // position is derived from its target anchor, so moving means
+                // pulling railDistance back toward the camera's distance;
+                // when it closes within the respawn threshold,
+                // RailCameraSystem's respawn loop recycles it ahead — a
+                // continuous stream of approaching dinos.
+                if (dino.targetIndex < kM1MaxTargets && dino.walkSpeed > 0.f) {
+                    world.target(dino.targetIndex).railDistance -= dino.walkSpeed * gameDt;
+                }
+                // Covers initial spawn (AnimationComponent defaults to the
+                // Idle clip); a same-clip request is a no-op afterwards.
+                AnimationSystem_request_clip(world, id, CharacterClipSlot::Walk);
                 if (dino.stateTime >= dino.idleDuration) {
                     enter_attack(world, id, dino);
                 }
@@ -99,12 +113,12 @@ void DinoBehaviorSystem_update(World& world, float gameDt) {
             case DinoBehaviorState::Interrupted:
                 if ((anim && anim->clipDone && anim->currentClip == CharacterClipSlot::Jump)
                     || dino.stateTime >= dino.jumpReactionDuration) {
-                    enter_idle(world, id, dino);
+                    enter_approach(world, id, dino);
                 }
                 break;
 
             case DinoBehaviorState::Landed:
-                enter_idle(world, id, dino);
+                enter_approach(world, id, dino);
                 break;
         }
     }

@@ -7,6 +7,11 @@ struct LoadedCharacter;
 void AnimationSystem_set_characters(const LoadedCharacter* player,
                                     const LoadedCharacter* enemy);
 
+// Per-species dino character data. Entities with a DinoBehaviorComponent
+// resolve their clips through their species' character (each species has its
+// own clip durations), taking precedence over the faction-based pair above.
+void AnimationSystem_set_dino_character(DinoSpecies species, const LoadedCharacter* character);
+
 // Advances clip time + samples bone matrices for every entity with an AnimationComponent.
 // Uses gameDt — animation freezes during HitStop along with physics.
 void AnimationSystem_update(World& world, float gameDt);

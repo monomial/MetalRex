@@ -88,20 +88,29 @@ void World::reset_m1_scene() {
     _targets[0].active = true;
     _targets[1].active = true;
     _targets[2].active = true;
+
+    // Dino visual scale, not a hit-box tuning value: RexRenderer derives the
+    // rendered mesh height directly from halfHeight (visualHeight =
+    // halfHeight * 2). The relative sizes come from the authored assets —
+    // in Blender world space the Quaternius raptor stands 5.46 units tall
+    // and the T-Rex 15.22, a ratio of ~2.79 — so a 1.3-unit raptor pairs
+    // with a 3.6-unit T-Rex. screenHalfH is still clamped to 0.20 in
+    // RailCameraSystem, so a big dino can't blow up the on-screen hit box.
     _targets[3].active = true;
     _targets[3].moving = true;
     _targets[3].railDistance = 5.2f;
-    // Raptor visual scale, not a hit-box tuning value: RexRenderer derives
-    // the rendered mesh height directly from halfHeight (visualHeight =
-    // halfHeight * 2), so the old 0.18 (a leftover M1 placeholder-box size)
-    // rendered the raptor at 0.36 world units tall — a barely-visible sliver
-    // at rail distance, which is what actually caused the "black and thin"
-    // report (not a color/lighting bug: at a few pixels wide, shading is
-    // imperceptible regardless of correctness). 0.9 renders it at a plausible
-    // ~1.8-unit dinosaur height. screenHalfH is still clamped to 0.20 in
-    // RailCameraSystem, so this can't blow up the on-screen hit box.
-    _targets[3].halfWidth = 0.5f;
-    _targets[3].halfHeight = 0.9f;
+    _targets[3].halfWidth = 0.4f;
+    _targets[3].halfHeight = 0.65f;
+
+    // T-Rex anchor: static (not part of the popup flicker set — see
+    // RailCameraSystem), same rail distance as the raptor and offset to the
+    // right, so the two dinos stand side by side at equal depth and their
+    // on-screen sizes compare directly.
+    _targets[4].active = true;
+    _targets[4].railDistance = 5.2f;
+    _targets[4].lateralOffset = 1.6f;
+    _targets[4].halfWidth = 1.0f;
+    _targets[4].halfHeight = 1.81f;
 
     EntityID raptor = defer_create();
     AnimationComponent& anim = add_component<AnimationComponent>(raptor);
@@ -112,11 +121,30 @@ void World::reset_m1_scene() {
     DinoBehaviorComponent& dino = add_component<DinoBehaviorComponent>(raptor);
     dino.active = true;
     dino.targetIndex = 3;
-    dino.idleDuration = 0.8f;
+    dino.species = DinoSpecies::Velociraptor;
+    dino.walkSpeed = 0.9f;  // raptors dart in quickly
+    dino.idleDuration = 2.5f;
     dino.tellEndNormalized = 0.28f;
     dino.interruptStartNormalized = 0.18f;
     dino.interruptEndNormalized = 0.46f;
     dino.jumpReactionDuration = 0.35f;
+
+    EntityID trex = defer_create();
+    AnimationComponent& trexAnim = add_component<AnimationComponent>(trex);
+    trexAnim.currentClip = CharacterClipSlot::Idle;
+    trexAnim.requestedClip = CharacterClipSlot::Idle;
+    FactionComponent& trexFaction = add_component<FactionComponent>(trex);
+    trexFaction.type = FactionComponent::Enemy;
+    DinoBehaviorComponent& trexDino = add_component<DinoBehaviorComponent>(trex);
+    trexDino.active = true;
+    trexDino.targetIndex = 4;
+    trexDino.species = DinoSpecies::Trex;
+    trexDino.walkSpeed = 0.45f; // heavy stomp, slower than the raptor
+    trexDino.idleDuration = 3.5f; // offset from the raptor so attacks don't sync
+    trexDino.tellEndNormalized = 0.28f;
+    trexDino.interruptStartNormalized = 0.18f;
+    trexDino.interruptEndNormalized = 0.46f;
+    trexDino.jumpReactionDuration = 0.35f;
 }
 
 void World::replace_chart_for_tests(LevelChart chart) {

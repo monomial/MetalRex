@@ -134,14 +134,25 @@ enum class DinoInterruptOutcome : uint8_t {
     Failed
 };
 
+enum class DinoSpecies : uint8_t {
+    Velociraptor = 0,
+    Trex,
+    Count
+};
+
 struct DinoBehaviorComponent {
     bool active = false;
     uint8_t targetIndex = 0;
+    DinoSpecies species = DinoSpecies::Velociraptor;
     DinoBehaviorState state = DinoBehaviorState::Idle;
     DinoInterruptOutcome lastOutcome = DinoInterruptOutcome::None;
     bool outcomeThisCycle = false;
     float stateTime = 0.f;
     float idleDuration = 0.75f;
+    // Rail-units/second the dino advances toward the camera during the
+    // Idle/approach state (0 = stand in place). Movement pauses during
+    // Tell/Attack/Interrupted/Landed — dinos stop to attack.
+    float walkSpeed = 0.5f;
     float tellEndNormalized = 0.28f;
     float interruptStartNormalized = 0.18f;
     float interruptEndNormalized = 0.46f;

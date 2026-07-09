@@ -57,7 +57,7 @@ struct SkinnedUniformsCPU {
     id<MTLDepthStencilState> _overlayDepthState;
     id<MTLSamplerState> _sampler;
     id<MTLBuffer> _groundVB;
-    LoadedCharacter *_raptor;
+    LoadedCharacter *_dinoChars[(int)DinoSpecies::Count]; // indexed by DinoSpecies
     simd_float4x4 _overlayProjection;
     float _halfW;
     float _halfH;
@@ -193,18 +193,17 @@ struct SkinnedUniformsCPU {
     _halfH = 420.f;
     _aspect = 16.f / 9.f;
 
-    // Dev affordance: --dino=trex (etc.) overrides the species, so visual
-    // checks can flip between the six converted dinos without a code edit.
-    NSString *species = @"velociraptor";
-    for (NSString *arg in [NSProcessInfo processInfo].arguments) {
-        if ([arg hasPrefix:@"--dino="]) {
-            species = [arg substringFromIndex:[@"--dino=" length]];
+    // One LoadedCharacter per DinoSpecies, indexed by the enum. Directory
+    // names must line up with the species order in Components.h.
+    NSArray<NSString*> *speciesDirs = @[@"velociraptor", @"trex"];
+    for (int s = 0; s < (int)DinoSpecies::Count; ++s) {
+        NSString *dinoDir = [[NSBundle mainBundle] pathForResource:speciesDirs[s]
+                                                            ofType:nil
+                                                       inDirectory:@"assets/characters/dinos"];
+        if (!dinoDir.length) {
+            NSLog(@"RexRenderer: %@ asset directory missing", speciesDirs[s]);
+            continue;
         }
-    }
-    NSString *dinoDir = [[NSBundle mainBundle] pathForResource:species
-                                                        ofType:nil
-                                                   inDirectory:@"assets/characters/dinos"];
-    if (dinoDir.length) {
         NSString *basePath = [dinoDir stringByAppendingPathComponent:@"base.usdz"];
         NSMutableArray<NSString*> *clips = [NSMutableArray arrayWithCapacity:(NSUInteger)CharacterClipSlot::Count];
         for (int i = 0; i < (int)CharacterClipSlot::Count; ++i) {
@@ -213,23 +212,23 @@ struct SkinnedUniformsCPU {
         }
         @try {
             try {
-                _raptor = CharacterLoader_load(basePath, clips, _device);
-                AnimationSystem_set_characters(nullptr, _raptor);
+                _dinoChars[s] = CharacterLoader_load(basePath, clips, _device);
+                AnimationSystem_set_dino_character((DinoSpecies)s, _dinoChars[s]);
             } catch (const std::exception& ex) {
-                NSLog(@"RexRenderer: raptor load failed: %s", ex.what());
+                NSLog(@"RexRenderer: %@ load failed: %s", speciesDirs[s], ex.what());
             }
         } @catch (NSException *exception) {
-            NSLog(@"RexRenderer: raptor load failed: %@", exception.reason);
+            NSLog(@"RexRenderer: %@ load failed: %@", speciesDirs[s], exception.reason);
         }
-    } else {
-        NSLog(@"RexRenderer: velociraptor asset directory missing");
     }
 
     return self;
 }
 
 - (void)dealloc {
-    delete _raptor;
+    for (int s = 0; s < (int)DinoSpecies::Count; ++s) {
+        delete _dinoChars[s];
+    }
 }
 
 - (void)updateDrawableSize:(CGSize)size {
@@ -331,11 +330,8 @@ struct SkinnedUniformsCPU {
 - (void)_drawDinos:(World *)world
                mvp:(simd_float4x4)viewProjection
            encoder:(id<MTLRenderCommandEncoder>)encoder {
-    if (!_raptor || !_raptor->vertexBuffer || !_raptor->indexBuffer) return;
-
     [encoder setRenderPipelineState:_skinnedPipeline];
     [encoder setFragmentSamplerState:_sampler atIndex:0];
-    [encoder setFragmentTexture:_raptor->diffuseTexture atIndex:0];
 
     for (EntityID id = 0; id < world->entity_count(); ++id) {
         if (!world->has_component<DinoBehaviorComponent>(id)
@@ -347,6 +343,10 @@ struct SkinnedUniformsCPU {
         const TargetComponent& target = world->target(dino.targetIndex);
         if (!target.active) continue;
 
+        LoadedCharacter *character = _dinoChars[(int)dino.species % (int)DinoSpecies::Count];
+        if (!character || !character->vertexBuffer || !character->indexBuffer) continue;
+        [encoder setFragmentTexture:character->diffuseTexture atIndex:0];
+
         // The Quaternius dino meshes are authored Z-up (Blender local space:
         // +Z is the dino's up, +Y runs nose-to-tail, X is width — the T-Rex
         // bounds make this unambiguous: Y extent 31 units vs Z 15 vs X 8; no
@@ -357,7 +357,7 @@ struct SkinnedUniformsCPU {
         // mesh +Z (its up) onto world +Y, and mesh -Y (its nose) onto world
         // +Z, so vertical scale/grounding must use the mesh's Z bounds, not
         // its Y bounds.
-        float meshUpExtent = _raptor->meshZMax - _raptor->meshZMin;
+        float meshUpExtent = character->meshZMax - character->meshZMin;
         float visualHeight = std::max(0.1f, target.halfHeight * 2.0f);
         float scale = (meshUpExtent > 0.0001f) ? visualHeight / meshUpExtent : 1.0f;
 
@@ -390,7 +390,7 @@ struct SkinnedUniformsCPU {
         // ground alignment anchors meshZMin (the feet) at ground level.
         model.columns[3] = (simd_float4){
             target.worldX,
-            target.worldY - _raptor->meshZMin * scale - target.halfHeight,
+            target.worldY - character->meshZMin * scale - target.halfHeight,
             target.worldZ,
             1.f
         };
@@ -409,13 +409,13 @@ struct SkinnedUniformsCPU {
         uniforms.tintStrength = target.wasHit ? 0.25f : 0.f;
         const AnimationComponent& anim = world->get_component<AnimationComponent>(id);
 
-        [encoder setVertexBuffer:_raptor->vertexBuffer offset:0 atIndex:0];
+        [encoder setVertexBuffer:character->vertexBuffer offset:0 atIndex:0];
         [encoder setVertexBytes:anim.boneMatrices length:sizeof(anim.boneMatrices) atIndex:1];
         [encoder setVertexBytes:&uniforms length:sizeof(uniforms) atIndex:2];
         [encoder drawIndexedPrimitives:MTLPrimitiveTypeTriangle
-                            indexCount:_raptor->indexCount
-                             indexType:_raptor->indexType
-                           indexBuffer:_raptor->indexBuffer
+                            indexCount:character->indexCount
+                             indexType:character->indexType
+                           indexBuffer:character->indexBuffer
                      indexBufferOffset:0];
     }
 

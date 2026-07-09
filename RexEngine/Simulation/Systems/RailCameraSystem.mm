@@ -94,7 +94,9 @@ static void update_targets(World& world, float gameDt) {
 
     for (int i = 0; i < kM1MaxTargets; ++i) {
         TargetComponent& target = world.target(i);
-        if (i == 0 || i == 1 || i == 2 || i == 4 || i == 5) {
+        // Popup flicker applies only to the box targets — 3 (raptor) and 4
+        // (T-Rex) are dino anchors and stay active.
+        if (i == 0 || i == 1 || i == 2 || i == 5) {
             float phase = fmodf(camera.elapsed + target.timerOffset, 3.0f);
             target.active = phase < 2.25f;
         }

@@ -68,7 +68,37 @@ static void tick(World& world, int count) {
     XCTAssertEqual(dino.lastOutcome, DinoInterruptOutcome::Failed);
     XCTAssertTrue(dino.outcomeThisCycle);
     XCTAssertEqual(dino.state, DinoBehaviorState::Idle);
-    XCTAssertEqual(anim.currentClip, CharacterClipSlot::Idle);
+    // The Idle state is the approach phase — the dino walks toward the
+    // camera, so it plays Walk, not Idle.
+    XCTAssertEqual(anim.currentClip, CharacterClipSlot::Walk);
+}
+
+- (void)test_approachWalksTowardCameraAndStopsDuringAttack {
+    World world;
+    EntityID dinoId = findDino(world);
+    XCTAssertNotEqual(dinoId, kInvalidEntity);
+
+    DinoBehaviorComponent& dino = world.get_component<DinoBehaviorComponent>(dinoId);
+    dino.idleDuration = 10.f; // stay in approach for the whole first phase
+    dino.walkSpeed = 0.9f;
+
+    float startDistance = world.target(dino.targetIndex).railDistance;
+    tick(world, 12); // 0.1s
+    float walked = world.target(dino.targetIndex).railDistance;
+    // Walked toward the camera by walkSpeed * t (well clear of the respawn
+    // threshold, so RailCameraSystem doesn't recycle it mid-test).
+    XCTAssertEqualWithAccuracy(startDistance - walked, 0.9f * 0.1f, 0.002f);
+    XCTAssertEqual(world.get_component<AnimationComponent>(dinoId).currentClip,
+                   CharacterClipSlot::Walk);
+
+    // Entering the attack cycle freezes the approach.
+    dino.idleDuration = 0.f;
+    tick(world, 1);
+    XCTAssertEqual(dino.state, DinoBehaviorState::Tell);
+    float atAttackStart = world.target(dino.targetIndex).railDistance;
+    tick(world, 6);
+    XCTAssertEqualWithAccuracy(world.target(dino.targetIndex).railDistance,
+                               atAttackStart, 0.0001f);
 }
 
 - (void)test_incompletePerSpeciesClipTableFailsLoudly {

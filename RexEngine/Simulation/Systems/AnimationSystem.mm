@@ -5,11 +5,34 @@
 
 static const LoadedCharacter* s_playerChar = nullptr;
 static const LoadedCharacter* s_enemyChar  = nullptr;
+static const LoadedCharacter* s_dinoChars[(int)DinoSpecies::Count] = {};
 
 void AnimationSystem_set_characters(const LoadedCharacter* player,
                                     const LoadedCharacter* enemy) {
     s_playerChar = player;
     s_enemyChar  = enemy;
+}
+
+void AnimationSystem_set_dino_character(DinoSpecies species, const LoadedCharacter* character) {
+    if ((int)species < (int)DinoSpecies::Count) {
+        s_dinoChars[(int)species] = character;
+    }
+}
+
+// Per-entity character data: dinos resolve by species (each species has its
+// own clip set with different durations); everything else falls back to the
+// faction-based player/enemy pair.
+static const LoadedCharacter* character_for(World& world, EntityID id) {
+    if (world.has_component<DinoBehaviorComponent>(id)) {
+        const DinoBehaviorComponent& dino = world.get_component<DinoBehaviorComponent>(id);
+        const LoadedCharacter* c = s_dinoChars[(int)dino.species % (int)DinoSpecies::Count];
+        if (c) return c;
+    }
+    if (world.has_component<FactionComponent>(id)) {
+        auto t = world.get_component<FactionComponent>(id).type;
+        return (t == FactionComponent::Player) ? s_playerChar : s_enemyChar;
+    }
+    return nullptr;
 }
 
 // Fallback clip durations used before character assets are loaded.
@@ -75,11 +98,7 @@ void AnimationSystem_update(World& world, float gameDt) {
         AnimationComponent& anim = world.get_component<AnimationComponent>(id);
 
         // Resolve character data for accurate clip durations.
-        const LoadedCharacter* charData = nullptr;
-        if (world.has_component<FactionComponent>(id)) {
-            auto t = world.get_component<FactionComponent>(id).type;
-            charData = (t == FactionComponent::Player) ? s_playerChar : s_enemyChar;
-        }
+        const LoadedCharacter* charData = character_for(world, id);
 
         float duration = clip_duration(charData, anim.currentClip);
         // Attack and Hurt play at 1.5× so punches feel snappy and hit reactions
@@ -155,10 +174,5 @@ void AnimationSystem_force_clip(World& world, EntityID entity, CharacterClipSlot
 }
 
 float AnimationSystem_clip_duration(World& world, EntityID entity, CharacterClipSlot clip) {
-    const LoadedCharacter* charData = nullptr;
-    if (world.has_component<FactionComponent>(entity)) {
-        auto t = world.get_component<FactionComponent>(entity).type;
-        charData = (t == FactionComponent::Player) ? s_playerChar : s_enemyChar;
-    }
-    return clip_duration(charData, clip);
+    return clip_duration(character_for(world, entity), clip);
 }

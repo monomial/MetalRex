@@ -2,6 +2,7 @@
 #import <ModelIO/ModelIO.h>
 #import <MetalKit/MetalKit.h>
 #include <simd/simd.h>
+#include <algorithm>
 #include <cfloat>
 #include <cstring>
 
@@ -182,6 +183,60 @@ static void applyGeometryBindTransform(MTKMesh *mesh, NSArray<MDLMesh*> *mdlMesh
         pos[0] = p.x; pos[1] = p.y; pos[2] = p.z;
         nrm[0] = n3.x; nrm[1] = n3.y; nrm[2] = n3.z;
     }
+}
+
+// Overwrites the Z (up-axis) bounds with the actual posed extent: CPU-skins
+// every vertex with frame 0 of the Idle clip, exactly as the GPU will
+// (boneMat * position, weighted). The renderer auto-scales each species by
+// its measured height, so if that height comes from the bind-pose bounding
+// box it silently absorbs a per-species fudge factor — a species whose idle
+// stance stands taller or lower than its bind pose (or whose animation
+// carries root translation) renders at the wrong size relative to others,
+// which defeats cross-species scale comparisons.
+static void measureIdlePoseBounds(MTKMesh *mesh, NSArray<MDLMesh*> *mdlMeshes,
+                                  LoadedCharacter *result) {
+    const BakedClip &idle = result->clips[(int)CharacterClipSlot::Idle];
+    if (!result->clipLoaded[(int)CharacterClipSlot::Idle] || idle.frameCount == 0) return;
+    if (!mesh.vertexBuffers.count || !mdlMeshes.count) return;
+    id<MTLBuffer> buffer = mesh.vertexBuffers[0].buffer;
+    if (!buffer.contents) return;
+    NSUInteger vertexCount = mdlMeshes[0].vertexCount;
+    if (!vertexCount) return;
+
+    simd_float4x4 bones[kMaxBones];
+    int jLim = idle.jointCount < kMaxBones ? idle.jointCount : kMaxBones;
+    for (int j = 0; j < kMaxBones; j++) bones[j] = matrix_identity_float4x4;
+    for (int j = 0; j < jLim; j++) {
+        const float *m = idle.matrices.data() + j * 16; // frame 0
+        for (int c = 0; c < 4; c++)
+            bones[j].columns[c] = (simd_float4){m[c*4+0], m[c*4+1], m[c*4+2], m[c*4+3]};
+    }
+
+    const uint8_t *bytes = (const uint8_t *)buffer.contents + mesh.vertexBuffers[0].offset;
+    float zMin = FLT_MAX, zMax = -FLT_MAX;
+    for (NSUInteger i = 0; i < vertexCount; ++i) {
+        const float *pos = (const float *)(bytes + i * 72);
+        const uint16_t *ji = (const uint16_t *)(bytes + i * 72 + 48);
+        const float *jw = (const float *)(bytes + i * 72 + 56);
+        simd_float4 p = {pos[0], pos[1], pos[2], 1.f};
+        simd_float4 skinned = {0.f, 0.f, 0.f, 0.f};
+        float total = 0.f;
+        for (int k = 0; k < 4; k++) {
+            if (jw[k] > 0.001f && ji[k] < kMaxBones) {
+                skinned += jw[k] * simd_mul(bones[ji[k]], p);
+                total += jw[k];
+            }
+        }
+        if (total < 0.001f) continue;
+        float z = skinned.z / total;
+        zMin = std::min(zMin, z);
+        zMax = std::max(zMax, z);
+    }
+    if (zMin > zMax) return;
+    result->meshZMin = zMin;
+    result->meshZMax = zMax;
+    NSLog(@"CharacterLoader: idle-pose Z bounds %.2f–%.2f (posed height %.2f)",
+          zMin, zMax, zMax - zMin);
 }
 
 // Post-transform bounds, measured from the actual vertex buffer (the MDLMesh
@@ -479,6 +534,10 @@ LoadedCharacter* CharacterLoader_load(NSString* meshPath,
     }
 
     CharacterClipTable_validate_required(result->clipLoaded, meshPath.lastPathComponent);
+
+    // With all clips baked, replace the bind-pose Z bounds with the actual
+    // idle-posed extent (see measureIdlePoseBounds).
+    measureIdlePoseBounds(mtlMesh, mdlMeshes, result);
 
     NSLog(@"CharacterLoader: loaded '%@' — %d joints, %lu indices",
           meshPath.lastPathComponent, jCount, (unsigned long)result->indexCount);
