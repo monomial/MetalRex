@@ -89,6 +89,33 @@ static LevelChart curvedTestChart(void) {
     XCTAssertEqualWithAccuracy(world.rail_camera().lookAtZ, 9.f, 0.03f);
 }
 
+- (void)test_cameraReachingRailEndLoopsRatherThanHanging {
+    // Regresses a real freeze: camera.distance used to clamp at the rail's
+    // end and stay there permanently, which made the target-respawn loop in
+    // update_targets unable to ever settle (it kept resetting to a small
+    // distance that was still behind the stuck camera, re-triggering
+    // forever) — an actual hang reported by the builder testing on-device,
+    // reproducible at ~20-30s of continuous play. This test runs enough
+    // ticks to cross the rail's length several times over; if either the
+    // camera-loop fix or the while-loop's iteration cap regressed, this
+    // test itself would hang (and time out the build) rather than fail
+    // cleanly, which is still a meaningful signal.
+    World world;
+    LevelChart chart = curvedTestChart();
+    world.replace_chart_for_tests(chart);
+    world.rail_camera().speed = chart.rail.total_length() * 4.f; // cross the whole rail every tick
+
+    for (int i = 0; i < 500; ++i) {
+        world.update(1.f / 120.f, 1.f / 120.f);
+    }
+
+    float distance = world.rail_camera().distance;
+    XCTAssertGreaterThanOrEqual(distance, 0.f);
+    XCTAssertLessThanOrEqual(distance, chart.rail.total_length());
+    XCTAssertTrue(std::isfinite(world.target(3).worldY));
+    XCTAssertTrue(std::isfinite(world.target(3).railDistance));
+}
+
 - (void)test_degenerateSplineThrowsRatherThanProducingNaNTable {
     std::vector<RexVec3> points = {
         {1.f, 1.f, 1.f},

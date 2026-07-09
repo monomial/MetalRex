@@ -20,6 +20,7 @@ struct RexUniforms {
 
 struct SkinnedUniformsCPU {
     simd_float4x4 mvp;
+    simd_float4x4 modelRotation; // must match SkinnedMesh.metal's SkinnedUniforms field-for-field
     simd_float4 color;
     float tintStrength;
 };
@@ -326,15 +327,22 @@ struct SkinnedUniformsCPU {
         const RailCameraState& camera = world->rail_camera();
         float dx = camera.positionX - target.worldX;
         float dz = camera.positionZ - target.worldZ;
-        constexpr bool kRaptorForwardIsPositiveZ = true;
+        // Flipped from the previous attempt: builder confirmed on-device it
+        // was still facing away, so local +Z is the model's BACK, not front.
+        constexpr bool kRaptorForwardIsPositiveZ = false;
         float yaw = atan2f(dx, dz) + (kRaptorForwardIsPositiveZ ? 0.f : (float)M_PI);
         float cosYaw = cosf(yaw);
         float sinYaw = sinf(yaw);
 
-        simd_float4x4 model = matrix_identity_float4x4;
-        model.columns[0] = (simd_float4){ cosYaw * scale, 0.f, -sinYaw * scale, 0.f };
-        model.columns[1] = (simd_float4){ 0.f, scale, 0.f, 0.f };
-        model.columns[2] = (simd_float4){ sinYaw * scale, 0.f, cosYaw * scale, 0.f };
+        simd_float4x4 modelRotation = matrix_identity_float4x4;
+        modelRotation.columns[0] = (simd_float4){ cosYaw, 0.f, -sinYaw, 0.f };
+        modelRotation.columns[1] = (simd_float4){ 0.f, 1.f, 0.f, 0.f };
+        modelRotation.columns[2] = (simd_float4){ sinYaw, 0.f, cosYaw, 0.f };
+
+        simd_float4x4 model = modelRotation;
+        model.columns[0] *= scale;
+        model.columns[1] *= scale;
+        model.columns[2] *= scale;
         model.columns[3] = (simd_float4){
             target.worldX,
             target.worldY - _raptor->meshYMin * scale - target.halfHeight,
@@ -344,6 +352,7 @@ struct SkinnedUniformsCPU {
 
         SkinnedUniformsCPU uniforms;
         uniforms.mvp = simd_mul(viewProjection, model);
+        uniforms.modelRotation = modelRotation;
         uniforms.color = target.wasHit ? (simd_float4){0.96f, 0.78f, 0.24f, 1.f}
                                        : (simd_float4){1.f, 1.f, 1.f, 1.f};
         uniforms.tintStrength = target.wasHit ? 0.25f : 0.f;

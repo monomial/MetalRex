@@ -29,7 +29,19 @@ static RexVec3 interpolate_look_at(const LevelChart& chart, float distance) {
 
 static void update_camera_basis(RailCameraState& camera, const LevelChart& chart) {
     float railLength = chart.rail.total_length();
-    camera.distance = std::clamp(camera.distance, 0.f, railLength);
+    // Loop back to the start rather than clamping at the end: clamping left
+    // the camera permanently stuck once it reached the rail's length (~30s
+    // at the default speed against the M2 test chart) — which is also what
+    // caused a real hang in update_targets below, since target respawn logic
+    // assumes the camera keeps advancing and can never "catch up" once it's
+    // frozen at the far end. This is a test-scene loop; a real level (M5+)
+    // will end the act instead of looping.
+    if (railLength > 0.0001f) {
+        camera.distance = fmodf(camera.distance, railLength);
+        if (camera.distance < 0.f) camera.distance += railLength;
+    } else {
+        camera.distance = 0.f;
+    }
     camera.rawT = chart.rail.raw_t_at_distance(camera.distance);
 
     RexVec3 position = chart.rail.position_at_distance(camera.distance);
@@ -95,7 +107,16 @@ static void update_targets(World& world, float gameDt) {
             target.active = true;
         }
 
-        while (target.railDistance < camera.distance + 2.2f) {
+        // Hard iteration cap: this loop must never be able to hang. Without
+        // it, a camera stuck at (or oscillating near) the rail's end could
+        // make railDistance repeatedly overshoot the reset threshold and
+        // reset to a small value that's immediately behind camera.distance
+        // again, forever — which is exactly what caused a real freeze
+        // before the camera-looping fix above. The cap is defensive on top
+        // of that fix, not instead of it: this kind of loop should never be
+        // unbounded regardless of what other state can put the camera in.
+        int guard = 0;
+        while (target.railDistance < camera.distance + 2.2f && guard++ < 64) {
             target.railDistance += 6.0f;
             if (target.railDistance > chart.rail.total_length() - 1.0f) {
                 target.railDistance = 2.5f + (float)i * 1.4f;

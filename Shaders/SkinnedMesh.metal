@@ -23,6 +23,17 @@ struct SkinnedOut {
 
 struct SkinnedUniforms {
     float4x4 mvp;
+    float4x4 modelRotation; // rotation-only (no scale/translation) — applied
+                            // to normals so lighting matches the model's
+                            // actual orientation. Bone matrices already
+                            // handle per-joint rotation; this is the
+                            // separate whole-model yaw (e.g. facing the
+                            // camera) that mvp applies to position but which
+                            // was never applied to normals at all before —
+                            // harmless while every model transform was
+                            // scale-only (uniform scale doesn't change
+                            // normal direction), not harmless once a model
+                            // can also rotate.
     float4   color;        // faction tint
     float    tintStrength; // 0 = pure texture, 1 = pure faction color
 };
@@ -49,7 +60,7 @@ vertex SkinnedOut skinned_vertex_main(
 
     SkinnedOut out;
     out.position     = u.mvp * skPos;
-    out.worldNormal  = normalize(skNrm.xyz);
+    out.worldNormal  = normalize((u.modelRotation * skNrm).xyz);
     out.texcoord     = in.texcoord;
     out.vertexColor  = in.color;
     out.tint         = u.color;
