@@ -1,13 +1,18 @@
 #pragma once
 #include <stdint.h>
 #include <cassert>
+#include "Components.h"
 
 enum class EventType : uint8_t {
     None = 0,
+    DinoScore,
 };
 
 struct Event {
     EventType type = EventType::None;
+    uint8_t playerIndex = UINT8_MAX;
+    DinoScoreEvent scoreEvent = DinoScoreEvent::Hit;
+    DinoSpecies dinoSpecies = DinoSpecies::Velociraptor;
 };
 
 struct EventBus {
@@ -29,5 +34,14 @@ struct EventBus {
 #endif
         }
         slots[count++] = e;
+    }
+
+    void push_dino_score(uint8_t playerIndex, DinoScoreEvent scoreEvent, DinoSpecies species) {
+        Event e;
+        e.type = EventType::DinoScore;
+        e.playerIndex = playerIndex;
+        e.scoreEvent = scoreEvent;
+        e.dinoSpecies = species;
+        push(e);
     }
 };

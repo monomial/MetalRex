@@ -59,6 +59,8 @@ struct TargetComponent {
     bool active = false;
     bool moving = false;
     bool wasHit = false;
+    bool lastHitWasWeakPoint = false;
+    uint8_t lastHitByPlayer = UINT8_MAX;
     float railDistance = 0.f;
     float lateralOffset = 0.f;
     float verticalOffset = 0.f;
@@ -71,6 +73,8 @@ struct TargetComponent {
     float screenY = 0.5f;
     float screenHalfW = 0.05f;
     float screenHalfH = 0.07f;
+    float weakPointHalfW = 0.f;
+    float weakPointOffsetY = 0.f;
     float timerOffset = 0.f;
 };
 
@@ -145,6 +149,14 @@ enum class DinoSpecies : uint8_t {
     Count
 };
 
+enum class DinoScoreEvent : uint8_t {
+    Hit = 0,
+    WeakPointHit,
+    InterruptSuccess,
+    InterruptFail,
+    TellMissed
+};
+
 struct DinoBehaviorComponent {
     bool active = false;
     uint8_t targetIndex = 0;
@@ -175,6 +187,7 @@ struct DinoBehaviorComponent {
     float interruptStartNormalized = 0.18f;
     float interruptEndNormalized = 0.46f;
     float jumpReactionDuration = 0.35f;
+    bool wasHitDuringTell = false;
     // Damage dealt to per-player health when this dino's attack
     // lands unopposed (DinoInterruptOutcome::Failed) — see PlayerHealthSystem.
     int attackDamage = 15;
@@ -194,4 +207,14 @@ struct PlayerHealthState {
     // Arcade-style continue: a depleted player sits out until that player's
     // own fire press "inserts a coin" and restores their slot.
     bool sittingOut = false;
+};
+
+struct PlayerScoreState {
+    int score = 0;
+    int currentStreak = 0;
+    int bestStreak = 0;
+    int shotsFired = 0;
+    int shotsHit = 0;
+    int weakPointHits = 0;
+    int interruptSuccesses = 0;
 };

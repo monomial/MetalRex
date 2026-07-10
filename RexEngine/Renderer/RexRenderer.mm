@@ -92,6 +92,9 @@ struct SkinnedUniformsCPU {
     CGSize _gameOverTextureSize;
     id<MTLTexture> _pressFireTexture;
     CGSize _pressFireTextureSize;
+    id<MTLTexture> _scoreTextures[kRexMaxPlayers];
+    CGSize _scoreTextureSizes[kRexMaxPlayers];
+    NSString *_scoreText[kRexMaxPlayers];
 }
 
 - (instancetype)initWithDevice:(id<MTLDevice>)device
@@ -649,6 +652,41 @@ static id<MTLTexture> Rex_makePressFireTexture(id<MTLDevice> device, CGSize *out
     return tex;
 }
 
+static id<MTLTexture> Rex_makeScoreTexture(id<MTLDevice> device, NSString *text, CGSize *outSize) {
+    NSUInteger w = 260, h = 34;
+    NSUInteger bpr = w * 4;
+    NSMutableData *pixels = [NSMutableData dataWithLength:bpr * h];
+
+    CGColorSpaceRef cs = CGColorSpaceCreateDeviceRGB();
+    CGBitmapInfo bitmapInfo = (CGBitmapInfo)kCGImageAlphaPremultipliedLast | kCGBitmapByteOrder32Big;
+    CGContextRef ctx = CGBitmapContextCreate(pixels.mutableBytes, w, h, 8, bpr, cs, bitmapInfo);
+    if (!ctx) {
+        CGColorSpaceRelease(cs);
+        return nil;
+    }
+
+    CGContextSetRGBFillColor(ctx, 0.02, 0.02, 0.025, 0.70);
+    CGContextFillRect(ctx, CGRectMake(0, 0, w, h));
+    CGColorRef white = CGColorCreateGenericRGB(0.94, 0.96, 0.98, 1);
+    Rex_drawCenteredLine(ctx, text, w * 0.5, h * 0.31, w - 16.f, 18.f, 10.f, white);
+    CGColorRelease(white);
+    CGContextRelease(ctx);
+    CGColorSpaceRelease(cs);
+
+    MTLTextureDescriptor *td = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatRGBA8Unorm
+                                                                                  width:w
+                                                                                 height:h
+                                                                              mipmapped:NO];
+    td.usage = MTLTextureUsageShaderRead;
+    id<MTLTexture> tex = [device newTextureWithDescriptor:td];
+    [tex replaceRegion:MTLRegionMake2D(0, 0, w, h)
+           mipmapLevel:0
+             withBytes:pixels.bytes
+           bytesPerRow:bpr];
+    if (outSize) *outSize = CGSizeMake(w, h);
+    return tex;
+}
+
 - (void)_drawReticles:(World *)world encoder:(id<MTLRenderCommandEncoder>)encoder {
     // Frame dt for the tracer animation (cosmetic only, so wall-clock is fine).
     CFTimeInterval now = CACurrentMediaTime();
@@ -827,6 +865,37 @@ static id<MTLTexture> Rex_makePressFireTexture(id<MTLDevice> device, CGSize *out
     [self _drawVertices:tick color:playerColor primitive:MTLPrimitiveTypeTriangle mvp:_overlayProjection encoder:encoder];
 }
 
+- (void)_drawScoreForPlayer:(int)playerIndex
+                      score:(const PlayerScoreState &)score
+                    centerX:(float)centerX
+                       barY:(float)barY
+                   barWidth:(float)barWidth
+                    encoder:(id<MTLRenderCommandEncoder>)encoder {
+    int accuracy = (int)lrintf((float)score.shotsHit * 100.f / (float)std::max(1, score.shotsFired));
+    NSString *text = [NSString stringWithFormat:@"SCORE %d  STK %d  ACC %d%%",
+                                                score.score, score.currentStreak, accuracy];
+    if (!_scoreText[playerIndex] || ![_scoreText[playerIndex] isEqualToString:text]) {
+        _scoreText[playerIndex] = [text copy];
+        _scoreTextures[playerIndex] = Rex_makeScoreTexture(_device, _scoreText[playerIndex],
+                                                           &_scoreTextureSizes[playerIndex]);
+    }
+    if (_scoreTextures[playerIndex] && _texturePipeline) {
+        float x = centerX;
+        float y = barY - 27.f;
+        RexTextureUniformsCPU uniforms;
+        uniforms.mvp = Rex_make_model_rect(_overlayProjection, x, y, 0.07f,
+                                           (float)_scoreTextureSizes[playerIndex].width,
+                                           (float)_scoreTextureSizes[playerIndex].height);
+        [encoder setRenderPipelineState:_texturePipeline];
+        [encoder setVertexBuffer:_texQuadVB offset:0 atIndex:0];
+        [encoder setVertexBytes:&uniforms length:sizeof(uniforms) atIndex:1];
+        [encoder setFragmentTexture:_scoreTextures[playerIndex] atIndex:0];
+        [encoder setFragmentSamplerState:_sampler atIndex:0];
+        [encoder drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:6];
+        [encoder setRenderPipelineState:_pipeline];
+    }
+}
+
 // Draws a sitting-out player's row: a dim empty bar plus a small cached
 // "PRESS FIRE" label, still tinted with their reticle color's tick so it's
 // clear which player needs to continue.
@@ -899,6 +968,8 @@ static id<MTLTexture> Rex_makePressFireTexture(id<MTLDevice> device, CGSize *out
             [self _drawHealthBarForPlayer:player health:health centerX:centerX barY:barY
                                    barWidth:barWidth barHeight:barHeight encoder:encoder];
         }
+        [self _drawScoreForPlayer:player score:world->score(player) centerX:centerX barY:barY
+                          barWidth:barWidth encoder:encoder];
         maxHitFlash = std::max(maxHitFlash, health.hitFlashTime);
     }
 

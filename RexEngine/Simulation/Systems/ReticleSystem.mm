@@ -23,6 +23,14 @@ static bool point_inside(const ReticleComponent& reticle, const TargetComponent&
         && fabsf(reticle.y - target.screenY) <= target.screenHalfH;
 }
 
+static bool point_inside_weak_point(const ReticleComponent& reticle, const TargetComponent& target) {
+    if (!target.active || target.weakPointHalfW <= 0.f || target.screenHalfH <= 0.f) return false;
+    float weakCenterY = target.screenY + target.weakPointOffsetY;
+    float weakHalfH = target.screenHalfH * 0.35f;
+    return fabsf(reticle.x - target.screenX) <= target.weakPointHalfW
+        && fabsf(reticle.y - weakCenterY) <= weakHalfH;
+}
+
 ReticleTuning ReticleSystem_tuning() {
     return s_tuning;
 }
@@ -169,7 +177,12 @@ void ReticleSystem_update(World& world, float gameDt) {
             reticle.shotCount += 1;
             for (int i = 0; i < kM1MaxTargets; ++i) {
                 TargetComponent& target = world.target(i);
-                if (point_inside(reticle, target)) target.wasHit = true;
+                bool weakPointHit = point_inside_weak_point(reticle, target);
+                if (weakPointHit || point_inside(reticle, target)) {
+                    target.wasHit = true;
+                    target.lastHitWasWeakPoint = weakPointHit;
+                    target.lastHitByPlayer = (uint8_t)player;
+                }
             }
         }
     }

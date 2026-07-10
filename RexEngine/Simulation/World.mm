@@ -4,6 +4,7 @@
 #include "Systems/DinoBehaviorSystem.h"
 #include "Systems/PlayerHealthSystem.h"
 #include "Systems/ReticleSystem.h"
+#include "Systems/ScoringSystem.h"
 #include "Systems/AnimationSystem.h"
 #import <Foundation/Foundation.h>
 #include <algorithm>
@@ -66,6 +67,7 @@ void World::reset_m1_scene() {
 
     for (int i = 0; i < kRexMaxPlayers; ++i) {
         _playerHealth[i] = {};
+        _playerScore[i] = {};
         _reticles[i] = {};
         _reticles[i].playerIndex = (uint8_t)i;
         // P1 and P2 both active (2P is a day-one design goal; a real join
@@ -209,8 +211,9 @@ void World::tick(float gameDt) {
     // continues.
     if (any_player_active_and_not_sitting_out()) {
         RailCameraSystem_update(*this, gameDt);
-        DinoBehaviorSystem_update(*this, gameDt);
         ReticleSystem_update(*this, gameDt);
+        DinoBehaviorSystem_update(*this, gameDt);
+        ScoringSystem_update(*this, gameDt);
         AnimationSystem_update(*this, gameDt);
     }
     flush();

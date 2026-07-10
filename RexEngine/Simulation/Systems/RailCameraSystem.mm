@@ -127,6 +127,8 @@ static void update_targets(World& world, float gameDt) {
             gap = 5.f + (float)i * 0.8f;
             target.railDistance = std::max(0.f, camera.distance - gap);
             target.wasHit = false;
+            target.lastHitWasWeakPoint = false;
+            target.lastHitByPlayer = UINT8_MAX;
         } else if (gap < 1.0f) {
             target.railDistance = std::max(0.f, camera.distance - 1.0f);
         }
@@ -170,6 +172,8 @@ static void update_targets(World& world, float gameDt) {
         if (!visible) {
             target.screenHalfW = 0.f;
             target.screenHalfH = 0.f;
+            target.weakPointHalfW = 0.f;
+            target.weakPointOffsetY = 0.f;
             continue;
         }
 
@@ -181,6 +185,8 @@ static void update_targets(World& world, float gameDt) {
         target.screenY = clamp01_local((minY + maxY) * 0.5f);
         target.screenHalfW = std::clamp((maxX - minX) * 0.5f, 0.015f, 0.18f);
         target.screenHalfH = std::clamp((maxY - minY) * 0.5f, 0.02f, 0.20f);
+        target.weakPointHalfW = target.screenHalfW * 0.55f;
+        target.weakPointOffsetY = target.screenHalfH * 0.65f;
     }
 
     (void)gameDt;
