@@ -73,22 +73,14 @@
     [self _playAudioCues];
 }
 
-// Interrupting a dino's attack (denying damage) and a weak-point hit both
-// read as the "big" payoff in ScoringSystem's own point values (50 and 25 vs.
-// a plain hit's 10) — finisher gets the heavier sound to match. A plain hit
-// has no sound of its own: the gunfire report already confirms the shot,
-// and layering a thud under every routine hit read as redundant. TellMissed
-// has no sound yet either; it's a candidate for TODOS.md's "danger tell"
-// cue later.
+// Hit/weak-point/interrupt/hurt all used to trigger a synthesized "thump"
+// sound here (see git history) — pulled in favor of visual feedback for
+// those moments instead, at least for now. Only the gunshot report is left:
+// one per shot fired, independent of hit/miss.
 - (void)_playAudioCues {
     if (!_audio || !_world) return;
     AudioCueCounts cues = _world->consume_audio_cues();
-    // One report per shot fired, independent of hit/miss — this is what
-    // actually reads as "the gun." Finisher/hurt below are separate
-    // impact-confirmation layers for the bigger moments only.
     for (int i = 0; i < cues.shotsFired; ++i) [_audio playFireSound];
-    if (cues.interruptSuccesses > 0 || cues.weakPointHits > 0) [_audio playFinisherSound];
-    if (cues.interruptFails > 0) [_audio playHurtSound];
 }
 
 - (void)setInputState:(InputState)state forPlayer:(int)playerIndex {

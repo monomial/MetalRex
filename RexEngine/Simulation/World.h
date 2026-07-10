@@ -11,15 +11,14 @@ using EntityID = uint32_t;
 static constexpr EntityID kInvalidEntity = UINT32_MAX;
 
 // Tally of this-frame combat events the platform layer turns into sound.
-// Populated by ScoringSystem_update alongside scoring (same event loop, same
-// source of truth) and read+reset once per rendered frame by RexGameHost —
-// unlike EventBus, this is NOT cleared per-tick, so it survives the possibly
-// multiple fixed ticks that run inside one World::update() call.
+// Read+reset once per rendered frame by RexGameHost — unlike EventBus, this
+// is NOT cleared per-tick, so it survives the possibly multiple fixed ticks
+// that run inside one World::update() call. Hit/weak-point/interrupt cues
+// used to live here too (see git history) but those sounds were pulled in
+// favor of visual feedback instead; shotsFired is the only one left,
+// tallied directly at ReticleSystem's fire site.
 struct AudioCueCounts {
     int shotsFired = 0;
-    int weakPointHits = 0;
-    int interruptSuccesses = 0;
-    int interruptFails = 0;
 };
 
 template<typename T>
