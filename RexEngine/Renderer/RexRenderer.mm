@@ -510,7 +510,7 @@ static void appendSegmentQuad(std::vector<RexVertex>& out,
 
 // Where each player's gun sits on screen (normalized x; y is the bottom
 // edge): P1 left of center, P2 right, like two shooters in the jeep bed.
-static const float kGunAnchorX[kRexMaxPlayers] = {0.42f, 0.58f, 0.30f, 0.70f};
+static const float kGunAnchorX[kRexMaxPlayers] = {0.36f, 0.64f, 0.30f, 0.70f};
 
 // Per-player reticle/HUD colors (arcade style — each player instantly knows
 // which sight/health row is theirs): P1 warm pink/red, P2 cyan, then
