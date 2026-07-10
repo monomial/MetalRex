@@ -115,7 +115,11 @@ static const int kMaxPlayers = 4;
     if (!gamepad) return;
 
     __weak GameViewController *weakSelf = self;
-    gamepad.rightThumbstick.valueChangedHandler = ^(GCControllerDirectionPad *pad, float x, float y) {
+    // Left stick, not right: buttonA (fire) and the right stick both sit
+    // under the right thumb on a standard layout, making it awkward to hold
+    // fire while actively aiming with the stick. Left stick + right-hand
+    // trigger splits the two across both thumbs.
+    gamepad.leftThumbstick.valueChangedHandler = ^(GCControllerDirectionPad *pad, float x, float y) {
         GameViewController *vc = weakSelf;
         if (!vc) return;
         InputState state = [vc->_host currentInputStateForPlayer:slot];
