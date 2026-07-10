@@ -118,6 +118,10 @@
     [_renderer captureNextFrameToPath:path];
 }
 
+- (void)toggleDebugHUD {
+    [_renderer toggleDebugHUD];
+}
+
 - (void)mtkView:(MTKView *)view drawableSizeWillChange:(CGSize)size {
     [_renderer updateDrawableSize:size];
 }

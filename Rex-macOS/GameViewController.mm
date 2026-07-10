@@ -178,6 +178,7 @@
         case 43:  ReticleSystem_adjust_fallback_tuning( 0.00f, -0.01f,  0.00f); break; // , — fallback magnet radius down
         case 46:  ReticleSystem_adjust_fallback_tuning( 0.00f,  0.00f,  0.03f); break; // M — fallback magnet strength up
         case 45:  ReticleSystem_adjust_fallback_tuning( 0.00f,  0.00f, -0.03f); break; // N — fallback magnet strength down
+        case 4:   [_host toggleDebugHUD]; break; // H — show/hide the tuning debug overlay
         default: [super keyDown:event];
     }
 }

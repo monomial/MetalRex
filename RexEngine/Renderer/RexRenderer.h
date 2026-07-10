@@ -19,4 +19,8 @@ class World;
 // this reads the app's own drawable texture, not the screen).
 - (void)captureNextFrameToPath:(NSString*)path;
 
+// Shows/hides the macOS-only gyro/stick tuning debug overlay (a no-op on
+// tvOS, where that overlay is never compiled in). Visible by default.
+- (void)toggleDebugHUD;
+
 @end

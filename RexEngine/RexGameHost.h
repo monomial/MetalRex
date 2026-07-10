@@ -11,6 +11,10 @@
 
 - (void)captureNextFrameToPath:(NSString*)path;
 
+// Shows/hides the macOS-only gyro/stick tuning debug overlay (no-op on
+// tvOS). See RexRenderer.h.
+- (void)toggleDebugHUD;
+
 - (void)setInputState:(InputState)state forPlayer:(int)playerIndex;
 - (InputState)currentInputStateForPlayer:(int)playerIndex;
 - (void)setInputState:(InputState)state;

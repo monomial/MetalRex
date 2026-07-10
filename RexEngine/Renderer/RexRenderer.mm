@@ -95,6 +95,9 @@ struct SkinnedUniformsCPU {
     id<MTLTexture> _scoreTextures[kRexMaxPlayers];
     CGSize _scoreTextureSizes[kRexMaxPlayers];
     NSString *_scoreText[kRexMaxPlayers];
+    BOOL _debugHUDVisible;
+    id<MTLTexture> _debugLabelsTexture;
+    CGSize _debugLabelsTextureSize;
 }
 
 - (instancetype)initWithDevice:(id<MTLDevice>)device
@@ -103,6 +106,7 @@ struct SkinnedUniformsCPU {
     if (!self) return nil;
 
     _device = device;
+    _debugHUDVisible = YES;
     // Extends behind the rail start (z < 0): the camera faces backward off
     // the jeep, so the ground behind the run must exist too.
     const RexVertex verts[] = {
@@ -657,6 +661,73 @@ static id<MTLTexture> Rex_makePressFireTexture(id<MTLDevice> device, CGSize *out
     return tex;
 }
 
+#if TARGET_OS_OSX
+static void Rex_drawLeftLine(CGContextRef ctx, NSString *text, CGFloat x, CGFloat baselineY,
+                             CGFloat fontSize, CGColorRef color) {
+    CTFontRef font = CTFontCreateWithName(CFSTR("HelveticaNeue-Bold"), fontSize, NULL);
+    NSDictionary *attrs = @{
+        (__bridge id)kCTFontAttributeName: (__bridge id)font,
+        (__bridge id)kCTForegroundColorAttributeName: (__bridge id)color,
+    };
+    CFAttributedStringRef attr = CFAttributedStringCreate(kCFAllocatorDefault, (__bridge CFStringRef)text,
+                                                           (__bridge CFDictionaryRef)attrs);
+    CTLineRef line = CTLineCreateWithAttributedString(attr);
+    CGContextSetTextPosition(ctx, x, baselineY);
+    CTLineDraw(line, ctx);
+    CFRelease(line);
+    CFRelease(attr);
+    CFRelease(font);
+}
+
+// One label per debug tuning bar (see _drawDebugHUD), left-aligned and
+// colored to match its bar so the association is obvious without counting
+// rows. Row height matches the bars' own 15px spacing exactly (8 rows *
+// 15px), so this renders at native size right next to them with no
+// scaling. Built once and cached — the labels/keys never change, only the
+// bar widths do.
+static id<MTLTexture> Rex_makeDebugLabelsTexture(id<MTLDevice> device,
+                                                 NSArray<NSString*> *labels,
+                                                 const simd_float4 *colors,
+                                                 CGSize *outSize) {
+    NSUInteger w = 170;
+    CGFloat rowHeight = 15.f;
+    NSUInteger h = (NSUInteger)(rowHeight * (CGFloat)labels.count);
+    NSUInteger bpr = w * 4;
+    NSMutableData *pixels = [NSMutableData dataWithLength:bpr * h];
+
+    CGColorSpaceRef cs = CGColorSpaceCreateDeviceRGB();
+    CGBitmapInfo bitmapInfo = (CGBitmapInfo)kCGImageAlphaPremultipliedLast | kCGBitmapByteOrder32Big;
+    CGContextRef ctx = CGBitmapContextCreate(pixels.mutableBytes, w, h, 8, bpr, cs, bitmapInfo);
+    if (!ctx) {
+        CGColorSpaceRelease(cs);
+        return nil;
+    }
+
+    for (NSUInteger i = 0; i < labels.count; ++i) {
+        simd_float4 c = colors[i];
+        CGColorRef color = CGColorCreateGenericRGB(c.x, c.y, c.z, 1);
+        CGFloat baselineY = (CGFloat)h - rowHeight * ((CGFloat)i + 1.f) + 4.f;
+        Rex_drawLeftLine(ctx, labels[i], 4.f, baselineY, 7.f, color);
+        CGColorRelease(color);
+    }
+    CGContextRelease(ctx);
+    CGColorSpaceRelease(cs);
+
+    MTLTextureDescriptor *td = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatRGBA8Unorm
+                                                                                  width:w
+                                                                                 height:h
+                                                                              mipmapped:NO];
+    td.usage = MTLTextureUsageShaderRead;
+    id<MTLTexture> tex = [device newTextureWithDescriptor:td];
+    [tex replaceRegion:MTLRegionMake2D(0, 0, w, h)
+           mipmapLevel:0
+             withBytes:pixels.bytes
+           bytesPerRow:bpr];
+    if (outSize) *outSize = CGSizeMake(w, h);
+    return tex;
+}
+#endif
+
 // Arcade-style corner score readout (Jurassic Park arcade reference: big
 // glowing score number, "STREAK X#" underneath, in the player's own color).
 // Bigger canvas than the old single-line strip since this is now a
@@ -1048,6 +1119,7 @@ static id<MTLTexture> Rex_makeScoreTexture(id<MTLDevice> device, NSString *score
 
 #if TARGET_OS_OSX
 - (void)_drawDebugHUD:(id<MTLRenderCommandEncoder>)encoder {
+    if (!_debugHUDVisible) return;
     ReticleTuning tuning = ReticleSystem_tuning();
     const float values[] = {
         tuning.stickSensitivityH / 2.0f,
@@ -1086,6 +1158,32 @@ static id<MTLTexture> Rex_makeScoreTexture(id<MTLDevice> device, NSString *score
         [self _appendQuad:bar center:(simd_float3){baseX + width * 0.5f, baseY, 0.07f}
                     halfW:width * 0.5f halfH:4.f];
         [self _drawVertices:bar color:colors[i] primitive:MTLPrimitiveTypeTriangle mvp:_overlayProjection encoder:encoder];
+    }
+
+    if (!_debugLabelsTexture) {
+        NSArray<NSString*> *labels = @[
+            @"STICK H  =/-", @"STICK V  =/-",
+            @"GYRO H  ]/[",  @"GYRO V  ]/[",
+            @"SMOOTH  '/;",  @"FRICTION  P/O",
+            @"MAGNET STR  M/N", @"MAGNET RAD  ./,",
+        ];
+        _debugLabelsTexture = Rex_makeDebugLabelsTexture(_device, labels, colors, &_debugLabelsTextureSize);
+    }
+    if (_debugLabelsTexture && _texturePipeline) {
+        float labelsX = -_halfW + 34.f + 120.f + 10.f + (float)_debugLabelsTextureSize.width * 0.5f;
+        float topBaseY = _halfH - 26.f - kScoreTexH - 24.f;
+        float labelsY = topBaseY - (float)_debugLabelsTextureSize.height * 0.5f + 7.5f;
+        RexTextureUniformsCPU uniforms;
+        uniforms.mvp = Rex_make_model_rect(_overlayProjection, labelsX, labelsY, 0.07f,
+                                           (float)_debugLabelsTextureSize.width,
+                                           (float)_debugLabelsTextureSize.height);
+        [encoder setRenderPipelineState:_texturePipeline];
+        [encoder setVertexBuffer:_texQuadVB offset:0 atIndex:0];
+        [encoder setVertexBytes:&uniforms length:sizeof(uniforms) atIndex:1];
+        [encoder setFragmentTexture:_debugLabelsTexture atIndex:0];
+        [encoder setFragmentSamplerState:_sampler atIndex:0];
+        [encoder drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:6];
+        [encoder setRenderPipelineState:_pipeline];
     }
 }
 #endif
@@ -1161,6 +1259,10 @@ static id<MTLTexture> Rex_makeScoreTexture(id<MTLDevice> device, NSString *score
 
 - (void)captureNextFrameToPath:(NSString*)path {
     _pendingCapturePath = [path copy];
+}
+
+- (void)toggleDebugHUD {
+    _debugHUDVisible = !_debugHUDVisible;
 }
 
 @end
