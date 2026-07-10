@@ -49,6 +49,7 @@
 		589AA2BD07EAC8474926F6C1 /* DinoBehaviorSystem.mm in Sources */ = {isa = PBXBuildFile; fileRef = DC48A4FFFCED309C5A20C805 /* DinoBehaviorSystem.mm */; };
 		5B0048B6C980D91AF25B8F31 /* World.mm in Sources */ = {isa = PBXBuildFile; fileRef = 6C3CE5C8074A8EC650F1C61B /* World.mm */; };
 		5C826A0FD6F44503E15EE165 /* InputSystem.mm in Sources */ = {isa = PBXBuildFile; fileRef = E24115F77C07DE877C58A1D9 /* InputSystem.mm */; };
+		5CF266AC59224C1B12AFD35D /* ScoringSystem.mm in Sources */ = {isa = PBXBuildFile; fileRef = 97A9E9F75EB92741A532C750 /* ScoringSystem.mm */; };
 		5D8A4EFC028257CD4B4FE7CE /* HapticsEngine.mm in Sources */ = {isa = PBXBuildFile; fileRef = DF0E49C9D1B509090135F40B /* HapticsEngine.mm */; };
 		5F94F7F9E9B3CE1353D5E11C /* ParticleSim.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 97C15A79A4F325FCF1A47F0D /* ParticleSim.cpp */; };
 		61836ADEF794B2D09BC92F59 /* QuartzCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F2E58A68AFED6E15C76E9CFA /* QuartzCore.framework */; };
@@ -68,6 +69,7 @@
 		8B1C6CBBFC9EE370F9D4CDBE /* ModelIO.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FF21A3D89DFCD32DB2F372CF /* ModelIO.framework */; };
 		8BAFF9F5AE214206D0F91DA0 /* ModelIO.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FF21A3D89DFCD32DB2F372CF /* ModelIO.framework */; };
 		9114D48188976190A0D49A49 /* DinoBehaviorSystem.mm in Sources */ = {isa = PBXBuildFile; fileRef = DC48A4FFFCED309C5A20C805 /* DinoBehaviorSystem.mm */; };
+		913C925A55A8C249C73C344B /* ScoringSystem.mm in Sources */ = {isa = PBXBuildFile; fileRef = 97A9E9F75EB92741A532C750 /* ScoringSystem.mm */; };
 		92980B08BEDC019E4DD967FB /* RexRenderer.mm in Sources */ = {isa = PBXBuildFile; fileRef = D19215428D510F18874F5DC5 /* RexRenderer.mm */; };
 		94729FDF10BC4E37667B3F1C /* AppDelegate.mm in Sources */ = {isa = PBXBuildFile; fileRef = D4D32BBDB71C4CE1CF154191 /* AppDelegate.mm */; };
 		94F73AC9AAF1B4F827DB2ADC /* ImageIO.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = EBCCBADB86BCC3BC079D9397 /* ImageIO.framework */; };
@@ -100,6 +102,7 @@
 		E5C334F603C17707D610E205 /* World.mm in Sources */ = {isa = PBXBuildFile; fileRef = 6C3CE5C8074A8EC650F1C61B /* World.mm */; };
 		E6925E39BD6C1C8A7702E539 /* ReticleSystem.mm in Sources */ = {isa = PBXBuildFile; fileRef = 8F6E7A678A2B416F70E70AF5 /* ReticleSystem.mm */; };
 		E6F1C9196281110372883778 /* RexRenderer.mm in Sources */ = {isa = PBXBuildFile; fileRef = D19215428D510F18874F5DC5 /* RexRenderer.mm */; };
+		E717B43F92C91A9C3D0C7F60 /* ScoringSystem.mm in Sources */ = {isa = PBXBuildFile; fileRef = 97A9E9F75EB92741A532C750 /* ScoringSystem.mm */; };
 		E8F03B8C2135C7C6908F45A3 /* assets in Resources */ = {isa = PBXBuildFile; fileRef = 9285B510089C9CA623582EE1 /* assets */; };
 		EB78733079BAA5A7702561D9 /* CharacterLoader.mm in Sources */ = {isa = PBXBuildFile; fileRef = 87D7247D05FC2A57F6DAEB29 /* CharacterLoader.mm */; };
 		EDABEAF2FD55A471D92554E9 /* QuartzCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F2E58A68AFED6E15C76E9CFA /* QuartzCore.framework */; };
@@ -108,6 +111,7 @@
 		F846B1150C0C17CFFC22A92D /* MetalKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E2CD79E815BBA360995598A8 /* MetalKit.framework */; };
 		F9F6A408AD8362AAF404B8F1 /* ReticleInputTests.mm in Sources */ = {isa = PBXBuildFile; fileRef = B83DE11BFAEAC7DDE1053DA3 /* ReticleInputTests.mm */; };
 		FE23ADD4D3EB36297557CCA1 /* UIKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E661802610C9D27E46EB4BA9 /* UIKit.framework */; };
+		FED4874AB6C5D989FCC91F5F /* ScoringTests.mm in Sources */ = {isa = PBXBuildFile; fileRef = C27B5C79F033DA1E66F335BB /* ScoringTests.mm */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -148,6 +152,7 @@
 		62B42ED1E2636BF79323DFDA /* WorldSmokeTests.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = WorldSmokeTests.mm; sourceTree = "<group>"; };
 		6C3CE5C8074A8EC650F1C61B /* World.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = World.mm; sourceTree = "<group>"; };
 		6CF16262AD420C9CCC907874 /* SceneDelegate.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = SceneDelegate.mm; sourceTree = "<group>"; };
+		6DC490049C0E8A3EF205B9BF /* ScoringSystem.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ScoringSystem.h; sourceTree = "<group>"; };
 		6FBDA8732F625A70A7CA9536 /* AppDelegate.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AppDelegate.h; sourceTree = "<group>"; };
 		7649D00B3DF5927FEFD9A797 /* Rex-macOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Rex-macOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		7BFD5A5F7E2D037FF4148A45 /* AudioEngine.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AudioEngine.h; sourceTree = "<group>"; };
@@ -161,6 +166,7 @@
 		8F6E7A678A2B416F70E70AF5 /* ReticleSystem.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = ReticleSystem.mm; sourceTree = "<group>"; };
 		9285B510089C9CA623582EE1 /* assets */ = {isa = PBXFileReference; lastKnownFileType = folder; path = assets; sourceTree = SOURCE_ROOT; };
 		943AC821EF117BD8736BA3B2 /* PhysicsSystem.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = PhysicsSystem.h; sourceTree = "<group>"; };
+		97A9E9F75EB92741A532C750 /* ScoringSystem.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = ScoringSystem.mm; sourceTree = "<group>"; };
 		97C15A79A4F325FCF1A47F0D /* ParticleSim.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = ParticleSim.cpp; sourceTree = "<group>"; };
 		9B5C40306347D48D25BFFC35 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		A40566C90DE1D326A699485D /* EventBus.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = EventBus.h; sourceTree = "<group>"; };
@@ -173,6 +179,7 @@
 		B83DE11BFAEAC7DDE1053DA3 /* ReticleInputTests.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = ReticleInputTests.mm; sourceTree = "<group>"; };
 		BB3B5CBD52BAF7B79D5FFC1B /* DinoBehaviorSystem.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = DinoBehaviorSystem.h; sourceTree = "<group>"; };
 		BC1452D0655C80FE714C62EE /* ChartLoader.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ChartLoader.h; sourceTree = "<group>"; };
+		C27B5C79F033DA1E66F335BB /* ScoringTests.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = ScoringTests.mm; sourceTree = "<group>"; };
 		C32528CD28DE93AE376944FF /* PLAN-M1.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = "PLAN-M1.md"; sourceTree = "<group>"; };
 		D19215428D510F18874F5DC5 /* RexRenderer.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = RexRenderer.mm; sourceTree = "<group>"; };
 		D4512AAC63BD685BFAB6F7E4 /* PLAN-M3.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = "PLAN-M3.md"; sourceTree = "<group>"; };
@@ -288,6 +295,7 @@
 				215B80C5038893DB52B737C0 /* HealthTests.mm */,
 				AF70F53A5C81D63A0A3CAE5F /* RailCameraTests.mm */,
 				B83DE11BFAEAC7DDE1053DA3 /* ReticleInputTests.mm */,
+				C27B5C79F033DA1E66F335BB /* ScoringTests.mm */,
 				62B42ED1E2636BF79323DFDA /* WorldSmokeTests.mm */,
 			);
 			path = RexLogicTests;
@@ -403,6 +411,8 @@
 				80FAA2F6BAC5124039F91CD7 /* RailCameraSystem.mm */,
 				86FC80FD0678A689BCFAC968 /* ReticleSystem.h */,
 				8F6E7A678A2B416F70E70AF5 /* ReticleSystem.mm */,
+				6DC490049C0E8A3EF205B9BF /* ScoringSystem.h */,
+				97A9E9F75EB92741A532C750 /* ScoringSystem.mm */,
 				ABAB2B43F9A5A68DA6B8DD97 /* ScreenShakeSystem.h */,
 				0604376B2E287273A588D819 /* ScreenShakeSystem.mm */,
 			);
@@ -604,6 +614,7 @@
 				2A15B1C8242BCC5FD967AB39 /* ReticleSystem.mm in Sources */,
 				44407FF0359B21C599ED6F47 /* RexGameHost.mm in Sources */,
 				E6F1C9196281110372883778 /* RexRenderer.mm in Sources */,
+				5CF266AC59224C1B12AFD35D /* ScoringSystem.mm in Sources */,
 				51EF8CD88C45BF1C1BF99187 /* ScreenShakeSystem.mm in Sources */,
 				5B0048B6C980D91AF25B8F31 /* World.mm in Sources */,
 				57CE9D78492786C208959764 /* main.mm in Sources */,
@@ -634,6 +645,8 @@
 				E6925E39BD6C1C8A7702E539 /* ReticleSystem.mm in Sources */,
 				AC7DF45263A8E4167C55744B /* RexGameHost.mm in Sources */,
 				80AD01AAB6C768EB1B4E4D4F /* RexRenderer.mm in Sources */,
+				E717B43F92C91A9C3D0C7F60 /* ScoringSystem.mm in Sources */,
+				FED4874AB6C5D989FCC91F5F /* ScoringTests.mm in Sources */,
 				DA5A71C41D646251B75EB44F /* ScreenShakeSystem.mm in Sources */,
 				E5C334F603C17707D610E205 /* World.mm in Sources */,
 				1EFB714F3B9ECB85EF721C9B /* WorldSmokeTests.mm in Sources */,
@@ -662,6 +675,7 @@
 				876C6B4D41C5B7ED5A2D1A3D /* RexGameHost.mm in Sources */,
 				92980B08BEDC019E4DD967FB /* RexRenderer.mm in Sources */,
 				7FB95C9B0064C6C039D91217 /* SceneDelegate.mm in Sources */,
+				913C925A55A8C249C73C344B /* ScoringSystem.mm in Sources */,
 				0C6E607D0A3D5DE997BA013B /* ScreenShakeSystem.mm in Sources */,
 				55A86DCEF1BA728C2F3193D2 /* World.mm in Sources */,
 				BAA67AED3B0E4ECBD0A7F3BA /* main.mm in Sources */,
@@ -741,7 +755,8 @@
 				ASSETCATALOG_COMPILER_LAUNCHIMAGE_NAME = LaunchImage;
 				CLANG_CXX_LANGUAGE_STANDARD = "c++20";
 				CLANG_CXX_LIBRARY = "libc++";
-				CODE_SIGNING_ALLOWED = NO;
+				CODE_SIGNING_ALLOWED = YES;
+				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = 74V7G3NQ7Y;
 				GCC_ENABLE_OBJC_EXCEPTIONS = YES;
 				HEADER_SEARCH_PATHS = "$(SRCROOT)/RexEngine";
@@ -765,7 +780,8 @@
 				ASSETCATALOG_COMPILER_LAUNCHIMAGE_NAME = LaunchImage;
 				CLANG_CXX_LANGUAGE_STANDARD = "c++20";
 				CLANG_CXX_LIBRARY = "libc++";
-				CODE_SIGNING_ALLOWED = NO;
+				CODE_SIGNING_ALLOWED = YES;
+				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = 74V7G3NQ7Y;
 				GCC_ENABLE_OBJC_EXCEPTIONS = YES;
 				HEADER_SEARCH_PATHS = "$(SRCROOT)/RexEngine";

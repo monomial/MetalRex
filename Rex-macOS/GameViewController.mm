@@ -142,7 +142,7 @@
     GCMotion *motion = _controller.motion;
     if (motion && motion.sensorsActive) {
         state.gyroDeltaX = (float)(motion.rotationRate.y * (1.0 / 120.0));
-        state.gyroDeltaY = (float)(-motion.rotationRate.x * (1.0 / 120.0));
+        state.gyroDeltaY = (float)(motion.rotationRate.x * (1.0 / 120.0));
     } else {
         state.gyroDeltaX = 0.f;
         state.gyroDeltaY = 0.f;
