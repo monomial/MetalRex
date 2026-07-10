@@ -191,6 +191,7 @@
 		EBCCBADB86BCC3BC079D9397 /* ImageIO.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = ImageIO.framework; path = System/Library/Frameworks/ImageIO.framework; sourceTree = SDKROOT; };
 		EC0C28A795440865E01D6BDB /* ChartLoaderTests.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = ChartLoaderTests.mm; sourceTree = "<group>"; };
 		ED88C80248F776C6E3864AED /* GameViewController.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = GameViewController.mm; sourceTree = "<group>"; };
+		EDE43DB67415951877A1E4E4 /* PLAN-M4a.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = "PLAN-M4a.md"; sourceTree = "<group>"; };
 		F133AD737FDF28F461217E8A /* CoreText.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreText.framework; path = System/Library/Frameworks/CoreText.framework; sourceTree = SDKROOT; };
 		F2E58A68AFED6E15C76E9CFA /* QuartzCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = QuartzCore.framework; path = System/Library/Frameworks/QuartzCore.framework; sourceTree = SDKROOT; };
 		FDC42C5E46B2B00794B44927 /* InputState.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = InputState.h; sourceTree = "<group>"; };
@@ -415,6 +416,7 @@
 				C32528CD28DE93AE376944FF /* PLAN-M1.md */,
 				44240F80D2BF011C75CD0B47 /* PLAN-M2.md */,
 				D4512AAC63BD685BFAB6F7E4 /* PLAN-M3.md */,
+				EDE43DB67415951877A1E4E4 /* PLAN-M4a.md */,
 				86E62A1F5C179CF49ED651D2 /* TODOS.md */,
 			);
 			path = docs;

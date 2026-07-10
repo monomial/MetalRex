@@ -90,6 +90,8 @@ struct SkinnedUniformsCPU {
     id<MTLBuffer> _texQuadVB;
     id<MTLTexture> _gameOverTexture;
     CGSize _gameOverTextureSize;
+    id<MTLTexture> _pressFireTexture;
+    CGSize _pressFireTextureSize;
 }
 
 - (instancetype)initWithDevice:(id<MTLDevice>)device
@@ -503,6 +505,17 @@ static void appendSegmentQuad(std::vector<RexVertex>& out,
 // edge): P1 left of center, P2 right, like two shooters in the jeep bed.
 static const float kGunAnchorX[kRexMaxPlayers] = {0.42f, 0.58f, 0.30f, 0.70f};
 
+// Per-player reticle/HUD colors (arcade style — each player instantly knows
+// which sight/health row is theirs): P1 warm pink/red, P2 cyan, then
+// green/amber for 3P/4P if that ever ships. Shared by _drawReticles: and
+// _drawHUD: so a player's crosshair and health row read as the same color.
+static const simd_float4 kReticleColors[kRexMaxPlayers] = {
+    {1.00f, 0.42f, 0.55f, 1.f},
+    {0.16f, 0.85f, 0.95f, 1.f},
+    {0.45f, 0.95f, 0.45f, 1.f},
+    {0.98f, 0.80f, 0.30f, 1.f},
+};
+
 // Builds an mvp that places the unit quad ([-0.5,0.5] in both axes, see
 // _texQuadVB) centered at (x,y) with the given pixel width/height, in
 // _overlayProjection's pixel space (ported from MetalBrawler's
@@ -599,6 +612,43 @@ static id<MTLTexture> Rex_makeGameOverTexture(id<MTLDevice> device, CGSize *outS
     return tex;
 }
 
+// Compact "PRESS FIRE" label for a sitting-out player's HUD row — same
+// technique as Rex_makeGameOverTexture, sized to fit inside a health-bar-sized
+// slot instead of a full-screen panel. Content never changes, so callers
+// should cache the result rather than rebuilding it per frame.
+static id<MTLTexture> Rex_makePressFireTexture(id<MTLDevice> device, CGSize *outSize) {
+    NSUInteger w = 240, h = 26;
+    NSUInteger bpr = w * 4;
+    NSMutableData *pixels = [NSMutableData dataWithLength:bpr * h];
+
+    CGColorSpaceRef cs = CGColorSpaceCreateDeviceRGB();
+    CGBitmapInfo bitmapInfo = (CGBitmapInfo)kCGImageAlphaPremultipliedLast | kCGBitmapByteOrder32Big;
+    CGContextRef ctx = CGBitmapContextCreate(pixels.mutableBytes, w, h, 8, bpr, cs, bitmapInfo);
+    if (!ctx) {
+        CGColorSpaceRelease(cs);
+        return nil;
+    }
+
+    CGColorRef white = CGColorCreateGenericRGB(0.92, 0.94, 0.96, 1);
+    Rex_drawCenteredLine(ctx, @"PRESS FIRE", w * 0.5, h * 0.28, w - 12.f, 18.f, 10.f, white);
+    CGColorRelease(white);
+    CGContextRelease(ctx);
+    CGColorSpaceRelease(cs);
+
+    MTLTextureDescriptor *td = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatRGBA8Unorm
+                                                                                  width:w
+                                                                                 height:h
+                                                                              mipmapped:NO];
+    td.usage = MTLTextureUsageShaderRead;
+    id<MTLTexture> tex = [device newTextureWithDescriptor:td];
+    [tex replaceRegion:MTLRegionMake2D(0, 0, w, h)
+           mipmapLevel:0
+             withBytes:pixels.bytes
+           bytesPerRow:bpr];
+    if (outSize) *outSize = CGSizeMake(w, h);
+    return tex;
+}
+
 - (void)_drawReticles:(World *)world encoder:(id<MTLRenderCommandEncoder>)encoder {
     // Frame dt for the tracer animation (cosmetic only, so wall-clock is fine).
     CFTimeInterval now = CACurrentMediaTime();
@@ -609,6 +659,9 @@ static id<MTLTexture> Rex_makeGameOverTexture(id<MTLDevice> device, CGSize *outS
     for (int i = 0; i < kRexMaxPlayers; ++i) {
         const ReticleComponent& reticle = world->reticle(i);
         if (!reticle.active) continue;
+        // Premise 8: a depleted player's reticle is hidden while they're
+        // sitting out (cabinet norm), not just unresponsive to input.
+        if (world->player_health(i).sittingOut) continue;
 
         simd_float3 c = [self _screenPointX:reticle.x y:reticle.y z:0.05f];
         float gap = 5.f;
@@ -623,15 +676,6 @@ static id<MTLTexture> Rex_makeGameOverTexture(id<MTLDevice> device, CGSize *outS
         lines.push_back({{c.x, c.y + gap, c.z}});
         lines.push_back({{c.x, c.y + len, c.z}});
 
-        // Per-player reticle colors (arcade style — each player instantly
-        // knows which sight is theirs): P1 warm pink/red, P2 cyan, then
-        // green/amber for 3P/4P if that ever ships.
-        static const simd_float4 kReticleColors[kRexMaxPlayers] = {
-            {1.00f, 0.42f, 0.55f, 1.f},
-            {0.16f, 0.85f, 0.95f, 1.f},
-            {0.45f, 0.95f, 0.45f, 1.f},
-            {0.98f, 0.80f, 0.30f, 1.f},
-        };
         simd_float4 color = kReticleColors[i];
 
         // Laser pointer: a thin beam from this player's gun muzzle (bottom
@@ -743,43 +787,131 @@ static id<MTLTexture> Rex_makeGameOverTexture(id<MTLDevice> device, CGSize *outS
 // and — while PlayerHealthState::gameOver is set — the GAME OVER / continue
 // panel. Always drawn (not gated to macOS like the tuning debug HUD): this
 // is real gameplay feedback, not a dev-only overlay.
-- (void)_drawHUD:(World *)world encoder:(id<MTLRenderCommandEncoder>)encoder {
-    const PlayerHealthState& health = world->player_health();
+// Draws one player's health row (a bordered bar, colored fill by health
+// fraction, tinted with that player's reticle color) centered at (centerX,
+// barY) in overlay-pixel space.
+- (void)_drawHealthBarForPlayer:(int)playerIndex
+                         health:(const PlayerHealthState &)health
+                        centerX:(float)centerX
+                           barY:(float)barY
+                      barWidth:(float)barWidth
+                     barHeight:(float)barHeight
+                        encoder:(id<MTLRenderCommandEncoder>)encoder {
+    simd_float4 playerColor = kReticleColors[playerIndex];
     float fraction = health.maxHealth > 0
                     ? std::clamp((float)health.health / (float)health.maxHealth, 0.f, 1.f)
                     : 0.f;
 
-    float barWidth = 260.f;
-    float barHeight = 18.f;
-    float barY = _halfH - 26.f;
     std::vector<RexVertex> bg;
-    [self _appendQuad:bg center:(simd_float3){0.f, barY, 0.05f} halfW:barWidth * 0.5f + 3.f halfH:barHeight * 0.5f + 3.f];
+    [self _appendQuad:bg center:(simd_float3){centerX, barY, 0.05f}
+                halfW:barWidth * 0.5f + 3.f halfH:barHeight * 0.5f + 3.f];
     [self _drawVertices:bg color:(simd_float4){0.05f, 0.05f, 0.06f, 0.85f}
               primitive:MTLPrimitiveTypeTriangle mvp:_overlayProjection encoder:encoder];
 
     if (fraction > 0.f) {
-        // Green above half health, amber in the middle, red near empty —
-        // reads at a glance without needing a number.
         simd_float4 fillColor = fraction > 0.5f
                                ? (simd_float4){0.30f, 0.85f, 0.35f, 1.f}
                                : (fraction > 0.25f ? (simd_float4){0.95f, 0.75f, 0.20f, 1.f}
                                                     : (simd_float4){0.90f, 0.25f, 0.20f, 1.f});
         float fillWidth = barWidth * fraction;
         std::vector<RexVertex> fill;
-        [self _appendQuad:fill center:(simd_float3){-barWidth * 0.5f + fillWidth * 0.5f, barY, 0.06f}
+        [self _appendQuad:fill center:(simd_float3){centerX - barWidth * 0.5f + fillWidth * 0.5f, barY, 0.06f}
                     halfW:fillWidth * 0.5f halfH:barHeight * 0.5f];
         [self _drawVertices:fill color:fillColor primitive:MTLPrimitiveTypeTriangle mvp:_overlayProjection encoder:encoder];
     }
 
-    if (health.hitFlashTime > 0.f) {
-        float alpha = std::clamp(health.hitFlashTime / 0.35f, 0.f, 1.f) * 0.35f;
+    // Player-color tick to the left of the bar, same purpose as the reticle
+    // color: at-a-glance "this row is yours."
+    std::vector<RexVertex> tick;
+    [self _appendQuad:tick center:(simd_float3){centerX - barWidth * 0.5f - 12.f, barY, 0.06f} halfW:4.f halfH:barHeight * 0.5f];
+    [self _drawVertices:tick color:playerColor primitive:MTLPrimitiveTypeTriangle mvp:_overlayProjection encoder:encoder];
+}
+
+// Draws a sitting-out player's row: a dim empty bar plus a small cached
+// "PRESS FIRE" label, still tinted with their reticle color's tick so it's
+// clear which player needs to continue.
+- (void)_drawSittingOutRowForPlayer:(int)playerIndex
+                             centerX:(float)centerX
+                                barY:(float)barY
+                            barWidth:(float)barWidth
+                           barHeight:(float)barHeight
+                             encoder:(id<MTLRenderCommandEncoder>)encoder {
+    simd_float4 playerColor = kReticleColors[playerIndex];
+
+    std::vector<RexVertex> bg;
+    [self _appendQuad:bg center:(simd_float3){centerX, barY, 0.05f}
+                halfW:barWidth * 0.5f + 3.f halfH:barHeight * 0.5f + 3.f];
+    [self _drawVertices:bg color:(simd_float4){0.05f, 0.05f, 0.06f, 0.55f}
+              primitive:MTLPrimitiveTypeTriangle mvp:_overlayProjection encoder:encoder];
+
+    std::vector<RexVertex> tick;
+    [self _appendQuad:tick center:(simd_float3){centerX - barWidth * 0.5f - 12.f, barY, 0.06f} halfW:4.f halfH:barHeight * 0.5f];
+    [self _drawVertices:tick color:(simd_float4){playerColor.x, playerColor.y, playerColor.z, 0.5f}
+              primitive:MTLPrimitiveTypeTriangle mvp:_overlayProjection encoder:encoder];
+
+    if (!_pressFireTexture) {
+        _pressFireTexture = Rex_makePressFireTexture(_device, &_pressFireTextureSize);
+    }
+    if (_pressFireTexture && _texturePipeline) {
+        RexTextureUniformsCPU uniforms;
+        uniforms.mvp = Rex_make_model_rect(_overlayProjection, centerX, barY, 0.07f,
+                                           (float)_pressFireTextureSize.width,
+                                           (float)_pressFireTextureSize.height);
+        [encoder setRenderPipelineState:_texturePipeline];
+        [encoder setVertexBuffer:_texQuadVB offset:0 atIndex:0];
+        [encoder setVertexBytes:&uniforms length:sizeof(uniforms) atIndex:1];
+        [encoder setFragmentTexture:_pressFireTexture atIndex:0];
+        [encoder setFragmentSamplerState:_sampler atIndex:0];
+        [encoder drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:6];
+        [encoder setRenderPipelineState:_pipeline];
+    }
+}
+
+// One health row per active player (Premise 6/8: per-player health, cabinet-
+// style sit-out), a full-screen hit-flash tint if any active player was just
+// hit, and — only once every active player is simultaneously sitting out —
+// the shared GAME OVER / continue panel.
+- (void)_drawHUD:(World *)world encoder:(id<MTLRenderCommandEncoder>)encoder {
+    int activePlayers[kRexMaxPlayers];
+    int activeCount = 0;
+    for (int i = 0; i < kRexMaxPlayers; ++i) {
+        if (world->reticle(i).active) activePlayers[activeCount++] = i;
+    }
+
+    float barWidth = 200.f;
+    float barHeight = 16.f;
+    float gap = 24.f;
+    float barY = _halfH - 26.f;
+    float totalWidth = activeCount > 0
+                      ? (float)activeCount * barWidth + (float)(activeCount - 1) * gap
+                      : 0.f;
+    float startX = -totalWidth * 0.5f + barWidth * 0.5f;
+
+    float maxHitFlash = 0.f;
+    for (int slot = 0; slot < activeCount; ++slot) {
+        int player = activePlayers[slot];
+        const PlayerHealthState& health = world->player_health(player);
+        float centerX = startX + (float)slot * (barWidth + gap);
+        if (health.sittingOut) {
+            [self _drawSittingOutRowForPlayer:player centerX:centerX barY:barY
+                                      barWidth:barWidth barHeight:barHeight encoder:encoder];
+        } else {
+            [self _drawHealthBarForPlayer:player health:health centerX:centerX barY:barY
+                                   barWidth:barWidth barHeight:barHeight encoder:encoder];
+        }
+        maxHitFlash = std::max(maxHitFlash, health.hitFlashTime);
+    }
+
+    if (maxHitFlash > 0.f) {
+        float alpha = std::clamp(maxHitFlash / 0.35f, 0.f, 1.f) * 0.35f;
         std::vector<RexVertex> vignette;
         [self _appendQuad:vignette center:(simd_float3){0.f, 0.f, 0.02f} halfW:_halfW halfH:_halfH];
         [self _drawVertices:vignette color:(simd_float4){0.85f, 0.05f, 0.05f, alpha}
                   primitive:MTLPrimitiveTypeTriangle mvp:_overlayProjection encoder:encoder];
     }
 
-    if (health.gameOver) {
+    bool allSittingOut = !world->any_player_active_and_not_sitting_out();
+    if (allSittingOut && activeCount > 0) {
         if (!_gameOverTexture) {
             _gameOverTexture = Rex_makeGameOverTexture(_device, &_gameOverTextureSize);
         }

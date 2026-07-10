@@ -1,6 +1,7 @@
 #include "DinoBehaviorSystem.h"
 #include "Simulation/Systems/AnimationSystem.h"
 #include <algorithm>
+#include <math.h>
 
 static float attack_progress(World& world, EntityID id, const AnimationComponent& anim) {
     float duration = AnimationSystem_clip_duration(world, id, CharacterClipSlot::Attack);
@@ -45,6 +46,24 @@ static void respawn(World& world, EntityID id, DinoBehaviorComponent& dino) {
         target.wasHit = false;
     }
     enter_chase(world, id, dino);
+}
+
+static int nearest_damage_target_player(World& world, const TargetComponent& target) {
+    int bestPlayer = -1;
+    float bestDistSq = 0.f;
+    for (int p = 0; p < kRexMaxPlayers; ++p) {
+        const ReticleComponent& reticle = world.reticle(p);
+        if (!reticle.active || world.player_health(p).sittingOut) continue;
+
+        float dx = reticle.x - target.screenX;
+        float dy = reticle.y - target.screenY;
+        float distSq = dx * dx + dy * dy;
+        if (bestPlayer < 0 || distSq < bestDistSq) {
+            bestPlayer = p;
+            bestDistSq = distSq;
+        }
+    }
+    return bestPlayer;
 }
 
 void DinoBehaviorSystem_update(World& world, float gameDt) {
@@ -156,7 +175,12 @@ void DinoBehaviorSystem_update(World& world, float gameDt) {
                     // landed. World::damage_player applies its own
                     // invulnerability gate, so a wave of dinos finishing
                     // their attacks in the same tick doesn't all connect.
-                    world.damage_player(dino.attackDamage);
+                    if (dino.targetIndex < kM1MaxTargets) {
+                        int damagedPlayer = nearest_damage_target_player(world, world.target(dino.targetIndex));
+                        if (damagedPlayer >= 0) {
+                            world.damage_player(damagedPlayer, dino.attackDamage);
+                        }
+                    }
                     break;
                 }
                 break;
@@ -197,4 +221,3 @@ void DinoBehaviorSystem_update(World& world, float gameDt) {
         }
     }
 }
-

@@ -6,6 +6,7 @@
 #include "Systems/ReticleSystem.h"
 #include "Systems/AnimationSystem.h"
 #import <Foundation/Foundation.h>
+#include <algorithm>
 #include <cassert>
 
 static constexpr float kFixedDt = 1.0f / 120.0f;
@@ -63,9 +64,8 @@ void World::reset_m1_scene() {
         _dinoBehaviors.remove(id);
     }
 
-    _playerHealth = {};
-
     for (int i = 0; i < kRexMaxPlayers; ++i) {
+        _playerHealth[i] = {};
         _reticles[i] = {};
         _reticles[i].playerIndex = (uint8_t)i;
         // P1 and P2 both active (2P is a day-one design goal; a real join
@@ -169,16 +169,27 @@ void World::reset_m1_scene() {
     trexDino.attackDamage = 30; // heavier bite than a raptor's 15
 }
 
-void World::damage_player(int amount) {
-    if (_playerHealth.gameOver || _playerHealth.invulnTime > 0.f) return;
-    _playerHealth.health = std::max(0, _playerHealth.health - amount);
-    _playerHealth.hitFlashTime = 0.35f;
+bool World::any_player_active_and_not_sitting_out() const {
+    for (int i = 0; i < kRexMaxPlayers; ++i) {
+        if (_reticles[i].active && !_playerHealth[i].sittingOut) {
+            return true;
+        }
+    }
+    return false;
+}
+
+void World::damage_player(int playerIndex, int amount) {
+    if (playerIndex < 0 || playerIndex >= kRexMaxPlayers) return;
+    PlayerHealthState& health = _playerHealth[playerIndex];
+    if (health.sittingOut || health.invulnTime > 0.f) return;
+    health.health = std::max(0, health.health - amount);
+    health.hitFlashTime = 0.35f;
     // Post-hit grace: without this, dinos whose attacks land in close
     // succession could stack damage from a single bad moment into an
     // instant death rather than a readable series of hits.
-    _playerHealth.invulnTime = 1.0f;
-    if (_playerHealth.health <= 0) {
-        _playerHealth.gameOver = true;
+    health.invulnTime = 1.0f;
+    if (health.health <= 0) {
+        health.sittingOut = true;
     }
 }
 
@@ -192,11 +203,11 @@ void World::tick(float gameDt) {
     // Always ticks: it owns the hit-flash/invulnerability timers and is the
     // only thing watching for the "insert coin" fire press while frozen.
     PlayerHealthSystem_update(*this, gameDt);
-    // While gameOver, the rail/dinos/reticle/animation freeze in place —
-    // an arcade-style "insert coin to continue" pause rather than gameplay
-    // continuing to run (and potentially killing the player again) while
-    // they can't even see a continue prompt yet.
-    if (!_playerHealth.gameOver) {
+    // Gameplay runs while at least one active player is still in. Sitting-out
+    // players are skipped by ReticleSystem and damage targeting, while an
+    // all-out state freezes rail/dinos/reticles/animation until someone
+    // continues.
+    if (any_player_active_and_not_sitting_out()) {
         RailCameraSystem_update(*this, gameDt);
         DinoBehaviorSystem_update(*this, gameDt);
         ReticleSystem_update(*this, gameDt);

@@ -102,13 +102,20 @@ public:
     const LevelChart& chart() const { return _chart; }
     void replace_chart_for_tests(LevelChart chart);
 
-    const PlayerHealthState& player_health() const { return _playerHealth; }
-    PlayerHealthState& player_health() { return _playerHealth; }
+    const PlayerHealthState& player_health(int playerIndex) const {
+        assert(playerIndex >= 0 && playerIndex < kRexMaxPlayers);
+        return _playerHealth[playerIndex];
+    }
+    PlayerHealthState& player_health(int playerIndex) {
+        assert(playerIndex >= 0 && playerIndex < kRexMaxPlayers);
+        return _playerHealth[playerIndex];
+    }
+    bool any_player_active_and_not_sitting_out() const;
     // Applies dino attack damage, honoring the post-hit invulnerability
-    // window and no-op'ing while already in gameOver. Setting gameOver here
-    // (rather than in PlayerHealthSystem) keeps the health<=0 check next to
-    // the only place health actually decreases.
-    void damage_player(int amount);
+    // window and no-op'ing while that player is already sitting out. Setting
+    // sittingOut here (rather than in PlayerHealthSystem) keeps the health<=0
+    // check next to the only place health actually decreases.
+    void damage_player(int playerIndex, int amount);
 
 private:
     void flush();
@@ -137,7 +144,7 @@ private:
     TargetComponent _targets[kM1MaxTargets];
     RailCameraState _railCamera;
     LevelChart _chart;
-    PlayerHealthState _playerHealth;
+    PlayerHealthState _playerHealth[kRexMaxPlayers];
 };
 
 template<typename T>

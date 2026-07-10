@@ -70,6 +70,10 @@ void ReticleSystem_update(World& world, float gameDt) {
         reticle.smoothingAlpha = s_tuning.stillnessSmoothingAlpha;
         reticle.stillnessThreshold = s_tuning.stillnessThreshold;
         if (!reticle.active) continue;
+        if (world.player_health(player).sittingOut) {
+            reticle.overTarget = false;
+            continue;
+        }
 
         InputState input = world.current_input(player);
         bool hasGyro = fabsf(input.gyroDeltaX) > 0.000001f || fabsf(input.gyroDeltaY) > 0.000001f;
