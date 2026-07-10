@@ -21,8 +21,17 @@ static void tick(World& world, int count) {
 }
 
 static void placeWithinAttackRange(World& world, DinoBehaviorComponent& dino) {
-    world.target(dino.targetIndex).railDistance =
-        world.rail_camera().distance - dino.attackRange + 0.5f;
+    TargetComponent& target = world.target(dino.targetIndex);
+    target.railDistance = world.rail_camera().distance - dino.attackRange + 0.5f;
+    // Center the lateral position rather than leaving whatever spawn-time
+    // spread this target's raptor slot happens to be tuned to: DinoBehavior
+    // routes a landed attack's damage to whichever player's reticle is
+    // nearest the target's screen position (nearest_damage_target_player),
+    // and this test wants that to unambiguously be player 0 (reticle x=0.5)
+    // rather than depending on how wide the raptor pack's lateral spread is
+    // configured this week.
+    target.baseLateralOffset = 0.f;
+    target.lateralOffset = 0.f;
 }
 
 // Mirrors DinoBehaviorTests' test_missLetsAttackClipCompleteNormally tick
