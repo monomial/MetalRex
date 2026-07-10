@@ -127,6 +127,18 @@
 
 - (void)drawInMTKView:(MTKView *)view {
     if (!_renderer || !_commandQueue) return;
+    // A view can go a beat without a presentable drawable/pass right after
+    // it first appears — layout not settled yet, or (seen on tvOS) a
+    // system-level scene transition briefly covering the freshly-launched
+    // app. advanceFrame used to run unconditionally every call regardless,
+    // so the world kept ticking — and playing music/gunfire — for however
+    // long that lasted, entirely invisibly. Checked here, before the
+    // in-flight semaphore is touched at all, so there's nothing to release
+    // on this early return. currentRenderPassDescriptor/currentDrawable are
+    // cached per-frame by MTKView, so drawWorld:inView:commandBuffer:
+    // re-reading them a moment later is the same pass/drawable, not fresh
+    // ones — this isn't a second, competing acquisition.
+    if (!view.currentRenderPassDescriptor || !view.currentDrawable) return;
 
     dispatch_semaphore_wait(_inFlightSemaphore, DISPATCH_TIME_FOREVER);
     CFTimeInterval now = CACurrentMediaTime();
