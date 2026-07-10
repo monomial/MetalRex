@@ -38,11 +38,13 @@ static void apply_score_event(PlayerScoreState& score, DinoScoreEvent event) {
 // without RexEngine itself depending on AVFoundation.
 static void tally_audio_cue(AudioCueCounts& cues, DinoScoreEvent event) {
     switch (event) {
-        case DinoScoreEvent::Hit:              cues.hits += 1; break;
         case DinoScoreEvent::WeakPointHit:      cues.weakPointHits += 1; break;
         case DinoScoreEvent::InterruptSuccess:  cues.interruptSuccesses += 1; break;
         case DinoScoreEvent::InterruptFail:     cues.interruptFails += 1; break;
-        case DinoScoreEvent::TellMissed:        break;
+        // A plain hit has no sound of its own — see RexGameHost::_playAudioCues.
+        case DinoScoreEvent::Hit:
+        case DinoScoreEvent::TellMissed:
+            break;
     }
 }
 

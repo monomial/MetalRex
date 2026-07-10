@@ -17,7 +17,6 @@ static constexpr EntityID kInvalidEntity = UINT32_MAX;
 // multiple fixed ticks that run inside one World::update() call.
 struct AudioCueCounts {
     int shotsFired = 0;
-    int hits = 0;
     int weakPointHits = 0;
     int interruptSuccesses = 0;
     int interruptFails = 0;
