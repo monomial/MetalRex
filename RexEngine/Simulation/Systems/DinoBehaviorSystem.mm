@@ -134,17 +134,24 @@ void DinoBehaviorSystem_update(World& world, float gameDt) {
                 // Chase phase: the dino runs after the jeep from behind
                 // (the camera rides the rail forward, facing backward).
                 // Increasing railDistance closes the gap; the dino gains
-                // only because its chaseSpeed exceeds the jeep's speed.
-                // It stops closing at attackRange — never overrunning the
-                // jeep — and attacks from there once idleDuration has
-                // elapsed. If it drops too far back, RailCameraSystem
-                // recycles it closer as a fresh pursuer.
+                // only because its chaseSpeed exceeds the jeep's speed. Once
+                // within attackRange it stops closing further but keeps
+                // pace with the jeep's own speed — running alongside for
+                // the rest of idleDuration rather than freezing in place,
+                // which used to let the jeep quietly pull away again (gap
+                // drifting back past attackRange) during the wait, before
+                // the dino ever got to lunge. If it drops too far back
+                // anyway, RailCameraSystem recycles it closer as a fresh
+                // pursuer.
                 if (dino.targetIndex < kM1MaxTargets) {
                     TargetComponent& target = world.target(dino.targetIndex);
+                    float cameraSpeed = world.rail_camera().speed;
                     float gap = std::max(0.f, world.rail_camera().distance - target.railDistance);
                     if (gap > dino.attackRange && dino.chaseSpeed > 0.f) {
                         target.railDistance += std::min(dino.chaseSpeed * gameDt,
                                                         gap - dino.attackRange);
+                    } else if (gap <= dino.attackRange) {
+                        target.railDistance += cameraSpeed * gameDt;
                     }
                     if (gap <= dino.attackRange && dino.stateTime >= dino.idleDuration) {
                         enter_attack(world, id, dino);

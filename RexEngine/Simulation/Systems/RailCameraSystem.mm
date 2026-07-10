@@ -85,11 +85,25 @@ static simd_float4x4 view_projection_for_camera(const RailCameraState& camera) {
 }
 
 static void update_targets(World& world, float gameDt) {
-    const LevelChart& chart = world.chart();
     const RailCameraState& camera = world.rail_camera();
     simd_float4x4 viewProjection = view_projection_for_camera(camera);
     simd_float3 cameraRight = (simd_float3){camera.rightX, camera.rightY, camera.rightZ};
     simd_float3 cameraUp = (simd_float3){camera.upX, camera.upY, camera.upZ};
+    // Pursuers are positioned relative to the jeep's OWN current transform
+    // now, not a point on the rail's curve at each dino's own railDistance.
+    // The rail (assets/charts/m2-test.json) is a real S-curve — control
+    // point X swings from 0 to 2.5 to -2.8 to 1.2 — so a dino computing its
+    // lateral offset from the rail's local basis AT ITS OWN (trailing)
+    // point on that curve was tracking a different bend of the road than
+    // whatever the jeep was currently on, which is what read as "the
+    // raptors don't follow the player's movement." camPos/cameraBack give
+    // every pursuer a position anchored to where the jeep actually is this
+    // tick, sidestepping that curve-lag entirely — it also reads better for
+    // a pursuit predator (cutting toward the target directly) than rigidly
+    // hugging the road's exact path.
+    simd_float3 camPos = (simd_float3){camera.positionX, camera.positionY, camera.positionZ};
+    simd_float3 camLookAt = (simd_float3){camera.lookAtX, camera.lookAtY, camera.lookAtZ};
+    simd_float3 cameraBack = rex_safe_normalize(camLookAt - camPos, (simd_float3){0.f, 0.f, -1.f});
 
     for (int i = 0; i < kM1MaxTargets; ++i) {
         TargetComponent& target = world.target(i);
@@ -141,11 +155,10 @@ static void update_targets(World& world, float gameDt) {
             target.railDistance = std::max(0.f, camera.distance - 1.0f);
         }
 
-        RexVec3 center = chart.rail.position_at_distance(target.railDistance);
-        RexVec3 tangent = chart.rail.tangent_at_distance(target.railDistance);
-        simd_float3 forward = rex_safe_normalize(rex_to_simd(tangent), (simd_float3){0.f, 0.f, 1.f});
-        simd_float3 right = rex_safe_normalize(simd_cross((simd_float3){0.f, 1.f, 0.f}, forward),
-                                               (simd_float3){1.f, 0.f, 0.f});
+        // Recompute gap: the recycle/pin block just above may have moved
+        // railDistance, and this is what actually places the dino.
+        gap = camera.distance - target.railDistance;
+        simd_float3 worldCenter = camPos + cameraBack * gap + cameraRight * target.lateralOffset;
         // Y is anchored to the ground plane, NOT the rail's own Y (which
         // varies with the camera's height along the chart) — target.worldY
         // is consumed as "box center height" by both the box-target renderer
@@ -155,8 +168,6 @@ static void update_targets(World& world, float gameDt) {
         // center.y (the rail's height, 0.25-0.55 across the M2 test chart)
         // with a large verticalOffset (0.35-0.67) on top, which floated
         // targets roughly 1.2-1.5 world units above the actual ground.
-        simd_float3 worldCenter = rex_to_simd(center)
-                                + right * target.lateralOffset;
         worldCenter.y = kGroundWorldY + target.halfHeight + target.verticalOffset;
         target.worldX = worldCenter.x;
         target.worldY = worldCenter.y;
