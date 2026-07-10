@@ -185,7 +185,18 @@
     world.set_input(input, 0);
     world.update(1.f / 120.f, 1.f / 120.f);
 
-    XCTAssertTrue(world.target(0).wasHit);
+    // target.wasHit is a same-tick pulse: DinoBehaviorSystem_update, which
+    // runs later in this same tick, consumes and clears it to apply
+    // damage/score before this assertion ever gets to see it — so it always
+    // reads false here regardless of whether the hit registered. Assert the
+    // durable side effect (score) instead of the transient flag. Not exactly
+    // 10/1: the fire loop checks every target against the reticle position
+    // in one pass, and at tick 1 the other freshly-spawned raptors can still
+    // overlap target(0)'s screen box, so this one shot can also register
+    // against them (separately observed — see chat) — assert "at least one
+    // hit landed" rather than an exact count.
+    XCTAssertGreaterThan(world.score(0).score, 0);
+    XCTAssertGreaterThanOrEqual(world.score(0).shotsHit, 1);
 }
 
 - (void)test_movingTargetUpdatesWhileRailCameraMovesForward {
