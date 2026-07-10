@@ -19,7 +19,11 @@ struct ReticleTuning {
     float stillnessSmoothingAlpha = 0.18f;
     float fallbackFrictionScale = 0.42f;
     float fallbackMagnetRadius = 0.06f;
-    float fallbackMagnetStrength = 0.16f;
+    // Off by default — pulling the reticle onto a target read as too easy
+    // for normal play. Kept as a tunable (still live-adjustable via the M/N
+    // debug keys) rather than deleted: a candidate for an easy-mode toggle
+    // later rather than gone for good.
+    float fallbackMagnetStrength = 0.f;
 };
 
 ReticleTuning ReticleSystem_tuning();
