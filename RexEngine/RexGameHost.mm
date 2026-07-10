@@ -13,6 +13,7 @@
     CFTimeInterval _lastFrameTime;
     InputState _inputs[4];
     AudioEngine *_audio;
+    BOOL _musicStarted;
 }
 
 - (instancetype)initWithDevice:(id<MTLDevice>)device pixelFormat:(MTLPixelFormat)pixelFormat {
@@ -32,9 +33,13 @@
 
     // Real playback path only — initHeadless (tests, --capture-out automation)
     // stays silent so headless runs don't spin up AVAudioEngine.
+    // startupInit here (pre-warms the engine, avoids the first-SFX hitch),
+    // but battle music does NOT start until the first frame actually renders
+    // (see drawInMTKView:) — this init runs inside viewDidLoad, seconds
+    // before anything is on screen on a slow tvOS launch, and music playing
+    // over the system's black launch transition read as broken.
     _audio = [[AudioEngine alloc] init];
     [_audio startupInit];
-    [_audio startBattleMusic];
 
     return self;
 }
@@ -139,6 +144,14 @@
     // re-reading them a moment later is the same pass/drawable, not fresh
     // ones — this isn't a second, competing acquisition.
     if (!view.currentRenderPassDescriptor || !view.currentDrawable) return;
+
+    // First frame that will actually present — start the music here, not in
+    // init: init runs inside viewDidLoad, potentially seconds before
+    // anything reaches the screen on a slow tvOS launch.
+    if (!_musicStarted) {
+        _musicStarted = YES;
+        [_audio startBattleMusic];
+    }
 
     dispatch_semaphore_wait(_inFlightSemaphore, DISPATCH_TIME_FOREVER);
     CFTimeInterval now = CACurrentMediaTime();

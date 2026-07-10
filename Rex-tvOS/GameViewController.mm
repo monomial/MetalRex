@@ -148,11 +148,22 @@ static const int kMaxPlayers = 4;
         state.stickY = y;
         [vc->_host setInputState:state forPlayer:slot];
     };
-    gamepad.buttonA.valueChangedHandler = ^(GCControllerButtonInput *button, float value, BOOL pressed) {
+    // The press that LAUNCHED the app can leak in here: on tvOS you open
+    // the app by pressing this same A/X button on the home screen, and if
+    // it's still down when this handler gets wired, the handler sees
+    // pressed=YES with the matching release having happened before wiring —
+    // never delivered — so fire latched ON with no input at all. That was
+    // the "machine gun firing continuously over the black launch screen"
+    // bug. Arm fire only once the button has been seen up after wiring;
+    // buttons that are up at wiring time (the normal case) arm immediately.
+    GCControllerButtonInput *buttonA = gamepad.buttonA;
+    __block BOOL fireArmed = !buttonA.isPressed;
+    buttonA.valueChangedHandler = ^(GCControllerButtonInput *button, float value, BOOL pressed) {
         GameViewController *vc = weakSelf;
         if (!vc) return;
+        if (!pressed) fireArmed = YES;
         InputState state = [vc->_host currentInputStateForPlayer:slot];
-        state.fire = pressed;
+        state.fire = pressed && fireArmed;
         [vc->_host setInputState:state forPlayer:slot];
     };
     gamepad.buttonB.valueChangedHandler = ^(GCControllerButtonInput *button, float value, BOOL pressed) {
