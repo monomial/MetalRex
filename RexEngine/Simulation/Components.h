@@ -2,7 +2,13 @@
 #include <stdint.h>
 
 static constexpr int kRexMaxPlayers = 4;
-static constexpr int kM1MaxTargets = 6;
+// 6 raptors + 1 T-Rex, exactly — no unused slots. An unconfigured slot
+// defaults to moving=false, which the box-target flicker path in
+// RailCameraSystem_update (update_targets) reads as "spawn a legacy popup
+// box here," so any headroom beyond what's actually spawned in
+// World::reset_m1_scene renders as a stray colored box with no dino behind
+// it. Keep this equal to the real spawn count.
+static constexpr int kM1MaxTargets = 7;
 
 struct PositionComponent {
     float x = 0.f;
@@ -62,6 +68,11 @@ struct TargetComponent {
     bool lastHitWasWeakPoint = false;
     uint8_t lastHitByPlayer = UINT8_MAX;
     float railDistance = 0.f;
+    // Spawn-time lateral "lane" for this target — RailCameraSystem_update
+    // recomputes lateralOffset every tick as baseLateralOffset plus a small
+    // weave, so this is what actually keeps pursuers spread apart on screen
+    // instead of every moving target converging on the same shared wobble.
+    float baseLateralOffset = 0.f;
     float lateralOffset = 0.f;
     float verticalOffset = 0.f;
     float worldX = 0.f;

@@ -97,8 +97,10 @@ void World::reset_m1_scene() {
     // facing backward), deep enough that the player sees them run up. Each
     // raptor's idleDuration/chaseSpeed is staggered so their attack windows
     // roll rather than sync into one simultaneous scrum — a wave of pursuers
-    // taking turns lunging, like the arcade reference, rather than all four
-    // attacking in lockstep.
+    // taking turns lunging, like the arcade reference, rather than all six
+    // attacking in lockstep. lateralOffset is each raptor's own spawn lane
+    // (see TargetComponent::baseLateralOffset) — spread wide so six of them
+    // read as a spread-out pack, not a stack.
     struct RaptorSpawn {
         int targetIndex;
         float railDistance;
@@ -107,16 +109,19 @@ void World::reset_m1_scene() {
         float idleDuration;
     };
     static constexpr RaptorSpawn kRaptorSpawns[] = {
-        {0, 3.0f, -1.1f, 1.55f, 0.9f},
-        {1, 4.6f,  1.1f, 1.65f, 1.7f},
-        {2, 6.2f, -0.6f, 1.50f, 2.3f},
-        {3, 1.5f,  0.0f, 1.60f, 1.2f},
+        {0, 3.0f, -1.9f, 1.55f, 0.9f},
+        {1, 4.6f,  1.9f, 1.65f, 1.7f},
+        {2, 6.2f, -1.1f, 1.50f, 2.3f},
+        {3, 1.5f,  1.1f, 1.60f, 1.2f},
+        {4, 5.4f, -0.4f, 1.58f, 2.0f},
+        {5, 2.3f,  0.4f, 1.62f, 1.5f},
     };
     for (const RaptorSpawn& spawn : kRaptorSpawns) {
         TargetComponent& target = _targets[spawn.targetIndex];
         target.active = true;
         target.moving = true;
         target.railDistance = spawn.railDistance;
+        target.baseLateralOffset = spawn.lateralOffset;
         target.lateralOffset = spawn.lateralOffset;
         target.halfWidth = 0.4f;
         target.halfHeight = 0.65f;
@@ -142,12 +147,16 @@ void World::reset_m1_scene() {
         dino.jumpReactionDuration = 0.35f;
     }
 
-    _targets[4].active = true;
-    _targets[4].moving = true;
-    _targets[4].railDistance = 0.f;
-    _targets[4].lateralOffset = 1.6f;
-    _targets[4].halfWidth = 1.0f;
-    _targets[4].halfHeight = 1.81f;
+    // T-Rex gets its own centered lane (index 6, the 7th and last slot) —
+    // biggest silhouette, framed center with raptors spread on both sides
+    // rather than off to one side where it could share a lane with a raptor.
+    _targets[6].active = true;
+    _targets[6].moving = true;
+    _targets[6].railDistance = 0.f;
+    _targets[6].baseLateralOffset = 0.f;
+    _targets[6].lateralOffset = 0.f;
+    _targets[6].halfWidth = 1.0f;
+    _targets[6].halfHeight = 1.81f;
 
     EntityID trex = defer_create();
     AnimationComponent& trexAnim = add_component<AnimationComponent>(trex);
@@ -157,7 +166,7 @@ void World::reset_m1_scene() {
     trexFaction.type = FactionComponent::Enemy;
     DinoBehaviorComponent& trexDino = add_component<DinoBehaviorComponent>(trex);
     trexDino.active = true;
-    trexDino.targetIndex = 4;
+    trexDino.targetIndex = 6;
     trexDino.species = DinoSpecies::Trex;
     trexDino.chaseSpeed = 1.4f;  // heavy stomp — gains on the jeep slowly
     trexDino.attackRange = 3.2f; // longer reach, lunges from farther out

@@ -102,10 +102,18 @@ static void update_targets(World& world, float gameDt) {
             target.active = phase < 2.25f;
         }
         if (target.moving) {
-            // Gentle side-to-side weave while chasing. The old ±0.9 at
-            // 1.45 rad/s read as the dino floating sideways in big arcs
-            // relative to everything else on screen.
-            target.lateralOffset = sinf(camera.elapsed * 0.8f) * 0.35f;
+            // Gentle side-to-side weave AROUND this target's own spawn lane
+            // (baseLateralOffset) — this used to overwrite lateralOffset
+            // outright with a single shared sinf(camera.elapsed) value, so
+            // every moving target shared the exact same lateral position
+            // every tick regardless of its spawn-time spread, which is why
+            // pursuers all converged toward the same spot instead of staying
+            // spread out. timerOffset phase-shifts the weave per target so
+            // they don't even wobble in lockstep. The old ±0.9 at 1.45 rad/s
+            // read as the dino floating sideways in big arcs relative to
+            // everything else on screen.
+            target.lateralOffset = target.baseLateralOffset
+                                  + sinf(camera.elapsed * 0.8f + target.timerOffset) * 0.35f;
             // Small run-cycle bob around ground level.
             target.verticalOffset = sinf(camera.elapsed * 2.1f) * 0.04f;
             target.active = true;
