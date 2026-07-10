@@ -19,17 +19,7 @@ static const int kMaxPlayers = 4;
     [super viewDidLoad];
     memset(_assignedControllers, 0, sizeof(_assignedControllers));
 
-    id<MTLDevice> device = MTLCreateSystemDefaultDevice();
-    _mtkView = [[MTKView alloc] initWithFrame:self.view.bounds device:device];
-    _mtkView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
-    _mtkView.colorPixelFormat = MTLPixelFormatBGRA8Unorm;
-    _mtkView.depthStencilPixelFormat = MTLPixelFormatDepth32Float;
-    _mtkView.preferredFramesPerSecond = 120;
-    [self.view addSubview:_mtkView];
-
-    _host = [[RexGameHost alloc] initWithDevice:device pixelFormat:_mtkView.colorPixelFormat];
-    [_host mtkView:_mtkView drawableSizeWillChange:_mtkView.drawableSize];
-    _mtkView.delegate = _host;
+    [self _setupRenderingIfNeeded];
     [NSTimer scheduledTimerWithTimeInterval:1.0 / 120.0
                                      target:self
                                    selector:@selector(_sampleControllerMotion)
@@ -51,12 +41,43 @@ static const int kMaxPlayers = 4;
     }
 }
 
+// Builds (or rebuilds, after releaseGPUResources tore it down) the device,
+// MTKView, and RexGameHost. Safe to call repeatedly — no-ops once _host
+// exists. Keeps the same MTKView instance across a background/foreground
+// cycle (it's cheap; the GPU-heavy state lives in RexGameHost/RexRenderer)
+// so only that gets rebuilt.
+- (void)_setupRenderingIfNeeded {
+    if (_host) return;
+
+    id<MTLDevice> device = MTLCreateSystemDefaultDevice();
+    if (!_mtkView) {
+        _mtkView = [[MTKView alloc] initWithFrame:self.view.bounds device:device];
+        _mtkView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+        _mtkView.colorPixelFormat = MTLPixelFormatBGRA8Unorm;
+        _mtkView.depthStencilPixelFormat = MTLPixelFormatDepth32Float;
+        _mtkView.preferredFramesPerSecond = 120;
+        [self.view addSubview:_mtkView];
+    } else {
+        _mtkView.device = device;
+    }
+
+    _host = [[RexGameHost alloc] initWithDevice:device pixelFormat:_mtkView.colorPixelFormat];
+    [_host mtkView:_mtkView drawableSizeWillChange:_mtkView.drawableSize];
+    _mtkView.delegate = _host;
+}
+
 - (void)pauseRendering {
     [_host resetInput];
     _mtkView.paused = YES;
 }
 
+// releaseGPUResources tears _host down entirely (see below) rather than
+// just pausing, so resuming from that state needs to rebuild it — this used
+// to only un-pause an MTKView left with a nil delegate and a nil _host,
+// which is exactly why the app came back from the background frozen: no
+// delegate meant drawInMTKView: never fired again, forever.
 - (void)resumeRendering {
+    [self _setupRenderingIfNeeded];
     _mtkView.paused = NO;
 }
 
