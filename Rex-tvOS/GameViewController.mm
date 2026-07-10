@@ -2,6 +2,7 @@
 #import <MetalKit/MetalKit.h>
 #import <GameController/GameController.h>
 #import "RexGameHost.h"
+#import "Haptics/ControllerRumble.h"
 #include "Platform/InputState.h"
 
 static const int kMaxPlayers = 4;
@@ -10,6 +11,8 @@ static const int kMaxPlayers = 4;
     MTKView *_mtkView;
     RexGameHost *_host;
     GCController *_assignedControllers[kMaxPlayers];
+    ControllerRumble *_rumble[kMaxPlayers];
+    uint32_t _lastShotCount[kMaxPlayers];
 }
 
 - (void)viewDidLoad {
@@ -73,6 +76,11 @@ static const int kMaxPlayers = 4;
         if (_assignedControllers[i] == controller) {
             if (controller.motion) controller.motion.sensorsActive = NO;
             _assignedControllers[i] = nil;
+            _rumble[i] = nil;
+            // _lastShotCount[i] is left as-is: World::reticle(i).shotCount
+            // doesn't advance while no controller feeds that slot's fire
+            // input (see below), so resetting it here would misread the
+            // stale-vs-fresh gap as a burst of shots on reconnect.
             [_host setInputState:{} forPlayer:i];
             break;
         }
@@ -98,6 +106,7 @@ static const int kMaxPlayers = 4;
     if (controller.motion) {
         controller.motion.sensorsActive = YES;
     }
+    _rumble[slot] = [[ControllerRumble alloc] initWithController:controller];
     [self _wireController:controller toSlot:slot];
 }
 
@@ -151,6 +160,17 @@ static const int kMaxPlayers = 4;
             state.gyroDeltaY = 0.f;
         }
         [_host setInputState:state forPlayer:slot];
+
+        // New shots since last poll -> one rumble pulse per shot, same
+        // shotCount-diff pattern RexRenderer uses to spawn tracers.
+        uint32_t shots = [_host shotCountForPlayer:slot];
+        if (shots != _lastShotCount[slot]) {
+            uint32_t newShots = shots - _lastShotCount[slot];
+            _lastShotCount[slot] = shots;
+            for (uint32_t s = 0; s < newShots && s < 3; ++s) {
+                [_rumble[slot] playShootPulse];
+            }
+        }
     }
 }
 

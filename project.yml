@@ -85,7 +85,8 @@ targets:
         INFOPLIST_FILE: Rex-tvOS/Info.plist
         PRODUCT_BUNDLE_IDENTIFIER: com.michaelsmith.metalrex.tvos
         DEVELOPMENT_TEAM: 74V7G3NQ7Y
-        CODE_SIGNING_ALLOWED: NO
+        CODE_SIGNING_ALLOWED: YES
+        CODE_SIGN_STYLE: Automatic
         CLANG_CXX_LANGUAGE_STANDARD: c++20
         CLANG_CXX_LIBRARY: libc++
         GCC_ENABLE_OBJC_EXCEPTIONS: YES
@@ -113,6 +114,7 @@ targets:
       - sdk: CoreHaptics.framework
       - sdk: CoreText.framework
       - sdk: QuartzCore.framework
+      - sdk: GameController.framework
     settings:
       base:
         CLANG_CXX_LANGUAGE_STANDARD: c++20

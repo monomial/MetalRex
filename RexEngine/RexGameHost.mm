@@ -99,6 +99,11 @@
     return (playerIndex >= 0 && playerIndex < 4) ? _inputs[playerIndex] : InputState{};
 }
 
+- (uint32_t)shotCountForPlayer:(int)playerIndex {
+    if (!_world || playerIndex < 0 || playerIndex >= 4) return 0;
+    return _world->reticle(playerIndex).shotCount;
+}
+
 - (void)setInputState:(InputState)state {
     [self setInputState:state forPlayer:0];
 }

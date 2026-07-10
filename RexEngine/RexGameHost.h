@@ -21,6 +21,12 @@
 - (InputState)currentInputState;
 - (void)resetInput;
 
+// Monotonically increasing count of shots player `playerIndex` has fired —
+// mirrors ReticleComponent::shotCount, which RexRenderer already diffs
+// per-frame to spawn tracers. Platform layers diff this the same way to
+// trigger one controller-rumble pulse per shot (see ControllerRumble).
+- (uint32_t)shotCountForPlayer:(int)playerIndex;
+
 @property (nonatomic) uint32_t rngSeedOverride;
 @property (nonatomic) float fixedFrameDt;
 

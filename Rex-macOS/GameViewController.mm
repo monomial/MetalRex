@@ -3,6 +3,7 @@
 #import <QuartzCore/QuartzCore.h>
 #import <GameController/GameController.h>
 #import "RexGameHost.h"
+#import "Haptics/ControllerRumble.h"
 #include "Simulation/Systems/ReticleSystem.h"
 #include "Platform/InputState.h"
 
@@ -10,6 +11,8 @@
     MTKView *_mtkView;
     RexGameHost *_host;
     GCController *_controller;
+    ControllerRumble *_rumble;
+    uint32_t _lastShotCount;
     BOOL _left, _right, _up, _down, _fire, _recenter, _pause;
     // Controller state mirrored into ivars by the GCController handlers.
     // The 120Hz feed below is the ONLY writer of the host's input state —
@@ -150,6 +153,17 @@
     [_host setInputState:state forPlayer:0];
     _recenter = NO;
     _pause = NO;
+
+    // New shots since last poll -> one rumble pulse per shot, same
+    // shotCount-diff pattern RexRenderer uses to spawn tracers.
+    uint32_t shots = [_host shotCountForPlayer:0];
+    if (shots != _lastShotCount) {
+        uint32_t newShots = shots - _lastShotCount;
+        _lastShotCount = shots;
+        for (uint32_t s = 0; s < newShots && s < 3; ++s) {
+            [_rumble playShootPulse];
+        }
+    }
 }
 
 - (void)keyDown:(NSEvent *)event {
@@ -207,6 +221,7 @@
     if (_controller != controller) return;
     if (_controller.motion) _controller.motion.sensorsActive = NO;
     _controller = nil;
+    _rumble = nil;
     _padStickX = 0.f;
     _padStickY = 0.f;
     _padFire = NO;
@@ -220,6 +235,7 @@
     if (_controller.motion) {
         _controller.motion.sensorsActive = YES;
     }
+    _rumble = [[ControllerRumble alloc] initWithController:controller];
     GCExtendedGamepad *gamepad = controller.extendedGamepad;
     if (!gamepad) return;
 
