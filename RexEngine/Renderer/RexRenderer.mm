@@ -10,6 +10,7 @@
 #include <simd/simd.h>
 #import <ImageIO/ImageIO.h>
 #import <QuartzCore/QuartzCore.h>
+#import <CoreText/CoreText.h>
 
 struct RexVertex {
     simd_float3 position;
@@ -40,6 +41,10 @@ static void RexRenderer_writePNG(id<MTLBuffer> staging, NSUInteger w, NSUInteger
 struct RexUniforms {
     simd_float4x4 mvp;
     simd_float4 color;
+};
+
+struct RexTextureUniformsCPU {
+    simd_float4x4 mvp; // must match RexTextureUniforms in Rex.metal field-for-field
 };
 
 struct SkinnedUniformsCPU {
@@ -76,6 +81,15 @@ struct SkinnedUniformsCPU {
     std::vector<ShotTracer> _tracers;
     uint32_t _lastShotCount[kRexMaxPlayers];
     CFTimeInterval _lastOverlayTime;
+
+    // Textured 2D overlay (GAME OVER / continue panel): unit quad + a
+    // pipeline that samples a CoreText-rendered texture instead of a flat
+    // color. The panel's content never changes, so the texture is built
+    // once and cached rather than regenerated every frame.
+    id<MTLRenderPipelineState> _texturePipeline;
+    id<MTLBuffer> _texQuadVB;
+    id<MTLTexture> _gameOverTexture;
+    CGSize _gameOverTextureSize;
 }
 
 - (instancetype)initWithDevice:(id<MTLDevice>)device
@@ -141,6 +155,30 @@ struct SkinnedUniformsCPU {
         NSLog(@"RexRenderer: pipeline failed: %@", error);
         return nil;
     }
+
+    MTLRenderPipelineDescriptor *textureDescriptor = [MTLRenderPipelineDescriptor new];
+    textureDescriptor.vertexFunction = [library newFunctionWithName:@"rex_texture_vertex"];
+    textureDescriptor.fragmentFunction = [library newFunctionWithName:@"rex_texture_fragment"];
+    textureDescriptor.colorAttachments[0].pixelFormat = pixelFormat;
+    textureDescriptor.depthAttachmentPixelFormat = MTLPixelFormatDepth32Float;
+    textureDescriptor.colorAttachments[0].blendingEnabled = YES;
+    textureDescriptor.colorAttachments[0].rgbBlendOperation = MTLBlendOperationAdd;
+    textureDescriptor.colorAttachments[0].alphaBlendOperation = MTLBlendOperationAdd;
+    textureDescriptor.colorAttachments[0].sourceRGBBlendFactor = MTLBlendFactorSourceAlpha;
+    textureDescriptor.colorAttachments[0].sourceAlphaBlendFactor = MTLBlendFactorSourceAlpha;
+    textureDescriptor.colorAttachments[0].destinationRGBBlendFactor = MTLBlendFactorOneMinusSourceAlpha;
+    textureDescriptor.colorAttachments[0].destinationAlphaBlendFactor = MTLBlendFactorOneMinusSourceAlpha;
+    _texturePipeline = [_device newRenderPipelineStateWithDescriptor:textureDescriptor error:&error];
+    if (!_texturePipeline) {
+        NSLog(@"RexRenderer: texture pipeline failed: %@", error);
+        return nil;
+    }
+    const RexVertex texQuadVerts[] = {
+        {{-0.5f, -0.5f, 0.f}}, {{0.5f, -0.5f, 0.f}}, {{-0.5f, 0.5f, 0.f}},
+        {{0.5f, -0.5f, 0.f}}, {{0.5f, 0.5f, 0.f}}, {{-0.5f, 0.5f, 0.f}},
+    };
+    _texQuadVB = [_device newBufferWithBytes:texQuadVerts length:sizeof(texQuadVerts)
+                                      options:MTLResourceStorageModeShared];
 
     MTLRenderPipelineDescriptor *skinnedDescriptor = [MTLRenderPipelineDescriptor new];
     skinnedDescriptor.vertexFunction = [library newFunctionWithName:@"skinned_vertex_main"];
@@ -465,6 +503,102 @@ static void appendSegmentQuad(std::vector<RexVertex>& out,
 // edge): P1 left of center, P2 right, like two shooters in the jeep bed.
 static const float kGunAnchorX[kRexMaxPlayers] = {0.42f, 0.58f, 0.30f, 0.70f};
 
+// Builds an mvp that places the unit quad ([-0.5,0.5] in both axes, see
+// _texQuadVB) centered at (x,y) with the given pixel width/height, in
+// _overlayProjection's pixel space (ported from MetalBrawler's
+// make_model_rect / BrawlerRenderer.mm).
+static simd_float4x4 Rex_make_model_rect(simd_float4x4 overlayProjection,
+                                         float x, float y, float z, float w, float h) {
+    simd_float4x4 model = matrix_identity_float4x4;
+    model.columns[0].x = w;
+    model.columns[1].y = h;
+    model.columns[3] = (simd_float4){x, y, z, 1.f};
+    return simd_mul(overlayProjection, model);
+}
+
+// Centers a single line of text at (centerX, baselineY) in a CoreGraphics
+// bitmap context, shrinking the font until it fits maxWidth. Ported from
+// MetalBrawler's BrawlerRenderer.mm drawCenteredLine.
+static void Rex_drawCenteredLine(CGContextRef ctx, NSString *text, CGFloat centerX, CGFloat baselineY,
+                                 CGFloat maxWidth, CGFloat fontSize, CGFloat minFontSize,
+                                 CGColorRef color) {
+    if (text.length == 0) return;
+    CGFloat size = fontSize;
+    CTFontRef font = NULL;
+    CFAttributedStringRef attr = NULL;
+    CTLineRef line = NULL;
+
+    while (size >= minFontSize) {
+        if (line) CFRelease(line);
+        if (attr) CFRelease(attr);
+        if (font) CFRelease(font);
+        font = CTFontCreateWithName(CFSTR("HelveticaNeue-Bold"), size, NULL);
+        NSDictionary *attrs = @{
+            (__bridge id)kCTFontAttributeName: (__bridge id)font,
+            (__bridge id)kCTForegroundColorAttributeName: (__bridge id)color,
+        };
+        attr = CFAttributedStringCreate(kCFAllocatorDefault, (__bridge CFStringRef)text,
+                                        (__bridge CFDictionaryRef)attrs);
+        line = CTLineCreateWithAttributedString(attr);
+        double width = CTLineGetTypographicBounds(line, NULL, NULL, NULL);
+        if (width <= maxWidth || size <= minFontSize) break;
+        size -= 2.f;
+    }
+
+    double width = CTLineGetTypographicBounds(line, NULL, NULL, NULL);
+    CGContextSetTextPosition(ctx, centerX - (CGFloat)width * 0.5, baselineY);
+    CTLineDraw(line, ctx);
+
+    if (line) CFRelease(line);
+    if (attr) CFRelease(attr);
+    if (font) CFRelease(font);
+}
+
+// Builds the (static-content, cached-by-caller) GAME OVER / continue panel
+// texture. Ported from MetalBrawler's makeOverlayTexture, trimmed to the
+// title+subtitle case since MetalRex has no choice/stat-line HUD states yet.
+static id<MTLTexture> Rex_makeGameOverTexture(id<MTLDevice> device, CGSize *outSize) {
+    NSUInteger w = 560, h = 220;
+    NSUInteger bpr = w * 4;
+    NSMutableData *pixels = [NSMutableData dataWithLength:bpr * h];
+
+    CGColorSpaceRef cs = CGColorSpaceCreateDeviceRGB();
+    CGBitmapInfo bitmapInfo = (CGBitmapInfo)kCGImageAlphaPremultipliedLast | kCGBitmapByteOrder32Big;
+    CGContextRef ctx = CGBitmapContextCreate(pixels.mutableBytes, w, h, 8, bpr, cs, bitmapInfo);
+    if (!ctx) {
+        CGColorSpaceRelease(cs);
+        return nil;
+    }
+
+    CGContextSetRGBFillColor(ctx, 0.0, 0.0, 0.0, 0.78);
+    CGContextFillRect(ctx, CGRectMake(0, 0, w, h));
+    CGContextSetRGBStrokeColor(ctx, 0.90, 0.20, 0.16, 0.9);
+    CGContextSetLineWidth(ctx, 3.0);
+    CGContextStrokeRect(ctx, CGRectMake(1.5, 1.5, w - 3, h - 3));
+
+    CGColorRef red = CGColorCreateGenericRGB(0.94, 0.24, 0.20, 1);
+    CGColorRef white = CGColorCreateGenericRGB(1, 1, 1, 1);
+    Rex_drawCenteredLine(ctx, @"GAME OVER", w * 0.5, h * 0.60, w - 48.f, 64.f, 32.f, red);
+    Rex_drawCenteredLine(ctx, @"PRESS FIRE TO CONTINUE", w * 0.5, h * 0.28, w - 48.f, 30.f, 16.f, white);
+    CGColorRelease(red);
+    CGColorRelease(white);
+    CGContextRelease(ctx);
+    CGColorSpaceRelease(cs);
+
+    MTLTextureDescriptor *td = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatRGBA8Unorm
+                                                                                  width:w
+                                                                                 height:h
+                                                                              mipmapped:NO];
+    td.usage = MTLTextureUsageShaderRead;
+    id<MTLTexture> tex = [device newTextureWithDescriptor:td];
+    [tex replaceRegion:MTLRegionMake2D(0, 0, w, h)
+           mipmapLevel:0
+             withBytes:pixels.bytes
+           bytesPerRow:bpr];
+    if (outSize) *outSize = CGSizeMake(w, h);
+    return tex;
+}
+
 - (void)_drawReticles:(World *)world encoder:(id<MTLRenderCommandEncoder>)encoder {
     // Frame dt for the tracer animation (cosmetic only, so wall-clock is fine).
     CFTimeInterval now = CACurrentMediaTime();
@@ -605,6 +739,71 @@ static const float kGunAnchorX[kRexMaxPlayers] = {0.42f, 0.58f, 0.30f, 0.70f};
     }
 }
 
+// Shared jeep/player health bar (top-center), a full-screen hit-flash tint,
+// and — while PlayerHealthState::gameOver is set — the GAME OVER / continue
+// panel. Always drawn (not gated to macOS like the tuning debug HUD): this
+// is real gameplay feedback, not a dev-only overlay.
+- (void)_drawHUD:(World *)world encoder:(id<MTLRenderCommandEncoder>)encoder {
+    const PlayerHealthState& health = world->player_health();
+    float fraction = health.maxHealth > 0
+                    ? std::clamp((float)health.health / (float)health.maxHealth, 0.f, 1.f)
+                    : 0.f;
+
+    float barWidth = 260.f;
+    float barHeight = 18.f;
+    float barY = _halfH - 26.f;
+    std::vector<RexVertex> bg;
+    [self _appendQuad:bg center:(simd_float3){0.f, barY, 0.05f} halfW:barWidth * 0.5f + 3.f halfH:barHeight * 0.5f + 3.f];
+    [self _drawVertices:bg color:(simd_float4){0.05f, 0.05f, 0.06f, 0.85f}
+              primitive:MTLPrimitiveTypeTriangle mvp:_overlayProjection encoder:encoder];
+
+    if (fraction > 0.f) {
+        // Green above half health, amber in the middle, red near empty —
+        // reads at a glance without needing a number.
+        simd_float4 fillColor = fraction > 0.5f
+                               ? (simd_float4){0.30f, 0.85f, 0.35f, 1.f}
+                               : (fraction > 0.25f ? (simd_float4){0.95f, 0.75f, 0.20f, 1.f}
+                                                    : (simd_float4){0.90f, 0.25f, 0.20f, 1.f});
+        float fillWidth = barWidth * fraction;
+        std::vector<RexVertex> fill;
+        [self _appendQuad:fill center:(simd_float3){-barWidth * 0.5f + fillWidth * 0.5f, barY, 0.06f}
+                    halfW:fillWidth * 0.5f halfH:barHeight * 0.5f];
+        [self _drawVertices:fill color:fillColor primitive:MTLPrimitiveTypeTriangle mvp:_overlayProjection encoder:encoder];
+    }
+
+    if (health.hitFlashTime > 0.f) {
+        float alpha = std::clamp(health.hitFlashTime / 0.35f, 0.f, 1.f) * 0.35f;
+        std::vector<RexVertex> vignette;
+        [self _appendQuad:vignette center:(simd_float3){0.f, 0.f, 0.02f} halfW:_halfW halfH:_halfH];
+        [self _drawVertices:vignette color:(simd_float4){0.85f, 0.05f, 0.05f, alpha}
+                  primitive:MTLPrimitiveTypeTriangle mvp:_overlayProjection encoder:encoder];
+    }
+
+    if (health.gameOver) {
+        if (!_gameOverTexture) {
+            _gameOverTexture = Rex_makeGameOverTexture(_device, &_gameOverTextureSize);
+        }
+        std::vector<RexVertex> backdrop;
+        [self _appendQuad:backdrop center:(simd_float3){0.f, 0.f, 0.08f} halfW:_halfW halfH:_halfH];
+        [self _drawVertices:backdrop color:(simd_float4){0.f, 0.f, 0.f, 0.35f}
+                  primitive:MTLPrimitiveTypeTriangle mvp:_overlayProjection encoder:encoder];
+
+        if (_gameOverTexture && _texturePipeline) {
+            RexTextureUniformsCPU uniforms;
+            uniforms.mvp = Rex_make_model_rect(_overlayProjection, 0.f, 0.f, 0.09f,
+                                               (float)_gameOverTextureSize.width,
+                                               (float)_gameOverTextureSize.height);
+            [encoder setRenderPipelineState:_texturePipeline];
+            [encoder setVertexBuffer:_texQuadVB offset:0 atIndex:0];
+            [encoder setVertexBytes:&uniforms length:sizeof(uniforms) atIndex:1];
+            [encoder setFragmentTexture:_gameOverTexture atIndex:0];
+            [encoder setFragmentSamplerState:_sampler atIndex:0];
+            [encoder drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:6];
+            [encoder setRenderPipelineState:_pipeline];
+        }
+    }
+}
+
 #if TARGET_OS_OSX
 - (void)_drawDebugHUD:(id<MTLRenderCommandEncoder>)encoder {
     ReticleTuning tuning = ReticleSystem_tuning();
@@ -678,6 +877,7 @@ static const float kGunAnchorX[kRexMaxPlayers] = {0.42f, 0.58f, 0.30f, 0.70f};
     [encoder setDepthStencilState:_overlayDepthState];
     if (world) {
         [self _drawReticles:world encoder:encoder];
+        [self _drawHUD:world encoder:encoder];
     }
 #if TARGET_OS_OSX
     [self _drawDebugHUD:encoder];
