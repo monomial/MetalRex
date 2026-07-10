@@ -101,6 +101,20 @@ void World::reset_m1_scene() {
     // attacking in lockstep. lateralOffset is each raptor's own spawn lane
     // (see TargetComponent::baseLateralOffset) — spread wide so six of them
     // read as a spread-out pack, not a stack.
+    //
+    // railDistance must leave (cameraStartDistance=8 - railDistance) clearly
+    // above attackRange (2.4): a raptor spawned already inside its own
+    // attack range never runs the Idle/chase branch in DinoBehaviorSystem
+    // at all (gap <= attackRange from tick 1), so it just stands there
+    // weaving side to side — see TargetComponent::baseLateralOffset — while
+    // waiting out idleDuration, with zero forward motion. From the player's
+    // side that reads as "just walking in place / sideways," never actually
+    // closing in, which is a much better match for that bug report than a
+    // wrong facing direction (checked: both species' skeletons place the
+    // Head joint at the same local -Y, so DinoBehaviorSystem's yaw-to-camera
+    // math is already correct and consistent between them). Raptor 2 used
+    // to spawn at railDistance 6.2 (gap 1.8, already inside 2.4) and never
+    // chased; raptor 4 had only a 0.2-unit margin. Both now leave >=1.4.
     struct RaptorSpawn {
         int targetIndex;
         float railDistance;
@@ -110,10 +124,10 @@ void World::reset_m1_scene() {
     };
     static constexpr RaptorSpawn kRaptorSpawns[] = {
         {0, 3.0f, -1.9f, 1.55f, 0.9f},
-        {1, 4.6f,  1.9f, 1.65f, 1.7f},
-        {2, 6.2f, -1.1f, 1.50f, 2.3f},
+        {1, 4.0f,  1.9f, 1.65f, 1.7f},
+        {2, 3.3f, -1.1f, 1.50f, 2.3f},
         {3, 1.5f,  1.1f, 1.60f, 1.2f},
-        {4, 5.4f, -0.4f, 1.58f, 2.0f},
+        {4, 4.2f, -0.4f, 1.58f, 2.0f},
         {5, 2.3f,  0.4f, 1.62f, 1.5f},
     };
     for (const RaptorSpawn& spawn : kRaptorSpawns) {
