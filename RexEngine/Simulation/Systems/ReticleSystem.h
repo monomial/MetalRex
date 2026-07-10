@@ -11,8 +11,8 @@ static constexpr float kFireFlashDuration = 0.12f;
 static constexpr float kFireCooldown = 0.18f;
 
 struct ReticleTuning {
-    float stickSensitivityH = 0.72f;
-    float stickSensitivityV = 0.58f;
+    float stickSensitivityH = 0.95f;
+    float stickSensitivityV = 0.75f;
     float gyroSensitivityH = 0.34f;
     float gyroSensitivityV = 0.28f;
     float stillnessThreshold = 0.0014f;
