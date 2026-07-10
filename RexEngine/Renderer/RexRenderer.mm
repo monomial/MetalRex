@@ -519,6 +519,11 @@ static const simd_float4 kReticleColors[kRexMaxPlayers] = {
     {0.98f, 0.80f, 0.30f, 1.f},
 };
 
+// Fixed canvas size baked by Rex_makeScoreTexture — shared with _drawHUD's
+// corner layout math so the two stay in sync without a magic number in both.
+static const float kScoreTexW = 300.f;
+static const float kScoreTexH = 110.f;
+
 // Builds an mvp that places the unit quad ([-0.5,0.5] in both axes, see
 // _texQuadVB) centered at (x,y) with the given pixel width/height, in
 // _overlayProjection's pixel space (ported from MetalBrawler's
@@ -652,8 +657,14 @@ static id<MTLTexture> Rex_makePressFireTexture(id<MTLDevice> device, CGSize *out
     return tex;
 }
 
-static id<MTLTexture> Rex_makeScoreTexture(id<MTLDevice> device, NSString *text, CGSize *outSize) {
-    NSUInteger w = 260, h = 34;
+// Arcade-style corner score readout (Jurassic Park arcade reference: big
+// glowing score number, "STREAK X#" underneath, in the player's own color).
+// Bigger canvas than the old single-line strip since this is now a
+// prominent corner element, not a slim row under the health bar.
+static id<MTLTexture> Rex_makeScoreTexture(id<MTLDevice> device, NSString *scoreLine,
+                                           NSString *streakLine, simd_float4 tint,
+                                           CGSize *outSize) {
+    NSUInteger w = (NSUInteger)kScoreTexW, h = (NSUInteger)kScoreTexH;
     NSUInteger bpr = w * 4;
     NSMutableData *pixels = [NSMutableData dataWithLength:bpr * h];
 
@@ -665,11 +676,14 @@ static id<MTLTexture> Rex_makeScoreTexture(id<MTLDevice> device, NSString *text,
         return nil;
     }
 
-    CGContextSetRGBFillColor(ctx, 0.02, 0.02, 0.025, 0.70);
+    CGContextSetRGBFillColor(ctx, 0.02, 0.02, 0.025, 0.55);
     CGContextFillRect(ctx, CGRectMake(0, 0, w, h));
-    CGColorRef white = CGColorCreateGenericRGB(0.94, 0.96, 0.98, 1);
-    Rex_drawCenteredLine(ctx, text, w * 0.5, h * 0.31, w - 16.f, 18.f, 10.f, white);
-    CGColorRelease(white);
+    CGColorRef scoreColor = CGColorCreateGenericRGB(tint.x, tint.y, tint.z, 1);
+    CGColorRef streakColor = CGColorCreateGenericRGB(0.90, 0.92, 0.95, 1);
+    Rex_drawCenteredLine(ctx, scoreLine, w * 0.5, h * 0.74, w - 20.f, 30.f, 16.f, scoreColor);
+    Rex_drawCenteredLine(ctx, streakLine, w * 0.5, h * 0.10, w - 20.f, 16.f, 10.f, streakColor);
+    CGColorRelease(scoreColor);
+    CGColorRelease(streakColor);
     CGContextRelease(ctx);
     CGColorSpaceRelease(cs);
 
@@ -821,10 +835,11 @@ static id<MTLTexture> Rex_makeScoreTexture(id<MTLDevice> device, NSString *text,
     }
 }
 
-// Shared jeep/player health bar (top-center), a full-screen hit-flash tint,
-// and — while PlayerHealthState::gameOver is set — the GAME OVER / continue
-// panel. Always drawn (not gated to macOS like the tuning debug HUD): this
-// is real gameplay feedback, not a dev-only overlay.
+// Per-player health bar (bottom corner — see _drawHUD's layout math), a
+// full-screen hit-flash tint, and — while PlayerHealthState::gameOver is
+// set — the GAME OVER / continue panel. Always drawn (not gated to macOS
+// like the tuning debug HUD): this is real gameplay feedback, not a
+// dev-only overlay.
 // Draws one player's health row (a bordered bar, colored fill by health
 // fraction, tinted with that player's reticle color) centered at (centerX,
 // barY) in overlay-pixel space.
@@ -865,25 +880,36 @@ static id<MTLTexture> Rex_makeScoreTexture(id<MTLDevice> device, NSString *text,
     [self _drawVertices:tick color:playerColor primitive:MTLPrimitiveTypeTriangle mvp:_overlayProjection encoder:encoder];
 }
 
+// Corner-anchored score readout (see Rex_makeScoreTexture) — centerX/centerY
+// is the texture's own center, so callers place it flush into a screen
+// corner by offsetting from _halfW/_halfH by half the texture size + margin.
+// Accuracy dropped from the persistent HUD to match the arcade reference
+// (score + streak only); ScoringSystem still tracks it, this is a rendering
+// choice only.
 - (void)_drawScoreForPlayer:(int)playerIndex
                       score:(const PlayerScoreState &)score
                     centerX:(float)centerX
-                       barY:(float)barY
-                   barWidth:(float)barWidth
+                    centerY:(float)centerY
                     encoder:(id<MTLRenderCommandEncoder>)encoder {
-    int accuracy = (int)lrintf((float)score.shotsHit * 100.f / (float)std::max(1, score.shotsFired));
-    NSString *text = [NSString stringWithFormat:@"SCORE %d  STK %d  ACC %d%%",
-                                                score.score, score.currentStreak, accuracy];
+    static NSNumberFormatter *sGroupingFormatter;
+    if (!sGroupingFormatter) {
+        sGroupingFormatter = [[NSNumberFormatter alloc] init];
+        sGroupingFormatter.numberStyle = NSNumberFormatterDecimalStyle;
+        sGroupingFormatter.usesGroupingSeparator = YES;
+    }
+    NSString *scoreLine = [NSString stringWithFormat:@"P%d  %@", playerIndex + 1,
+                                    [sGroupingFormatter stringFromNumber:@(score.score)]];
+    NSString *streakLine = [NSString stringWithFormat:@"STREAK X%d", score.currentStreak];
+    NSString *text = [scoreLine stringByAppendingFormat:@"|%@", streakLine];
     if (!_scoreText[playerIndex] || ![_scoreText[playerIndex] isEqualToString:text]) {
         _scoreText[playerIndex] = [text copy];
-        _scoreTextures[playerIndex] = Rex_makeScoreTexture(_device, _scoreText[playerIndex],
+        _scoreTextures[playerIndex] = Rex_makeScoreTexture(_device, scoreLine, streakLine,
+                                                           kReticleColors[playerIndex],
                                                            &_scoreTextureSizes[playerIndex]);
     }
     if (_scoreTextures[playerIndex] && _texturePipeline) {
-        float x = centerX;
-        float y = barY - 27.f;
         RexTextureUniformsCPU uniforms;
-        uniforms.mvp = Rex_make_model_rect(_overlayProjection, x, y, 0.07f,
+        uniforms.mvp = Rex_make_model_rect(_overlayProjection, centerX, centerY, 0.07f,
                                            (float)_scoreTextureSizes[playerIndex].width,
                                            (float)_scoreTextureSizes[playerIndex].height);
         [encoder setRenderPipelineState:_texturePipeline];
@@ -947,29 +973,42 @@ static id<MTLTexture> Rex_makeScoreTexture(id<MTLDevice> device, NSString *text,
         if (world->reticle(i).active) activePlayers[activeCount++] = i;
     }
 
-    float barWidth = 200.f;
-    float barHeight = 16.f;
-    float gap = 24.f;
-    float barY = _halfH - 26.f;
-    float totalWidth = activeCount > 0
-                      ? (float)activeCount * barWidth + (float)(activeCount - 1) * gap
-                      : 0.f;
-    float startX = -totalWidth * 0.5f + barWidth * 0.5f;
+    // Jurassic-Park-arcade-style corners: even player index owns the left
+    // side, odd owns the right — score up top, health down at the bottom,
+    // per the reference layout (P1 left, P2 right). A 3rd/4th player, if
+    // that ever ships, stacks further in on whichever side its index lands
+    // on rather than sharing a row with player 0/1.
+    float margin = 26.f;
+    float barWidth = 260.f;
+    float barHeight = 20.f;
+    float rowGap = 30.f;
 
     float maxHitFlash = 0.f;
     for (int slot = 0; slot < activeCount; ++slot) {
         int player = activePlayers[slot];
         const PlayerHealthState& health = world->player_health(player);
-        float centerX = startX + (float)slot * (barWidth + gap);
+        bool leftSide = (player % 2) == 0;
+        int stackIndex = player / 2; // 0 = outermost row on that side
+
+        float scoreCenterX = leftSide ? (-_halfW + margin + kScoreTexW * 0.5f)
+                                       : ( _halfW - margin - kScoreTexW * 0.5f);
+        float scoreCenterY = _halfH - margin - kScoreTexH * 0.5f
+                            - (float)stackIndex * (kScoreTexH + rowGap);
+
+        float healthCenterX = leftSide ? (-_halfW + margin + barWidth * 0.5f)
+                                        : ( _halfW - margin - barWidth * 0.5f);
+        float healthCenterY = -_halfH + margin + barHeight * 0.5f
+                             + (float)stackIndex * (barHeight + rowGap);
+
         if (health.sittingOut) {
-            [self _drawSittingOutRowForPlayer:player centerX:centerX barY:barY
+            [self _drawSittingOutRowForPlayer:player centerX:healthCenterX barY:healthCenterY
                                       barWidth:barWidth barHeight:barHeight encoder:encoder];
         } else {
-            [self _drawHealthBarForPlayer:player health:health centerX:centerX barY:barY
+            [self _drawHealthBarForPlayer:player health:health centerX:healthCenterX barY:healthCenterY
                                    barWidth:barWidth barHeight:barHeight encoder:encoder];
         }
-        [self _drawScoreForPlayer:player score:world->score(player) centerX:centerX barY:barY
-                          barWidth:barWidth encoder:encoder];
+        [self _drawScoreForPlayer:player score:world->score(player)
+                          centerX:scoreCenterX centerY:scoreCenterY encoder:encoder];
         maxHitFlash = std::max(maxHitFlash, health.hitFlashTime);
     }
 
@@ -1030,9 +1069,13 @@ static id<MTLTexture> Rex_makeScoreTexture(id<MTLDevice> device, NSString *text,
         {0.84f, 0.42f, 0.95f, 1.f},
         {0.84f, 0.42f, 0.95f, 1.f},
     };
+    // Starts below the P1 corner score readout (see kScoreTexH) rather than
+    // under _halfH directly — the two used to collide once the score box
+    // grew from a slim top-center strip to the taller arcade-style corner
+    // panel.
     for (int i = 0; i < 8; ++i) {
         float baseX = -_halfW + 34.f;
-        float baseY = _halfH - 32.f - (float)i * 15.f;
+        float baseY = _halfH - 26.f - kScoreTexH - 24.f - (float)i * 15.f;
         float width = 120.f * std::min(1.f, std::max(0.f, values[i]));
         std::vector<RexVertex> bg;
         [self _appendQuad:bg center:(simd_float3){baseX + 60.f, baseY, 0.06f} halfW:60.f halfH:4.f];
