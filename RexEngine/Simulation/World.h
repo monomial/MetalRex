@@ -10,6 +10,18 @@
 using EntityID = uint32_t;
 static constexpr EntityID kInvalidEntity = UINT32_MAX;
 
+// Tally of this-frame combat events the platform layer turns into sound.
+// Populated by ScoringSystem_update alongside scoring (same event loop, same
+// source of truth) and read+reset once per rendered frame by RexGameHost —
+// unlike EventBus, this is NOT cleared per-tick, so it survives the possibly
+// multiple fixed ticks that run inside one World::update() call.
+struct AudioCueCounts {
+    int hits = 0;
+    int weakPointHits = 0;
+    int interruptSuccesses = 0;
+    int interruptFails = 0;
+};
+
 template<typename T>
 struct ComponentStorage {
     std::vector<T> data;
@@ -73,6 +85,16 @@ public:
     float rand_float01() { return (float)(rand_u32() >> 8) * (1.0f / 16777216.0f); }
 
     EventBus& events() { return _events; }
+    const EventBus& events() const { return _events; }
+
+    // Adds to this frame's tally (called by ScoringSystem_update).
+    AudioCueCounts& audio_cues() { return _audioCues; }
+    // Returns the tally accumulated since the last call and resets it.
+    AudioCueCounts consume_audio_cues() {
+        AudioCueCounts cues = _audioCues;
+        _audioCues = AudioCueCounts{};
+        return cues;
+    }
 
     ComponentStorage<PositionComponent>& positions() { return _positions; }
     ComponentStorage<VelocityComponent>& velocities() { return _velocities; }
@@ -110,6 +132,14 @@ public:
         assert(playerIndex >= 0 && playerIndex < kRexMaxPlayers);
         return _playerHealth[playerIndex];
     }
+    const PlayerScoreState& score(int playerIndex) const {
+        assert(playerIndex >= 0 && playerIndex < kRexMaxPlayers);
+        return _playerScore[playerIndex];
+    }
+    PlayerScoreState& score(int playerIndex) {
+        assert(playerIndex >= 0 && playerIndex < kRexMaxPlayers);
+        return _playerScore[playerIndex];
+    }
     bool any_player_active_and_not_sitting_out() const;
     // Applies dino attack damage, honoring the post-hit invulnerability
     // window and no-op'ing while that player is already sitting out. Setting
@@ -129,6 +159,7 @@ private:
     uint32_t _deferredDestroyCount;
     EntityID _deferredDestroy[256];
     EventBus _events;
+    AudioCueCounts _audioCues;
     float _accumulator;
     InputState _inputs[kRexMaxPlayers];
     uint64_t _tickCount;
@@ -145,6 +176,7 @@ private:
     RailCameraState _railCamera;
     LevelChart _chart;
     PlayerHealthState _playerHealth[kRexMaxPlayers];
+    PlayerScoreState _playerScore[kRexMaxPlayers];
 };
 
 template<typename T>

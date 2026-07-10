@@ -228,6 +228,16 @@ static AVAudioPCMBuffer* loadBundleBuffer(NSString *name, AVAudioFormat *targetF
 // A small round-robin pool plays every sound immediately and lets them overlap.
 static const int kNumSfxNodes = 8;
 
+// Battle music is a playlist, not a single track: music_battle (legacy
+// single-file name) plus music_battle_1 .. music_battle_8, whichever exist,
+// played in order and looped as a set via the AVAudioPlayerDelegate callback
+// below. A single-track bundle keeps the old loop-that-one-track-forever
+// behavior (see _playMusicAtCurrentIndex).
+static const int kMaxMusicTracks = 8;
+
+@interface AudioEngine () <AVAudioPlayerDelegate>
+@end
+
 @implementation AudioEngine {
     AVAudioEngine       *_engine;
     AVAudioPlayerNode   *_sfxNodes[kNumSfxNodes];
@@ -241,6 +251,8 @@ static const int kNumSfxNodes = 8;
     AVAudioPCMBuffer    *_roomClearBuf;
     AVAudioPCMBuffer    *_uiClickBuf;
     AVAudioPlayer       *_musicPlayer;
+    NSArray<NSURL*>     *_musicPlaylist;
+    NSInteger            _musicIndex;
     float                _musicVolume;
     BOOL                 _musicPaused;
     BOOL                 _started;
@@ -316,28 +328,59 @@ static const int kNumSfxNodes = 8;
 // Music
 // ---------------------------------------------------------------------------
 
+- (NSArray<NSURL*>*)_findMusicPlaylist {
+    NSMutableArray<NSURL*> *tracks = [NSMutableArray array];
+    NSURL *legacy = bundleAudioURL(@"music_battle");
+    if (legacy) [tracks addObject:legacy];
+    for (int i = 1; i <= kMaxMusicTracks; ++i) {
+        NSURL *url = bundleAudioURL([NSString stringWithFormat:@"music_battle_%d", i]);
+        if (url) [tracks addObject:url];
+    }
+    return tracks;
+}
+
 - (void)startBattleMusic {
     if (getenv("REX_MUTE")) return; // silent test runs
-    NSURL *url = bundleAudioURL(@"music_battle");
-    if (!url) {
-        NSLog(@"AudioEngine: music_battle not found — add music_battle.mp3 to bundle to enable music");
-        return;
-    }
     if (_musicPlayer && _musicPlayer.playing) return;
     if (_musicPlayer && _musicPaused) {
         [self resumeMusic];
         return;
     }
 
+    if (!_musicPlaylist) _musicPlaylist = [self _findMusicPlaylist];
+    if (_musicPlaylist.count == 0) {
+        NSLog(@"AudioEngine: no battle music found — add music_battle.mp3 (or "
+              @"music_battle_1.mp3, music_battle_2.mp3, ...) to bundle to enable music");
+        return;
+    }
+
+    _musicIndex = 0;
+    [self _playMusicAtCurrentIndex];
+}
+
+// Loads and plays _musicPlaylist[_musicIndex]. A single-track playlist loops
+// that one file forever (old behavior); a multi-track playlist plays each
+// once and chains to the next via the delegate callback below, wrapping
+// around after the last one — i.e. the whole set loops together.
+- (void)_playMusicAtCurrentIndex {
+    NSURL *url = _musicPlaylist[_musicIndex];
     NSError *err = nil;
     _musicPlayer = [[AVAudioPlayer alloc] initWithContentsOfURL:url error:&err];
     if (!_musicPlayer) { NSLog(@"AudioEngine: music load failed: %@", err); return; }
-    _musicPlayer.numberOfLoops = -1; // loop forever
+    _musicPlayer.delegate      = self;
+    _musicPlayer.numberOfLoops = (_musicPlaylist.count > 1) ? 0 : -1;
     _musicPlayer.volume        = _musicVolume;
     [_musicPlayer prepareToPlay];
     [_musicPlayer play];
     _musicPaused = NO;
-    NSLog(@"AudioEngine: music started (%@)", url.lastPathComponent);
+    NSLog(@"AudioEngine: music started (%@, track %ld/%lu)",
+          url.lastPathComponent, (long)(_musicIndex + 1), (unsigned long)_musicPlaylist.count);
+}
+
+- (void)audioPlayerDidFinishPlaying:(AVAudioPlayer *)player successfully:(BOOL)flag {
+    if (player != _musicPlayer) return; // stale callback from a track stopMusic already tore down
+    _musicIndex = (_musicIndex + 1) % _musicPlaylist.count;
+    [self _playMusicAtCurrentIndex];
 }
 
 - (void)pauseMusic {
@@ -353,9 +396,11 @@ static const int kNumSfxNodes = 8;
 }
 
 - (void)stopMusic {
+    _musicPlayer.delegate = nil; // don't chain to the next track after an explicit stop
     [_musicPlayer stop];
     _musicPlayer = nil;
     _musicPaused = NO;
+    _musicIndex = 0;
 }
 
 - (void)setMusicVolume:(float)volume {

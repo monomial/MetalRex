@@ -1,6 +1,5 @@
 #import "AppDelegate.h"
 #import "GameViewController.h"
-#import "Audio/AudioEngine.h"
 
 @interface AppDelegate ()
 @property (strong) NSWindow *window;
@@ -9,9 +8,9 @@
 @implementation AppDelegate
 
 - (void)applicationDidFinishLaunching:(NSNotification *)notification {
-    // T7: initialize audio engine at startup to avoid ~100ms hitch on first hit.
-    [[[AudioEngine alloc] init] startupInit];
-
+    // Audio engine now lives in RexGameHost (constructed below via
+    // GameViewController), so it warms up at the same launch-time moment
+    // this used to pre-warm a throwaway instance for.
     NSRect frame = NSMakeRect(0, 0, 960, 720);
     self.window = [[NSWindow alloc]
         initWithContentRect:frame

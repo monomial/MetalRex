@@ -2,6 +2,7 @@
 #import <QuartzCore/QuartzCore.h>
 #include "Simulation/World.h"
 #import "Renderer/RexRenderer.h"
+#import "Audio/AudioEngine.h"
 
 @implementation RexGameHost {
     id<MTLDevice> _device;
@@ -11,6 +12,7 @@
     World *_world;
     CFTimeInterval _lastFrameTime;
     InputState _inputs[4];
+    AudioEngine *_audio;
 }
 
 - (instancetype)initWithDevice:(id<MTLDevice>)device pixelFormat:(MTLPixelFormat)pixelFormat {
@@ -27,6 +29,12 @@
     _inputs[1] = {};
     _inputs[2] = {};
     _inputs[3] = {};
+
+    // Real playback path only — initHeadless (tests, --capture-out automation)
+    // stays silent so headless runs don't spin up AVAudioEngine.
+    _audio = [[AudioEngine alloc] init];
+    [_audio startupInit];
+    [_audio startBattleMusic];
 
     return self;
 }
@@ -62,6 +70,19 @@
         _world->set_input(_inputs[i], i);
     }
     _world->update(dt, dt);
+    [self _playAudioCues];
+}
+
+// Interrupting a dino's attack (denying damage) and a weak-point hit both
+// read as the "big" payoff in ScoringSystem's own point values (50 and 25 vs.
+// a plain hit's 10) — finisher gets the heavier sound to match. TellMissed
+// has no sound yet; it's a candidate for TODOS.md's "danger tell" cue later.
+- (void)_playAudioCues {
+    if (!_audio || !_world) return;
+    AudioCueCounts cues = _world->consume_audio_cues();
+    if (cues.interruptSuccesses > 0 || cues.weakPointHits > 0) [_audio playFinisherSound];
+    if (cues.hits > 0) [_audio playHitSound];
+    if (cues.interruptFails > 0) [_audio playHurtSound];
 }
 
 - (void)setInputState:(InputState)state forPlayer:(int)playerIndex {

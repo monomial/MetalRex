@@ -9,8 +9,11 @@
 // falling back to a synthetic version.  Drop real files into the assets/audio/
 // folder and add them to the Xcode target to replace the synthetics.
 //
-// Music: startBattleMusic looks for music_battle (.mp3 .m4a .wav .caf).
-// Silent if the file is absent — add a track when you have one.
+// Music: startBattleMusic looks for music_battle, then music_battle_1,
+// music_battle_2, ... (.mp3 .m4a .wav .caf), and plays whichever it finds
+// back to back as a playlist, looping the whole set once the last one ends.
+// A single track loops forever on its own, same as before. Silent if none
+// are present — add tracks when you have them.
 @interface AudioEngine : NSObject
 
 // Call once from game delegate init.
