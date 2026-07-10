@@ -80,6 +80,10 @@
 - (void)_playAudioCues {
     if (!_audio || !_world) return;
     AudioCueCounts cues = _world->consume_audio_cues();
+    // One report per shot fired, independent of hit/miss — this is what
+    // actually reads as "the gun." The hit/finisher/hurt sounds underneath
+    // are separate impact-confirmation layers.
+    for (int i = 0; i < cues.shotsFired; ++i) [_audio playFireSound];
     if (cues.interruptSuccesses > 0 || cues.weakPointHits > 0) [_audio playFinisherSound];
     if (cues.hits > 0) [_audio playHitSound];
     if (cues.interruptFails > 0) [_audio playHurtSound];

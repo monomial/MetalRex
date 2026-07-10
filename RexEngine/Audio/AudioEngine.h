@@ -21,7 +21,8 @@
 
 // Sound effects — safe to call every frame, internally rate-limited.
 // Bundle file overrides (sfx_hit, sfx_hurt, sfx_death, sfx_swing, sfx_dodge,
-// sfx_finisher, sfx_room_clear, sfx_ui_click) beat the synthetic fallbacks.
+// sfx_finisher, sfx_room_clear, sfx_ui_click, sfx_fire) beat the synthetic
+// fallbacks.
 - (void)playHitSound;       // punch landing on target
 - (void)playHurtSound;      // entity receiving damage but not dying
 - (void)playDeathSound;     // entity HP hits 0
@@ -30,6 +31,7 @@
 - (void)playDodgeSound;     // dodge roll starts
 - (void)playRoomClearSound; // all enemies down (short ascending jingle)
 - (void)playUIClickSound;   // menu/phase advance
+- (void)playFireSound;      // trigger pulled — gun report, independent of hit/miss
 
 // Background music.
 - (void)startBattleMusic;

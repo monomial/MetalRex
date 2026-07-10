@@ -153,6 +153,28 @@ static AVAudioPCMBuffer* make_ui_click_buffer(AVAudioFormat *fmt) {
     });
 }
 
+// Punchy gunshot crack for the trigger pull itself (separate from the impact
+// thud on a confirmed hit): near-instant transient, broadband noise dominant
+// rather than tonal, very fast decay so rapid machine-gun fire stays a
+// staccato rattle instead of smearing into one blur.
+static AVAudioPCMBuffer* make_fire_buffer(AVAudioFormat *fmt) {
+    return synth_buffer(fmt, 0.09, ^(float *L, float *R, int frames, double sr) {
+        float lp = 0.f;
+        for (int i = 0; i < frames; ++i) {
+            float tSec   = (float)i / (float)sr;
+            float attack = fminf(tSec / 0.0015f, 1.f);           // near-instant snap
+            float noise  = ((float)rand() / (float)RAND_MAX * 2.f - 1.f);
+            lp += 0.6f * (noise - lp);                           // light low-pass -> "crack" not hiss
+            float crack  = lp * expf(-tSec * 55.f) * 0.5f;
+            float punch  = sinf(2.f * (float)M_PI * 160.f * tSec)
+                           * expf(-tSec * 60.f) * 0.35f;         // brief low body
+            float s      = (crack + punch) * attack;
+            L[i] = s;
+            if (R) R[i] = s;
+        }
+    });
+}
+
 // ---------------------------------------------------------------------------
 // Bundle asset lookup — tries multiple extensions, returns nil if not found.
 // ---------------------------------------------------------------------------
@@ -250,6 +272,7 @@ static const int kMaxMusicTracks = 8;
     AVAudioPCMBuffer    *_finisherBuf;
     AVAudioPCMBuffer    *_roomClearBuf;
     AVAudioPCMBuffer    *_uiClickBuf;
+    AVAudioPCMBuffer    *_fireBuf;
     AVAudioPlayer       *_musicPlayer;
     NSArray<NSURL*>     *_musicPlaylist;
     NSInteger            _musicIndex;
@@ -295,6 +318,7 @@ static const int kMaxMusicTracks = 8;
     _finisherBuf  = loadBundleBuffer(@"sfx_finisher",   fmt) ?: make_finisher_buffer(fmt);
     _roomClearBuf = loadBundleBuffer(@"sfx_room_clear", fmt) ?: make_room_clear_buffer(fmt);
     _uiClickBuf   = loadBundleBuffer(@"sfx_ui_click",   fmt) ?: make_ui_click_buffer(fmt);
+    _fireBuf      = loadBundleBuffer(@"sfx_fire",       fmt) ?: make_fire_buffer(fmt);
 
     _started = YES;
     NSLog(@"AudioEngine: ready (sampleRate %.0f Hz)", fmt.sampleRate);
@@ -323,6 +347,7 @@ static const int kMaxMusicTracks = 8;
 - (void)playFinisherSound  { [self _playBuffer:_finisherBuf  name:"finisher"];   }
 - (void)playRoomClearSound { [self _playBuffer:_roomClearBuf name:"room_clear"]; }
 - (void)playUIClickSound   { [self _playBuffer:_uiClickBuf   name:"ui_click"];   }
+- (void)playFireSound      { [self _playBuffer:_fireBuf      name:"fire"];       }
 
 // ---------------------------------------------------------------------------
 // Music

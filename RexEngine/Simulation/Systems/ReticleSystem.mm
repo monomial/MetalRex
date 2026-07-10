@@ -175,6 +175,7 @@ void ReticleSystem_update(World& world, float gameDt) {
             reticle.fireCooldown = kFireCooldown;
             reticle.fireFlashTime = kFireFlashDuration;
             reticle.shotCount += 1;
+            world.audio_cues().shotsFired += 1;
             for (int i = 0; i < kM1MaxTargets; ++i) {
                 TargetComponent& target = world.target(i);
                 bool weakPointHit = point_inside_weak_point(reticle, target);

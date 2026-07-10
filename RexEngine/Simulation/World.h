@@ -16,6 +16,7 @@ static constexpr EntityID kInvalidEntity = UINT32_MAX;
 // unlike EventBus, this is NOT cleared per-tick, so it survives the possibly
 // multiple fixed ticks that run inside one World::update() call.
 struct AudioCueCounts {
+    int shotsFired = 0;
     int hits = 0;
     int weakPointHits = 0;
     int interruptSuccesses = 0;
