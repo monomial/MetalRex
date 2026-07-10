@@ -22,12 +22,15 @@ static EntityID findDino(World& world) {
     XCTAssertNotEqual(dinoId, kInvalidEntity);
 
     DinoBehaviorComponent& dino = world.get_component<DinoBehaviorComponent>(dinoId);
-    dino.idleDuration = 100.f;
+    dino.activeInEncounter = true;
+    dino.state = DinoBehaviorState::Approach;
+    dino.holdDuration = 100.f;
     for (int i = 0; i < kM1MaxTargets; ++i) {
         world.target(i).active = false;
     }
     TargetComponent& target = world.target(dino.targetIndex);
     target.active = true;
+    target.moving = true;
     target.screenX = 0.42f;
     target.screenY = 0.38f;
     target.screenHalfW = 0.10f;

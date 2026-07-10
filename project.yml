@@ -47,6 +47,9 @@ targets:
       base:
         INFOPLIST_FILE: Rex-macOS/Info.plist
         PRODUCT_BUNDLE_IDENTIFIER: com.michaelsmith.metalrex.macos
+        DEVELOPMENT_TEAM: 74V7G3NQ7Y
+        CODE_SIGNING_ALLOWED: YES
+        CODE_SIGN_STYLE: Automatic
         CLANG_CXX_LANGUAGE_STANDARD: c++20
         CLANG_CXX_LIBRARY: libc++
         GCC_ENABLE_OBJC_EXCEPTIONS: YES

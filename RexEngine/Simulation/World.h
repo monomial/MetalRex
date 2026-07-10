@@ -2,6 +2,7 @@
 #include <stdint.h>
 #include <vector>
 #include <cassert>
+#include <stddef.h>
 #include "Components.h"
 #include "ChartLoader.h"
 #include "Platform/InputState.h"
@@ -122,6 +123,8 @@ public:
     RailCameraState& rail_camera() { return _railCamera; }
     const LevelChart& chart() const { return _chart; }
     void replace_chart_for_tests(LevelChart chart);
+    size_t next_chart_event_index() const { return _nextChartEventIndex; }
+    void set_next_chart_event_index(size_t index) { _nextChartEventIndex = index; }
 
     const PlayerHealthState& player_health(int playerIndex) const {
         assert(playerIndex >= 0 && playerIndex < kRexMaxPlayers);
@@ -140,6 +143,8 @@ public:
         return _playerScore[playerIndex];
     }
     bool any_player_active_and_not_sitting_out() const;
+    bool level_complete() const { return _levelComplete; }
+    void complete_level() { _levelComplete = true; }
     // Applies dino attack damage, honoring the post-hit invulnerability
     // window and no-op'ing while that player is already sitting out. Setting
     // sittingOut here (rather than in PlayerHealthSystem) keeps the health<=0
@@ -162,6 +167,12 @@ private:
     float _accumulator;
     InputState _inputs[kRexMaxPlayers];
     uint64_t _tickCount;
+    size_t _nextChartEventIndex;
+    bool _levelComplete;
+    // Play-again gate (see World::tick): panel minimum display time, and
+    // fire must be seen released once post-completion before a press counts.
+    float _levelCompleteElapsed;
+    bool _levelCompleteFireReleased;
 
     ComponentStorage<PositionComponent> _positions;
     ComponentStorage<VelocityComponent> _velocities;

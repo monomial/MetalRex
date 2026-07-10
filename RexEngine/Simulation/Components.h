@@ -140,11 +140,13 @@ struct AnimationComponent {
 };
 
 enum class DinoBehaviorState : uint8_t {
-    Idle = 0,
+    Dormant = 0,
+    Approach,
+    Hold,
     Tell,
     Attack,
     Interrupted,
-    Landed,
+    Retreat,
     Dying
 };
 
@@ -170,26 +172,30 @@ enum class DinoScoreEvent : uint8_t {
 
 struct DinoBehaviorComponent {
     bool active = false;
+    bool activeInEncounter = false;
     uint8_t targetIndex = 0;
     DinoSpecies species = DinoSpecies::Velociraptor;
-    DinoBehaviorState state = DinoBehaviorState::Idle;
+    DinoBehaviorState state = DinoBehaviorState::Dormant;
     DinoInterruptOutcome lastOutcome = DinoInterruptOutcome::None;
     bool outcomeThisCycle = false;
     float stateTime = 0.f;
-    // Minimum time back in the chase state before the next attack may
-    // begin — even if the dino is already within attackRange.
-    float idleDuration = 0.75f;
-    // Rail-units/second the dino runs after the jeep during the
-    // Idle/chase state. Must exceed the camera speed to actually gain
-    // ground; the margin over camera speed is the effective closing rate.
-    // Movement pauses during Tell/Attack/Interrupted/Landed.
+    // Rail-units/second the dino runs after the jeep during Approach. Must
+    // exceed the camera speed to actually gain ground; the margin over camera
+    // speed is the effective closing rate. Movement pauses during Tell/Attack.
     float chaseSpeed = 1.5f;
     // The dino stops closing and may attack once it is within this many
     // rail-units behind the jeep. Must stay > 1 (RailCameraSystem pins
     // anything closer than 1 unit as a safety net).
     float attackRange = 2.4f;
-    // Shots to kill. At 0 the dino enters Dying: Death clip, screen-door
-    // fade, then respawns deep behind the jeep with health restored.
+    uint32_t waveId = 0;
+    uint8_t laneRole = 0;
+    float spawnGap = 8.f;
+    float holdDuration = 2.25f;
+    float attackDelay = 0.f;
+    float retreatDuration = 1.2f;
+    float retreatGap = 8.f;
+    // Shots to kill. At 0 the dino enters Dying. Raptors recycle after the
+    // death fade; the T-Rex is the terminal boss and completes the level.
     int maxHealth = 3;
     int health = 3;
     // Brief tint flash on taking a hit (renderer reads this).

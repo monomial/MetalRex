@@ -90,6 +90,8 @@ struct SkinnedUniformsCPU {
     id<MTLBuffer> _texQuadVB;
     id<MTLTexture> _gameOverTexture;
     CGSize _gameOverTextureSize;
+    id<MTLTexture> _levelCompleteTexture;
+    CGSize _levelCompleteTextureSize;
     id<MTLTexture> _pressFireTexture;
     CGSize _pressFireTextureSize;
     id<MTLTexture> _scoreTextures[kRexMaxPlayers];
@@ -624,6 +626,49 @@ static id<MTLTexture> Rex_makeGameOverTexture(id<MTLDevice> device, CGSize *outS
     return tex;
 }
 
+static id<MTLTexture> Rex_makeLevelCompleteTexture(id<MTLDevice> device, CGSize *outSize) {
+    NSUInteger w = 620, h = 230;
+    NSUInteger bpr = w * 4;
+    NSMutableData *pixels = [NSMutableData dataWithLength:bpr * h];
+
+    CGColorSpaceRef cs = CGColorSpaceCreateDeviceRGB();
+    CGBitmapInfo bitmapInfo = (CGBitmapInfo)kCGImageAlphaPremultipliedLast | kCGBitmapByteOrder32Big;
+    CGContextRef ctx = CGBitmapContextCreate(pixels.mutableBytes, w, h, 8, bpr, cs, bitmapInfo);
+    if (!ctx) {
+        CGColorSpaceRelease(cs);
+        return nil;
+    }
+
+    CGContextSetRGBFillColor(ctx, 0.0, 0.0, 0.0, 0.78);
+    CGContextFillRect(ctx, CGRectMake(0, 0, w, h));
+    CGContextSetRGBStrokeColor(ctx, 0.22, 0.82, 0.52, 0.95);
+    CGContextSetLineWidth(ctx, 3.0);
+    CGContextStrokeRect(ctx, CGRectMake(1.5, 1.5, w - 3, h - 3));
+
+    CGColorRef green = CGColorCreateGenericRGB(0.32, 0.95, 0.58, 1);
+    CGColorRef white = CGColorCreateGenericRGB(1, 1, 1, 1);
+    Rex_drawCenteredLine(ctx, @"LEVEL COMPLETE", w * 0.5, h * 0.62, w - 48.f, 64.f, 30.f, green);
+    Rex_drawCenteredLine(ctx, @"T-REX DOWN", w * 0.5, h * 0.36, w - 48.f, 34.f, 16.f, white);
+    Rex_drawCenteredLine(ctx, @"PRESS FIRE TO PLAY AGAIN", w * 0.5, h * 0.12, w - 48.f, 22.f, 12.f, white);
+    CGColorRelease(green);
+    CGColorRelease(white);
+    CGContextRelease(ctx);
+    CGColorSpaceRelease(cs);
+
+    MTLTextureDescriptor *td = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatRGBA8Unorm
+                                                                                  width:w
+                                                                                 height:h
+                                                                              mipmapped:NO];
+    td.usage = MTLTextureUsageShaderRead;
+    id<MTLTexture> tex = [device newTextureWithDescriptor:td];
+    [tex replaceRegion:MTLRegionMake2D(0, 0, w, h)
+           mipmapLevel:0
+             withBytes:pixels.bytes
+           bytesPerRow:bpr];
+    if (outSize) *outSize = CGSizeMake(w, h);
+    return tex;
+}
+
 // Compact "PRESS FIRE" label for a sitting-out player's HUD row — same
 // technique as Rex_makeGameOverTexture, sized to fit inside a health-bar-sized
 // slot instead of a full-screen panel. Content never changes, so callers
@@ -1033,6 +1078,27 @@ static id<MTLTexture> Rex_makeScoreTexture(id<MTLDevice> device, NSString *score
     }
 }
 
+- (void)_drawPanelTexture:(id<MTLTexture>)texture
+                     size:(CGSize)size
+                  encoder:(id<MTLRenderCommandEncoder>)encoder {
+    if (!texture || !_texturePipeline) return;
+    std::vector<RexVertex> backdrop;
+    [self _appendQuad:backdrop center:(simd_float3){0.f, 0.f, 0.08f} halfW:_halfW halfH:_halfH];
+    [self _drawVertices:backdrop color:(simd_float4){0.f, 0.f, 0.f, 0.35f}
+              primitive:MTLPrimitiveTypeTriangle mvp:_overlayProjection encoder:encoder];
+
+    RexTextureUniformsCPU uniforms;
+    uniforms.mvp = Rex_make_model_rect(_overlayProjection, 0.f, 0.f, 0.09f,
+                                       (float)size.width, (float)size.height);
+    [encoder setRenderPipelineState:_texturePipeline];
+    [encoder setVertexBuffer:_texQuadVB offset:0 atIndex:0];
+    [encoder setVertexBytes:&uniforms length:sizeof(uniforms) atIndex:1];
+    [encoder setFragmentTexture:texture atIndex:0];
+    [encoder setFragmentSamplerState:_sampler atIndex:0];
+    [encoder drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:6];
+    [encoder setRenderPipelineState:_pipeline];
+}
+
 // One health row per active player (Premise 6/8: per-player health, cabinet-
 // style sit-out), a full-screen hit-flash tint if any active player was just
 // hit, and — only once every active player is simultaneously sitting out —
@@ -1091,29 +1157,20 @@ static id<MTLTexture> Rex_makeScoreTexture(id<MTLDevice> device, NSString *score
                   primitive:MTLPrimitiveTypeTriangle mvp:_overlayProjection encoder:encoder];
     }
 
+    if (world->level_complete()) {
+        if (!_levelCompleteTexture) {
+            _levelCompleteTexture = Rex_makeLevelCompleteTexture(_device, &_levelCompleteTextureSize);
+        }
+        [self _drawPanelTexture:_levelCompleteTexture size:_levelCompleteTextureSize encoder:encoder];
+        return;
+    }
+
     bool allSittingOut = !world->any_player_active_and_not_sitting_out();
     if (allSittingOut && activeCount > 0) {
         if (!_gameOverTexture) {
             _gameOverTexture = Rex_makeGameOverTexture(_device, &_gameOverTextureSize);
         }
-        std::vector<RexVertex> backdrop;
-        [self _appendQuad:backdrop center:(simd_float3){0.f, 0.f, 0.08f} halfW:_halfW halfH:_halfH];
-        [self _drawVertices:backdrop color:(simd_float4){0.f, 0.f, 0.f, 0.35f}
-                  primitive:MTLPrimitiveTypeTriangle mvp:_overlayProjection encoder:encoder];
-
-        if (_gameOverTexture && _texturePipeline) {
-            RexTextureUniformsCPU uniforms;
-            uniforms.mvp = Rex_make_model_rect(_overlayProjection, 0.f, 0.f, 0.09f,
-                                               (float)_gameOverTextureSize.width,
-                                               (float)_gameOverTextureSize.height);
-            [encoder setRenderPipelineState:_texturePipeline];
-            [encoder setVertexBuffer:_texQuadVB offset:0 atIndex:0];
-            [encoder setVertexBytes:&uniforms length:sizeof(uniforms) atIndex:1];
-            [encoder setFragmentTexture:_gameOverTexture atIndex:0];
-            [encoder setFragmentSamplerState:_sampler atIndex:0];
-            [encoder drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:6];
-            [encoder setRenderPipelineState:_pipeline];
-        }
+        [self _drawPanelTexture:_gameOverTexture size:_gameOverTextureSize encoder:encoder];
     }
 }
 

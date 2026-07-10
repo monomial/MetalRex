@@ -22,6 +22,78 @@
   "events": [
     { "distance": 3.0, "type": "popup_target", "payload": { "slot": 0 } },
     { "distance": 8.5, "type": "moving_target", "payload": { "slot": 3 } },
-    { "distance": 14.0, "type": "camera_beat", "payload": { "label": "curve-reveal" } }
+    {
+      "distance": 8.6,
+      "type": "raptor_wave",
+      "payload": {
+        "groupSize": 1,
+        "lanes": [0.0],
+        "spawnGap": 8.0,
+        "holdSeconds": 2.0,
+        "attackStaggerSeconds": 0.0,
+        "label": "solo-test"
+      }
+    },
+    { "distance": 14.0, "type": "camera_beat", "payload": { "label": "curve-reveal" } },
+    {
+      "distance": 15.0,
+      "type": "raptor_wave",
+      "payload": {
+        "groupSize": 2,
+        "lanes": [-1.2, 1.2],
+        "spawnGap": 8.5,
+        "holdSeconds": 2.25,
+        "attackStaggerSeconds": 0.45,
+        "label": "pair-test"
+      }
+    },
+    {
+      "distance": 22.0,
+      "type": "raptor_wave",
+      "payload": {
+        "groupSize": 3,
+        "lanes": [-1.5, 0.0, 1.5],
+        "spawnGap": 9.0,
+        "holdSeconds": 2.5,
+        "attackStaggerSeconds": 0.55,
+        "label": "pack-test"
+      }
+    },
+    {
+      "distance": 25.5,
+      "type": "raptor_wave",
+      "payload": {
+        "groupSize": 2,
+        "lanes": [-1.4, 1.4],
+        "spawnGap": 8.0,
+        "holdSeconds": 1.75,
+        "attackStaggerSeconds": 0.40,
+        "label": "late-pincer"
+      }
+    },
+    {
+      "distance": 28.5,
+      "type": "raptor_wave",
+      "payload": {
+        "groupSize": 1,
+        "lanes": [-0.6],
+        "spawnGap": 7.5,
+        "holdSeconds": 1.65,
+        "attackStaggerSeconds": 0.0,
+        "label": "last-solo"
+      }
+    },
+    {
+      "distance": 31.0,
+      "type": "raptor_wave",
+      "payload": {
+        "groupSize": 3,
+        "lanes": [-1.6, 0.0, 1.6],
+        "spawnGap": 8.5,
+        "holdSeconds": 1.8,
+        "attackStaggerSeconds": 0.35,
+        "label": "final-pack"
+      }
+    }
   ]
 }

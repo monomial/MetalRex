@@ -28,6 +28,10 @@ World::World()
     , _accumulator(0.f)
     , _inputs{}
     , _tickCount(0)
+    , _nextChartEventIndex(0)
+    , _levelComplete(false)
+    , _levelCompleteElapsed(0.f)
+    , _levelCompleteFireReleased(false)
 {
     _chart = ChartLoader_load_default();
     reset_m1_scene();
@@ -59,6 +63,10 @@ void World::flush() {
 }
 
 void World::reset_m1_scene() {
+    _nextChartEventIndex = 0;
+    _levelComplete = false;
+    _levelCompleteElapsed = 0.f;
+    _levelCompleteFireReleased = false;
     for (EntityID id = 0; id < _nextID; ++id) {
         _animations.remove(id);
         _factions.remove(id);
@@ -93,46 +101,28 @@ void World::reset_m1_scene() {
     // with a 3.6-unit T-Rex. screenHalfH is still clamped to 0.20 in
     // RailCameraSystem, so a big dino can't blow up the on-screen hit box.
     //
-    // Pursuers spawn BEHIND the jeep (the camera starts at rail distance 8
-    // facing backward), deep enough that the player sees them run up. Each
-    // raptor's idleDuration/chaseSpeed is staggered so their attack windows
-    // roll rather than sync into one simultaneous scrum — a wave of pursuers
-    // taking turns lunging, like the arcade reference, rather than all six
-    // attacking in lockstep. lateralOffset is each raptor's own spawn lane
-    // (see TargetComponent::baseLateralOffset) — spread wide so six of them
-    // read as a spread-out pack, not a stack.
-    //
-    // railDistance must leave (cameraStartDistance=8 - railDistance) clearly
-    // above attackRange (2.4): a raptor spawned already inside its own
-    // attack range never runs the Idle/chase branch in DinoBehaviorSystem
-    // at all (gap <= attackRange from tick 1), so it just stands there
-    // weaving side to side — see TargetComponent::baseLateralOffset — while
-    // waiting out idleDuration, with zero forward motion. From the player's
-    // side that reads as "just walking in place / sideways," never actually
-    // closing in, which is a much better match for that bug report than a
-    // wrong facing direction (checked: both species' skeletons place the
-    // Head joint at the same local -Y, so DinoBehaviorSystem's yaw-to-camera
-    // math is already correct and consistent between them). Raptor 2 used
-    // to spawn at railDistance 6.2 (gap 1.8, already inside 2.4) and never
-    // chased; raptor 4 had only a 0.2-unit margin. Both now leave >=1.4.
+    // Raptors are a fixed pool. Chart-authored raptor_wave events claim 1-3
+    // dormant slots, assign lanes/timing, and return them to dormancy after
+    // the pounce/retreat cycle. That keeps the encounter predictable without
+    // growing entities during a run.
     struct RaptorSpawn {
         int targetIndex;
         float railDistance;
         float lateralOffset;
         float chaseSpeed;
-        float idleDuration;
+        float holdDuration;
     };
     static constexpr RaptorSpawn kRaptorSpawns[] = {
-        {0, 3.0f, -1.9f, 1.55f, 0.9f},
-        {1, 4.0f,  1.9f, 1.65f, 1.7f},
-        {2, 3.3f, -1.1f, 1.50f, 2.3f},
-        {3, 1.5f,  1.1f, 1.60f, 1.2f},
-        {4, 4.2f, -0.4f, 1.58f, 2.0f},
-        {5, 2.3f,  0.4f, 1.62f, 1.5f},
+        {0, 3.0f, -1.9f, 3.55f, 0.9f},
+        {1, 4.0f,  1.9f, 3.65f, 1.7f},
+        {2, 3.3f, -1.1f, 3.50f, 2.3f},
+        {3, 1.5f,  1.1f, 3.60f, 1.2f},
+        {4, 4.2f, -0.4f, 3.58f, 2.0f},
+        {5, 2.3f,  0.4f, 3.62f, 1.5f},
     };
     for (const RaptorSpawn& spawn : kRaptorSpawns) {
         TargetComponent& target = _targets[spawn.targetIndex];
-        target.active = true;
+        target.active = false;
         target.moving = true;
         target.railDistance = spawn.railDistance;
         target.baseLateralOffset = spawn.lateralOffset;
@@ -148,17 +138,21 @@ void World::reset_m1_scene() {
         faction.type = FactionComponent::Enemy;
         DinoBehaviorComponent& dino = add_component<DinoBehaviorComponent>(raptor);
         dino.active = true;
+        dino.activeInEncounter = false;
         dino.targetIndex = (uint8_t)spawn.targetIndex;
         dino.species = DinoSpecies::Velociraptor;
+        dino.state = DinoBehaviorState::Dormant;
         dino.chaseSpeed = spawn.chaseSpeed; // jeep runs 1.2 — raptor gains ground
         dino.attackRange = 2.4f;
-        dino.idleDuration = spawn.idleDuration;
+        dino.holdDuration = spawn.holdDuration;
         dino.maxHealth = 3;
         dino.health = 3;
         dino.tellEndNormalized = 0.28f;
         dino.interruptStartNormalized = 0.18f;
         dino.interruptEndNormalized = 0.46f;
         dino.jumpReactionDuration = 0.35f;
+        dino.retreatDuration = 1.2f;
+        dino.retreatGap = 8.f;
     }
 
     // T-Rex gets its own centered lane (index 6, the 7th and last slot) —
@@ -180,18 +174,22 @@ void World::reset_m1_scene() {
     trexFaction.type = FactionComponent::Enemy;
     DinoBehaviorComponent& trexDino = add_component<DinoBehaviorComponent>(trex);
     trexDino.active = true;
+    trexDino.activeInEncounter = true;
     trexDino.targetIndex = 6;
     trexDino.species = DinoSpecies::Trex;
+    trexDino.state = DinoBehaviorState::Approach;
     trexDino.chaseSpeed = 1.4f;  // heavy stomp — gains on the jeep slowly
     trexDino.attackRange = 3.2f; // longer reach, lunges from farther out
-    trexDino.idleDuration = 2.8f; // offset from the raptor wave so attacks don't sync
-    trexDino.maxHealth = 8;      // boss-weight: soaks far more than a raptor
-    trexDino.health = 8;
+    trexDino.holdDuration = 2.8f; // offset from the raptor wave so attacks don't sync
+    trexDino.maxHealth = 40;     // boss-weight: the level ends when this finally drops
+    trexDino.health = 40;
     trexDino.tellEndNormalized = 0.28f;
     trexDino.interruptStartNormalized = 0.18f;
     trexDino.interruptEndNormalized = 0.46f;
     trexDino.jumpReactionDuration = 0.35f;
     trexDino.attackDamage = 30; // heavier bite than a raptor's 15
+    trexDino.retreatDuration = 1.8f;
+    trexDino.retreatGap = 6.f;
 }
 
 bool World::any_player_active_and_not_sitting_out() const {
@@ -228,11 +226,29 @@ void World::tick(float gameDt) {
     // Always ticks: it owns the hit-flash/invulnerability timers and is the
     // only thing watching for the "insert coin" fire press while frozen.
     PlayerHealthSystem_update(*this, gameDt);
+    // Play-again flow: the LEVEL COMPLETE panel isn't a dead end — a fire
+    // press restarts the whole scene. Two guards keep the trigger-mash that
+    // just killed the T-Rex from skipping the panel before anyone sees it:
+    // a short minimum display time, and fire must be seen RELEASED once
+    // after completion before a press counts (a held trigger never
+    // restarts, no matter how long it's held).
+    if (_levelComplete) {
+        _levelCompleteElapsed += gameDt;
+        bool anyFire = false;
+        for (int p = 0; p < kRexMaxPlayers; ++p) {
+            if (_reticles[p].active && _inputs[p].fire) anyFire = true;
+        }
+        if (!anyFire) {
+            _levelCompleteFireReleased = true;
+        } else if (_levelCompleteFireReleased && _levelCompleteElapsed >= 1.5f) {
+            reset_m1_scene();
+        }
+    }
     // Gameplay runs while at least one active player is still in. Sitting-out
     // players are skipped by ReticleSystem and damage targeting, while an
     // all-out state freezes rail/dinos/reticles/animation until someone
     // continues.
-    if (any_player_active_and_not_sitting_out()) {
+    if (!_levelComplete && any_player_active_and_not_sitting_out()) {
         RailCameraSystem_update(*this, gameDt);
         ReticleSystem_update(*this, gameDt);
         DinoBehaviorSystem_update(*this, gameDt);

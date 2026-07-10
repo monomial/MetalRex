@@ -115,6 +115,13 @@ static void update_targets(World& world, float gameDt) {
             float phase = fmodf(camera.elapsed + target.timerOffset, 3.0f);
             target.active = phase < 2.25f;
         }
+        if (target.moving && !target.active) {
+            target.screenHalfW = 0.f;
+            target.screenHalfH = 0.f;
+            target.weakPointHalfW = 0.f;
+            target.weakPointOffsetY = 0.f;
+            continue;
+        }
         if (target.moving) {
             // Gentle side-to-side weave AROUND this target's own spawn lane
             // (baseLateralOffset) — this used to overwrite lateralOffset
@@ -130,7 +137,6 @@ static void update_targets(World& world, float gameDt) {
                                   + sinf(camera.elapsed * 0.8f + target.timerOffset) * 0.35f;
             // Small run-cycle bob around ground level.
             target.verticalOffset = sinf(camera.elapsed * 2.1f) * 0.04f;
-            target.active = true;
         }
 
         // Targets live BEHIND the jeep (the camera faces backward at
@@ -143,7 +149,7 @@ static void update_targets(World& world, float gameDt) {
         //   clamp is a safety net, not the gameplay path.
         // No loop, so no hang path: one assignment always lands in range.
         float gap = camera.distance - target.railDistance;
-        if (gap > 10.f) {
+        if (gap > 12.f) {
             // Recycle deep, not close: a fresh pursuer should be seen
             // running up from the distance, not popping in at arm's length.
             gap = 5.f + (float)i * 0.8f;
@@ -216,6 +222,17 @@ void RailCameraSystem_update(World& world, float gameDt) {
     RailCameraState& camera = world.rail_camera();
     camera.elapsed += gameDt;
     camera.distance += camera.speed * gameDt;
+    float distanceBeforeWrap = camera.distance;
     update_camera_basis(camera, world.chart());
+    // The test-scene rail loops (update_camera_basis fmod-wraps distance
+    // back to the start), but chart events are consumed by a monotonically
+    // advancing index — without resetting it on wrap, every raptor_wave
+    // fires exactly once and the level goes permanently quiet after the
+    // first lap, even though the T-Rex fight (the thing that actually ends
+    // the level now) usually outlasts a lap. Real levels (M5+) will end the
+    // act instead of looping, at which point this reset never triggers.
+    if (camera.distance < distanceBeforeWrap) {
+        world.set_next_chart_event_index(0);
+    }
     update_targets(world, gameDt);
 }

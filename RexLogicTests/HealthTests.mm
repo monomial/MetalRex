@@ -22,7 +22,14 @@ static void tick(World& world, int count) {
 
 static void placeWithinAttackRange(World& world, DinoBehaviorComponent& dino) {
     TargetComponent& target = world.target(dino.targetIndex);
+    dino.activeInEncounter = true;
+    dino.state = DinoBehaviorState::Hold;
+    dino.stateTime = 0.f;
+    dino.holdDuration = 0.f;
+    dino.attackDelay = 0.f;
     target.railDistance = world.rail_camera().distance - dino.attackRange + 0.5f;
+    target.active = true;
+    target.moving = true;
     // Center the lateral position rather than leaving whatever spawn-time
     // spread this target's raptor slot happens to be tuned to: DinoBehavior
     // routes a landed attack's damage to whichever player's reticle is
@@ -43,13 +50,11 @@ static void placeWithinAttackRange(World& world, DinoBehaviorComponent& dino) {
     XCTAssertNotEqual(dinoId, kInvalidEntity);
 
     DinoBehaviorComponent& dino = world.get_component<DinoBehaviorComponent>(dinoId);
-    dino.idleDuration = 0.f;
     dino.jumpReactionDuration = 0.1f;
     placeWithinAttackRange(world, dino);
     int startHealth = world.player_health(0).health;
 
     tick(world, 5);
-    dino.idleDuration = 5.f;
     tick(world, 40);
 
     XCTAssertEqual(dino.lastOutcome, DinoInterruptOutcome::Failed);

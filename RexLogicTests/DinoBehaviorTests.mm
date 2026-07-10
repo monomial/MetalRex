@@ -18,18 +18,64 @@ static EntityID findDino(World& world) {
     return kInvalidEntity;
 }
 
+static EntityID findTrex(World& world) {
+    for (EntityID id = 0; id < world.entity_count(); ++id) {
+        if (!world.has_component<DinoBehaviorComponent>(id)) continue;
+        if (world.get_component<DinoBehaviorComponent>(id).species == DinoSpecies::Trex) {
+            return id;
+        }
+    }
+    return kInvalidEntity;
+}
+
 static void tick(World& world, int count) {
     for (int i = 0; i < count; ++i) {
         world.update(1.f / 120.f, 1.f / 120.f);
     }
 }
 
+static void activateDino(World& world, EntityID id, DinoBehaviorState state) {
+    DinoBehaviorComponent& dino = world.get_component<DinoBehaviorComponent>(id);
+    dino.activeInEncounter = true;
+    dino.state = state;
+    dino.stateTime = 0.f;
+    TargetComponent& target = world.target(dino.targetIndex);
+    target.active = true;
+    target.moving = true;
+}
+
+static int activeRaptorCount(World& world) {
+    int count = 0;
+    for (EntityID id = 0; id < world.entity_count(); ++id) {
+        if (!world.has_component<DinoBehaviorComponent>(id)) continue;
+        const DinoBehaviorComponent& dino = world.get_component<DinoBehaviorComponent>(id);
+        if (dino.species == DinoSpecies::Velociraptor && dino.activeInEncounter) ++count;
+    }
+    return count;
+}
+
+static EntityID raptorWithLaneRole(World& world, uint8_t laneRole) {
+    for (EntityID id = 0; id < world.entity_count(); ++id) {
+        if (!world.has_component<DinoBehaviorComponent>(id)) continue;
+        const DinoBehaviorComponent& dino = world.get_component<DinoBehaviorComponent>(id);
+        if (dino.species == DinoSpecies::Velociraptor
+            && dino.activeInEncounter
+            && dino.laneRole == laneRole) {
+            return id;
+        }
+    }
+    return kInvalidEntity;
+}
+
 // Attacks are proximity-gated: the dino must be within attackRange behind
 // the jeep before enter_attack can fire. Tests that need an attack place the
 // dino at close range first.
 static void placeWithinAttackRange(World& world, DinoBehaviorComponent& dino) {
+    dino.activeInEncounter = true;
     world.target(dino.targetIndex).railDistance =
         world.rail_camera().distance - dino.attackRange + 0.5f;
+    world.target(dino.targetIndex).active = true;
+    world.target(dino.targetIndex).moving = true;
 }
 
 - (void)test_interruptWithinWindowCancelsAttackAndTransitionsToJumpReaction {
@@ -38,7 +84,9 @@ static void placeWithinAttackRange(World& world, DinoBehaviorComponent& dino) {
     XCTAssertNotEqual(dinoId, kInvalidEntity);
 
     DinoBehaviorComponent& dino = world.get_component<DinoBehaviorComponent>(dinoId);
-    dino.idleDuration = 0.f;
+    activateDino(world, dinoId, DinoBehaviorState::Hold);
+    dino.holdDuration = 0.f;
+    dino.attackDelay = 0.f;
     dino.interruptStartNormalized = 0.18f;
     dino.interruptEndNormalized = 0.60f;
     placeWithinAttackRange(world, dino);
@@ -60,26 +108,18 @@ static void placeWithinAttackRange(World& world, DinoBehaviorComponent& dino) {
     XCTAssertNotEqual(dinoId, kInvalidEntity);
 
     DinoBehaviorComponent& dino = world.get_component<DinoBehaviorComponent>(dinoId);
-    // idleDuration=0 only to start the FIRST attack without waiting — it must
-    // not stay 0 for the whole test, or the post-miss Idle period is also
-    // zero-length: the state machine re-enters Tell in the same tick it
-    // reaches Idle, and "settled in Idle" is never observable. Bump it back
-    // up once the first attack is safely underway (5 ticks, well short of
-    // the ~31-tick fallback Attack duration) so the Idle it lands in *after*
-    // the miss is actually one this test can catch.
-    dino.idleDuration = 0.f;
+    activateDino(world, dinoId, DinoBehaviorState::Hold);
+    dino.holdDuration = 0.f;
+    dino.attackDelay = 0.f;
     dino.jumpReactionDuration = 0.1f;
     placeWithinAttackRange(world, dino);
     tick(world, 5);
-    dino.idleDuration = 5.f;
     tick(world, 40);
 
     AnimationComponent& anim = world.get_component<AnimationComponent>(dinoId);
     XCTAssertEqual(dino.lastOutcome, DinoInterruptOutcome::Failed);
     XCTAssertTrue(dino.outcomeThisCycle);
-    XCTAssertEqual(dino.state, DinoBehaviorState::Idle);
-    // The Idle state is the chase phase — the dino runs after the jeep,
-    // so it plays Run, not Idle.
+    XCTAssertEqual(dino.state, DinoBehaviorState::Retreat);
     XCTAssertEqual(anim.currentClip, CharacterClipSlot::Run);
 }
 
@@ -89,7 +129,8 @@ static void placeWithinAttackRange(World& world, DinoBehaviorComponent& dino) {
     XCTAssertNotEqual(dinoId, kInvalidEntity);
 
     DinoBehaviorComponent& dino = world.get_component<DinoBehaviorComponent>(dinoId);
-    dino.idleDuration = 10.f; // stay in the chase for the whole first phase
+    activateDino(world, dinoId, DinoBehaviorState::Approach);
+    dino.holdDuration = 10.f; // stay out of the attack for the whole first phase
     dino.chaseSpeed = 1.6f;
 
     // Start well behind (outside attackRange, inside the recycle window).
@@ -105,7 +146,10 @@ static void placeWithinAttackRange(World& world, DinoBehaviorComponent& dino) {
                    CharacterClipSlot::Run);
 
     // Entering the attack cycle freezes the chase.
-    dino.idleDuration = 0.f;
+    dino.state = DinoBehaviorState::Hold;
+    dino.stateTime = 0.f;
+    dino.holdDuration = 0.f;
+    dino.attackDelay = 0.f;
     placeWithinAttackRange(world, dino);
     tick(world, 1);
     XCTAssertEqual(dino.state, DinoBehaviorState::Tell);
@@ -121,7 +165,8 @@ static void placeWithinAttackRange(World& world, DinoBehaviorComponent& dino) {
     XCTAssertNotEqual(dinoId, kInvalidEntity);
 
     DinoBehaviorComponent& dino = world.get_component<DinoBehaviorComponent>(dinoId);
-    dino.idleDuration = 100.f; // never attack during this test
+    activateDino(world, dinoId, DinoBehaviorState::Approach);
+    dino.holdDuration = 100.f; // never attack during this test
     int startHealth = dino.health;
     XCTAssertGreaterThan(startHealth, 1);
 
@@ -130,7 +175,7 @@ static void placeWithinAttackRange(World& world, DinoBehaviorComponent& dino) {
     tick(world, 1);
     XCTAssertEqual(dino.health, startHealth - 1);
     XCTAssertGreaterThan(dino.hitFlashTime, 0.f);
-    XCTAssertEqual(dino.state, DinoBehaviorState::Idle);
+    XCTAssertEqual(dino.state, DinoBehaviorState::Approach);
 
     // Drain the rest: death cuts through to the Death clip.
     for (int shot = 1; shot < startHealth; ++shot) {
@@ -152,13 +197,147 @@ static void placeWithinAttackRange(World& world, DinoBehaviorComponent& dino) {
     // plus the 0.8s dissolve, then the dino respawns deep behind the jeep
     // with health restored.
     tick(world, 450);
-    XCTAssertEqual(dino.state, DinoBehaviorState::Idle);
+    XCTAssertEqual(dino.state, DinoBehaviorState::Dormant);
+    XCTAssertFalse(dino.activeInEncounter);
     XCTAssertEqual(dino.health, dino.maxHealth);
     XCTAssertEqualWithAccuracy(world.get_component<AnimationComponent>(dinoId).deathFade,
                                1.f, 0.0001f);
     float gap = world.rail_camera().distance - world.target(dino.targetIndex).railDistance;
     XCTAssertGreaterThan(gap, 4.f);
     XCTAssertLessThanOrEqual(gap, 10.f);
+}
+
+- (void)test_trexHasBossHealthAndDeathCompletesLevelWithoutRespawn {
+    World world;
+    EntityID trexId = findTrex(world);
+    XCTAssertNotEqual(trexId, kInvalidEntity);
+
+    DinoBehaviorComponent& trex = world.get_component<DinoBehaviorComponent>(trexId);
+    XCTAssertEqual(trex.maxHealth, 40);
+    XCTAssertEqual(trex.health, 40);
+    XCTAssertTrue(trex.activeInEncounter);
+
+    trex.health = 1;
+    world.target(trex.targetIndex).wasHit = true;
+    tick(world, 1);
+
+    XCTAssertEqual(trex.state, DinoBehaviorState::Dying);
+    XCTAssertFalse(world.level_complete());
+
+    tick(world, 450);
+    XCTAssertTrue(world.level_complete());
+    XCTAssertFalse(trex.active);
+    XCTAssertFalse(trex.activeInEncounter);
+    XCTAssertFalse(world.target(trex.targetIndex).active);
+
+    float distanceAfterComplete = world.rail_camera().distance;
+    tick(world, 60);
+    XCTAssertEqualWithAccuracy(world.rail_camera().distance, distanceAfterComplete, 0.0001f);
+    XCTAssertEqual(trex.health, 0);
+}
+
+- (void)test_firePressAfterLevelCompleteRestartsTheLevel {
+    World world;
+    EntityID trexId = findTrex(world);
+    XCTAssertNotEqual(trexId, kInvalidEntity);
+
+    // Kill the boss with fire HELD — the exact input state a player is in
+    // at the moment the T-Rex drops.
+    world.get_component<DinoBehaviorComponent>(trexId).health = 1;
+    world.target(world.get_component<DinoBehaviorComponent>(trexId).targetIndex).wasHit = true;
+    InputState heldFire = {};
+    heldFire.fire = true;
+    world.set_input(heldFire, 0);
+    tick(world, 500);
+    XCTAssertTrue(world.level_complete());
+
+    // Fire held through the panel: must NOT restart, no matter how long —
+    // the trigger-mash that killed the boss can't skip the panel.
+    tick(world, 400); // >1.5s minimum display time, fire never released
+    XCTAssertTrue(world.level_complete());
+
+    // Release, then a fresh press: restarts the scene.
+    world.set_input(InputState{}, 0);
+    tick(world, 5);
+    world.set_input(heldFire, 0);
+    tick(world, 5);
+
+    XCTAssertFalse(world.level_complete());
+    // Fresh scene: boss active again at (nearly) full health — the restart
+    // press itself is still a held trigger in the new scene, and the T-Rex
+    // respawns center-screen under the centered reticle, so that press
+    // legitimately lands one shot on the fresh boss in the restart tick.
+    EntityID trexAfter = findTrex(world);
+    XCTAssertNotEqual(trexAfter, kInvalidEntity);
+    const DinoBehaviorComponent& trex = world.get_component<DinoBehaviorComponent>(trexAfter);
+    XCTAssertTrue(trex.active);
+    XCTAssertTrue(trex.activeInEncounter);
+    XCTAssertGreaterThanOrEqual(trex.health, trex.maxHealth - 1);
+    XCTAssertGreaterThan(trex.health, 0);
+}
+
+- (void)test_chartRaptorWaveActivatesSoloPairAndPack {
+    World world;
+    XCTAssertEqual(activeRaptorCount(world), 0);
+
+    tick(world, 61); // crosses the 8.6 solo wave from the 8.0 camera start
+    XCTAssertEqual(activeRaptorCount(world), 1);
+
+    tick(world, 780); // solo has time to pounce, retreat, and free its slot
+    XCTAssertEqual(activeRaptorCount(world), 2);
+
+    tick(world, 840); // pair clears before the 22.0 three-raptor wave
+    XCTAssertEqual(activeRaptorCount(world), 3);
+}
+
+- (void)test_chartEventsRearmAfterRailLoopWrap {
+    // The test rail loops (fmod wrap in RailCameraSystem) but chart events
+    // are consumed by a monotonically advancing index — without resetting
+    // it on wrap, all raptor_wave events fire exactly once and the level
+    // goes permanently quiet after the first lap, while the 40HP T-Rex
+    // fight usually outlasts a lap.
+    World world;
+    XCTAssertGreaterThan(world.chart().events.size(), 0u);
+    world.rail_camera().speed = 40.f; // cross the whole test rail in under a second
+
+    float previous = world.rail_camera().distance;
+    bool wrapped = false;
+    for (int i = 0; i < 600 && !wrapped; ++i) {
+        world.update(1.f / 120.f, 1.f / 120.f);
+        float current = world.rail_camera().distance;
+        if (current < previous) wrapped = true;
+        previous = current;
+    }
+    XCTAssertTrue(wrapped);
+    // Before the wrap every event was consumed (index == events.size());
+    // the wrap must rearm them for the next lap.
+    XCTAssertLessThan(world.next_chart_event_index(), world.chart().events.size());
+}
+
+- (void)test_raptorWaveApproachesHoldsThenStaggersPounce {
+    World world;
+    tick(world, 61);
+    EntityID dinoId = raptorWithLaneRole(world, 0);
+    XCTAssertNotEqual(dinoId, kInvalidEntity);
+
+    DinoBehaviorComponent& dino = world.get_component<DinoBehaviorComponent>(dinoId);
+    XCTAssertEqual(dino.state, DinoBehaviorState::Approach);
+
+    tick(world, 320);
+    XCTAssertTrue(dino.state == DinoBehaviorState::Hold
+                  || dino.state == DinoBehaviorState::Tell
+                  || dino.state == DinoBehaviorState::Attack);
+
+    World pairWorld;
+    tick(pairWorld, 61 + 780);
+    EntityID first = raptorWithLaneRole(pairWorld, 0);
+    EntityID second = raptorWithLaneRole(pairWorld, 1);
+    XCTAssertNotEqual(first, kInvalidEntity);
+    XCTAssertNotEqual(second, kInvalidEntity);
+
+    DinoBehaviorComponent& lead = pairWorld.get_component<DinoBehaviorComponent>(first);
+    DinoBehaviorComponent& trailer = pairWorld.get_component<DinoBehaviorComponent>(second);
+    XCTAssertLessThan(lead.attackDelay, trailer.attackDelay);
 }
 
 - (void)test_incompletePerSpeciesClipTableFailsLoudly {

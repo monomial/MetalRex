@@ -548,6 +548,10 @@
 						DevelopmentTeam = 74V7G3NQ7Y;
 						ProvisioningStyle = Automatic;
 					};
+					D4C82CD46FE35AFDFA6898C7 = {
+						DevelopmentTeam = 74V7G3NQ7Y;
+						ProvisioningStyle = Automatic;
+					};
 				};
 			};
 			buildConfigurationList = E74834E0FB3E5BA278418471 /* Build configuration list for PBXProject "MetalRex" */;
@@ -838,7 +842,10 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_CXX_LANGUAGE_STANDARD = "c++20";
 				CLANG_CXX_LIBRARY = "libc++";
+				CODE_SIGNING_ALLOWED = YES;
+				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
+				DEVELOPMENT_TEAM = 74V7G3NQ7Y;
 				ENABLE_DEBUG_DYLIB = NO;
 				GCC_ENABLE_OBJC_EXCEPTIONS = YES;
 				HEADER_SEARCH_PATHS = "$(SRCROOT)/RexEngine";
@@ -860,7 +867,10 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_CXX_LANGUAGE_STANDARD = "c++20";
 				CLANG_CXX_LIBRARY = "libc++";
+				CODE_SIGNING_ALLOWED = YES;
+				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
+				DEVELOPMENT_TEAM = 74V7G3NQ7Y;
 				ENABLE_DEBUG_DYLIB = NO;
 				GCC_ENABLE_OBJC_EXCEPTIONS = YES;
 				HEADER_SEARCH_PATHS = "$(SRCROOT)/RexEngine";

@@ -46,6 +46,52 @@ static RexVec3 parse_vec3(id value, NSString *label) {
             [(NSNumber *)array[2] floatValue]};
 }
 
+static RaptorWaveChartPayload parse_raptor_wave_payload(id payload) {
+    if (![payload isKindOfClass:[NSDictionary class]]) {
+        throw chart_error(@"raptor_wave payload must be an object");
+    }
+    NSDictionary *dict = (NSDictionary *)payload;
+
+    int groupSize = [required_number(dict, @"groupSize") intValue];
+    if (groupSize < 1 || groupSize > 3) {
+        throw chart_error(@"raptor_wave groupSize must be 1, 2, or 3");
+    }
+
+    NSArray *lanes = required_array(dict, @"lanes");
+    if ((int)lanes.count != groupSize) {
+        throw chart_error(@"raptor_wave lanes count must equal groupSize");
+    }
+
+    RaptorWaveChartPayload out;
+    out.valid = true;
+    out.groupSize = (uint8_t)groupSize;
+    for (int i = 0; i < groupSize; ++i) {
+        if (![lanes[i] isKindOfClass:[NSNumber class]]) {
+            throw chart_error(@"raptor_wave lanes must contain numbers");
+        }
+        out.lanes[i] = [(NSNumber *)lanes[i] floatValue];
+    }
+
+    out.spawnGap = [required_number(dict, @"spawnGap") floatValue];
+    out.holdSeconds = [required_number(dict, @"holdSeconds") floatValue];
+    out.attackStaggerSeconds = [required_number(dict, @"attackStaggerSeconds") floatValue];
+    if (out.spawnGap <= 1.f) {
+        throw chart_error(@"raptor_wave spawnGap must be greater than 1");
+    }
+    if (out.holdSeconds < 0.f || out.attackStaggerSeconds < 0.f) {
+        throw chart_error(@"raptor_wave timing values must be non-negative");
+    }
+
+    id label = dict[@"label"];
+    if (label) {
+        if (![label isKindOfClass:[NSString class]]) {
+            throw chart_error(@"raptor_wave label must be a string");
+        }
+        out.label = [(NSString *)label UTF8String];
+    }
+    return out;
+}
+
 static std::string json_string_for_object(id object) {
     if (!object || ![NSJSONSerialization isValidJSONObject:object]) return "{}";
     NSData *data = [NSJSONSerialization dataWithJSONObject:object options:0 error:nil];
@@ -123,7 +169,11 @@ LevelChart ChartLoader_load_file(const char *path) {
                 ChartEvent out;
                 out.distance = [required_number(event, @"distance") floatValue];
                 out.type = [(NSString *)type UTF8String];
-                out.payloadJSON = json_string_for_object(event[@"payload"] ?: @{});
+                id payload = event[@"payload"] ?: @{};
+                out.payloadJSON = json_string_for_object(payload);
+                if (out.type == "raptor_wave") {
+                    out.raptorWave = parse_raptor_wave_payload(payload);
+                }
                 chart.events.push_back(out);
             }
             std::sort(chart.events.begin(), chart.events.end(),

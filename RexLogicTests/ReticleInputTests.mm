@@ -13,6 +13,25 @@
     ReticleSystem_set_tuning(tuning);
 }
 
+static void activateTarget(World& world, int targetIndex) {
+    TargetComponent& target = world.target(targetIndex);
+    target.active = true;
+    target.moving = true;
+}
+
+static void activateDinoForTarget(World& world, int targetIndex) {
+    activateTarget(world, targetIndex);
+    for (EntityID id = 0; id < world.entity_count(); ++id) {
+        if (!world.has_component<DinoBehaviorComponent>(id)) continue;
+        DinoBehaviorComponent& dino = world.get_component<DinoBehaviorComponent>(id);
+        if (dino.targetIndex != targetIndex) continue;
+        dino.activeInEncounter = true;
+        dino.state = DinoBehaviorState::Approach;
+        dino.holdDuration = 100.f;
+        break;
+    }
+}
+
 - (void)test_stickOnlyInputMovesReticleInScreenSpace {
     World world;
     world.reticle(0).x = 0.2f;
@@ -110,6 +129,7 @@
     // position directly with no TargetComponent nearby, so overTarget was
     // never true and this never actually exercised the friction/magnet code.
     World world;
+    activateTarget(world, 0);
     world.update(1.f / 120.f, 1.f / 120.f);
     const TargetComponent& target = world.target(0);
     XCTAssertTrue(target.active);
@@ -140,6 +160,7 @@
     // the net effect could stall or reverse a deliberate escape attempt on
     // the very first tick, which reads as a soft snap-lock.
     World world;
+    activateTarget(world, 0);
     world.update(1.f / 120.f, 1.f / 120.f);
     const TargetComponent& target = world.target(0);
     world.reticle(0).x = target.screenX;
@@ -157,6 +178,7 @@
     // Same bug, sustained: holding a deliberate escape direction for a full
     // second must actually leave the target's box, not hover near it forever.
     World world;
+    activateTarget(world, 0);
     world.update(1.f / 120.f, 1.f / 120.f);
     const TargetComponent& target = world.target(0);
     world.reticle(0).x = target.screenX;
@@ -175,6 +197,7 @@
 
 - (void)test_fireMarksTargetHitByReticleScreenBounds {
     World world;
+    activateDinoForTarget(world, 0);
     world.update(1.f / 120.f, 1.f / 120.f);
     const TargetComponent& target = world.target(0);
     world.reticle(0).x = target.screenX;
@@ -201,6 +224,7 @@
 
 - (void)test_movingTargetUpdatesWhileRailCameraMovesForward {
     World world;
+    activateTarget(world, 3);
     world.update(1.f / 120.f, 1.f / 120.f);
     float firstCameraDistance = world.rail_camera().distance;
     float firstX = world.target(3).screenX;
