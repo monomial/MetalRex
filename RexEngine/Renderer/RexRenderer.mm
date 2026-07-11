@@ -1149,7 +1149,11 @@ static id<MTLTexture> Rex_makeScoreTexture(id<MTLDevice> device, NSString *score
 
         // New shots since last frame -> spawn tracers along the beam path.
         uint32_t shots = reticle.shotCount;
-        if (shots != _lastShotCount[i]) {
+        if (shots < _lastShotCount[i]) {
+            // Run restart (play-again zeroes shotCount): resync without
+            // spawning phantom tracers from the unsigned wraparound.
+            _lastShotCount[i] = shots;
+        } else if (shots != _lastShotCount[i]) {
             uint32_t newShots = shots - _lastShotCount[i];
             _lastShotCount[i] = shots;
             for (uint32_t s = 0; s < newShots && s < 3; ++s) {

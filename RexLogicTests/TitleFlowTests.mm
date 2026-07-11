@@ -148,4 +148,37 @@ static void tick(World& world, int count) {
     XCTAssertTrue(world.reticle(1).active);
 }
 
+- (void)test_joinDuringGradeScreenJoinsWithoutRestartingTheRun {
+    // Review finding: a never-joined P2 pressing fire during the grade
+    // screen was double-consumed — the press joined P2 AND counted for the
+    // armed play-again gate in the same tick, yanking P1's grade screen
+    // into an instant restart. A join press must only join; play-again
+    // then needs its own fresh release-then-press.
+    World world;
+    world.enter_title();
+    tick(world, 5);
+    InputState press = {};
+    press.fire = true;
+    world.set_input(press, 0);
+    tick(world, 1);
+    world.set_input(InputState{}, 0);
+
+    world.complete_level();
+    tick(world, 200); // panel past its minimum display, all fire released
+
+    world.set_input(press, 1); // P2 joins at the grade screen
+    tick(world, 5);
+    XCTAssertTrue(world.reticle(1).active);
+    XCTAssertTrue(world.level_complete()); // grade screen NOT dismissed
+
+    // A fresh release-then-press now restarts, with both players in.
+    world.set_input(InputState{}, 1);
+    tick(world, 5);
+    world.set_input(press, 0);
+    tick(world, 5);
+    XCTAssertFalse(world.level_complete());
+    XCTAssertTrue(world.reticle(0).active);
+    XCTAssertTrue(world.reticle(1).active);
+}
+
 @end

@@ -157,7 +157,11 @@
     // New shots since last poll -> one rumble pulse per shot, same
     // shotCount-diff pattern RexRenderer uses to spawn tracers.
     uint32_t shots = [_host shotCountForPlayer:0];
-    if (shots != _lastShotCount) {
+    if (shots < _lastShotCount) {
+        // Run restart (play-again zeroes shotCount): resync without phantom
+        // rumble pulses from the unsigned wraparound.
+        _lastShotCount = shots;
+    } else if (shots != _lastShotCount) {
         uint32_t newShots = shots - _lastShotCount;
         _lastShotCount = shots;
         for (uint32_t s = 0; s < newShots && s < 3; ++s) {

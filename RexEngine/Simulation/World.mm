@@ -94,7 +94,9 @@ void World::reset_m1_scene() {
         _reticles[i] = {};
         _reticles[i].playerIndex = (uint8_t)i;
         _reticles[i].active = wasActive;
-        _reticles[i].x = (i == 1) ? 0.62f : 0.5f;
+        // Per-slot starting x so no two reticles stack before anyone moves.
+        static constexpr float kReticleStartX[kRexMaxPlayers] = {0.5f, 0.62f, 0.38f, 0.74f};
+        _reticles[i].x = kReticleStartX[i];
         _reticles[i].y = 0.5f;
     }
 
@@ -295,6 +297,13 @@ void World::tick(float gameDt) {
         } else if (_fireSeenReleased[p]) {
             bool firstJoin = (_phase == GamePhase::Title);
             join_player(*this, p);
+            // A join press during the grade screen must ONLY join: without
+            // re-arming the play-again gate here, the same held press was
+            // also counted by the play-again scan later this tick, yanking
+            // the other player's grade screen into an instant restart.
+            if (_levelComplete) {
+                _levelCompleteFireReleased = false;
+            }
             if (firstJoin) {
                 // Confirming 2 PLAYERS brings both slots in immediately —
                 // classic cabinet behavior; the join-anytime path still

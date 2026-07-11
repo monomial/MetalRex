@@ -26,8 +26,10 @@
     _renderer = [[RexRenderer alloc] initWithDevice:_device pixelFormat:pixelFormat];
     _world = new World();
     // Real render path boots to the title screen; players join by pressing
-    // fire. Headless (tests, --capture-out automation without --auto-fire
-    // pressing fire) constructs straight into a running 2P world instead.
+    // fire. That includes --capture-out runs: a plain capture shows the
+    // title, and gameplay captures need --auto-fire (whose first pulse
+    // joins P1 and starts a solo run). Only initHeadless below — unit
+    // tests — constructs straight into a running 2P world.
     _world->enter_title();
     _lastFrameTime = CACurrentMediaTime();
     _inputs[0] = {};
