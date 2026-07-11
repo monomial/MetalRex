@@ -9,6 +9,7 @@ struct RexUniforms {
 struct RexVertexOut {
     float4 position [[position]];
     float4 color;
+    float viewDepth;
 };
 
 struct RexVertex {
@@ -21,11 +22,23 @@ vertex RexVertexOut rex_vertex(uint vertexID [[vertex_id]],
     RexVertexOut out;
     out.position = uniforms.mvp * float4(vertices[vertexID].position, 1.0);
     out.color = uniforms.color;
+    // Perspective draws carry view depth in clip w; the HUD's orthographic
+    // draws land at w == 1, safely below the fog ramp's start, so overlay
+    // elements are structurally exempt from fog without a separate pipeline.
+    out.viewDepth = out.position.w;
     return out;
 }
 
 fragment float4 rex_fragment(RexVertexOut in [[stage_in]]) {
-    return in.color;
+    // Distance fog toward the sky's horizon haze: cheap aerial perspective
+    // that seats the distant treeline ridge into the sky gradient instead
+    // of leaving a hard silhouette edge.
+    const float3 fogColor = float3(0.87, 0.86, 0.76);
+    const float fogStart = 16.0;
+    const float fogEnd = 80.0;
+    const float maxFog = 0.88;
+    float fogT = clamp((in.viewDepth - fogStart) / (fogEnd - fogStart), 0.0, 1.0) * maxFog;
+    return float4(mix(in.color.rgb, fogColor, fogT), in.color.a);
 }
 
 // ---------------------------------------------------------------------------

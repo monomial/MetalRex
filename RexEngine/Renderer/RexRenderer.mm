@@ -246,6 +246,8 @@ static id<MTLTexture> Rex_makeSkyGradientTexture(id<MTLDevice> device) {
     // pipeline is one flat color per draw call).
     BOOL _envBuilt;
     id<MTLBuffer> _envRoadVB;      NSUInteger _envRoadCount;
+    id<MTLBuffer> _envRoadEdgeVB;  NSUInteger _envRoadEdgeCount;
+    id<MTLBuffer> _envCloudVB;     NSUInteger _envCloudCount;
     id<MTLBuffer> _envTrunkVB;     NSUInteger _envTrunkCount;
     id<MTLBuffer> _envCanopyAVB;   NSUInteger _envCanopyACount;
     id<MTLBuffer> _envCanopyBVB;   NSUInteger _envCanopyBCount;
@@ -1416,8 +1418,11 @@ static id<MTLTexture> Rex_makeScoreTexture(id<MTLDevice> device, NSString *score
     const float kOverrun = 14.f; // road/trees continue past both rail ends
     float groundY = kGroundWorldY;
 
-    // Road ribbon, slightly above the ground plane to avoid z-fighting.
-    std::vector<RexVertex> road;
+    // Road ribbon, slightly above the ground plane to avoid z-fighting,
+    // with a thin lighter edge strip on both sides (worn shoulder) so the
+    // road doesn't meet the grass as one hard line.
+    std::vector<RexVertex> road, roadEdge;
+    const float kEdgeWidth = 0.35f;
     for (float d = -kOverrun; d < length + kOverrun; d += 0.4f) {
         float d1 = d + 0.4f;
         simd_float3 c0 = env_rail_position(rail, d);
@@ -1429,6 +1434,16 @@ static id<MTLTexture> Rex_makeScoreTexture(id<MTLDevice> device, NSString *score
         l0.y = g0.y = l1.y = g1.y = groundY + 0.02f;
         road.push_back({l0}); road.push_back({g0}); road.push_back({l1});
         road.push_back({g0}); road.push_back({g1}); road.push_back({l1});
+
+        simd_float3 le0 = c0 - r0 * (kRoadHalfWidth + kEdgeWidth);
+        simd_float3 le1 = c1 - r1 * (kRoadHalfWidth + kEdgeWidth);
+        simd_float3 ge0 = c0 + r0 * (kRoadHalfWidth + kEdgeWidth);
+        simd_float3 ge1 = c1 + r1 * (kRoadHalfWidth + kEdgeWidth);
+        le0.y = le1.y = ge0.y = ge1.y = groundY + 0.015f;
+        roadEdge.push_back({le0}); roadEdge.push_back({l0}); roadEdge.push_back({le1});
+        roadEdge.push_back({l0});  roadEdge.push_back({l1}); roadEdge.push_back({le1});
+        roadEdge.push_back({g0});  roadEdge.push_back({ge0}); roadEdge.push_back({g1});
+        roadEdge.push_back({ge0}); roadEdge.push_back({ge1}); roadEdge.push_back({g1});
     }
 
     // Tree line on both sides: trunk + two stacked canopy cones, canopy
@@ -1453,11 +1468,34 @@ static id<MTLTexture> Rex_makeScoreTexture(id<MTLDevice> device, NSString *score
             float s = env_rand_range(rng, 0.75f, maxScale);
             env_append_cylinder(trunks, base, 0.11f * s, 0.9f * s, 6);
             std::vector<RexVertex>& canopy = (env_rand(rng) & 1) ? canopyA : canopyB;
-            simd_float3 c1 = base + (simd_float3){0.f, 0.55f * s, 0.f};
-            simd_float3 c2 = base + (simd_float3){0.f, 1.25f * s, 0.f};
-            env_append_cone(canopy, c1, 0.72f * s, 1.15f * s, 7);
-            env_append_cone(canopy, c2, 0.48f * s, 0.85f * s, 7);
+            if (env_rand01(rng) < 0.35f) {
+                // Broadleaf: a rounded blob canopy on a shorter trunk —
+                // breaks up the all-conifer skyline.
+                simd_float3 blob = base + (simd_float3){0.f, 1.0f * s, 0.f};
+                env_append_rock(canopy, blob, 0.75f * s, 0.65f * s, 7, rng);
+            } else {
+                simd_float3 c1 = base + (simd_float3){0.f, 0.55f * s, 0.f};
+                simd_float3 c2 = base + (simd_float3){0.f, 1.25f * s, 0.f};
+                env_append_cone(canopy, c1, 0.72f * s, 1.15f * s, 7);
+                env_append_cone(canopy, c2, 0.48f * s, 0.85f * s, 7);
+            }
         }
+    }
+
+    // Clouds: big flattened white blobs drifting far off to the sides and
+    // high up — never over the road corridor, so they read as sky without
+    // ever intersecting gameplay sightlines to targets.
+    std::vector<RexVertex> clouds;
+    for (float d = -kOverrun * 2.f; d < length + kOverrun * 2.f; d += 5.5f) {
+        if (env_rand01(rng) > 0.55f) continue;
+        float side = (env_rand(rng) & 1) ? 1.f : -1.f;
+        float lateral = env_rand_range(rng, 12.f, 40.f) * side;
+        simd_float3 base = env_rail_position(rail, d) + env_rail_right(rail, d) * lateral;
+        base.y = groundY + env_rand_range(rng, 9.f, 16.f);
+        float s = env_rand_range(rng, 1.6f, 3.4f);
+        env_append_rock(clouds, base, s, s * 0.35f, 7, rng);
+        env_append_rock(clouds, base + (simd_float3){s * 0.8f, -s * 0.1f, s * 0.4f},
+                        s * 0.6f, s * 0.25f, 6, rng);
     }
 
     // Distant treeline "ridge": oversized dark cones far off both sides
@@ -1507,6 +1545,8 @@ static id<MTLTexture> Rex_makeScoreTexture(id<MTLDevice> device, NSString *score
                                                      options:MTLResourceStorageModeShared];
     };
     makeBuffer(road, &_envRoadVB, &_envRoadCount);
+    makeBuffer(roadEdge, &_envRoadEdgeVB, &_envRoadEdgeCount);
+    makeBuffer(clouds, &_envCloudVB, &_envCloudCount);
     makeBuffer(trunks, &_envTrunkVB, &_envTrunkCount);
     makeBuffer(canopyA, &_envCanopyAVB, &_envCanopyACount);
     makeBuffer(canopyB, &_envCanopyBVB, &_envCanopyBCount);
@@ -1529,6 +1569,8 @@ static id<MTLTexture> Rex_makeScoreTexture(id<MTLDevice> device, NSString *score
 }
 
 - (void)_drawEnvironment:(simd_float4x4)mvp encoder:(id<MTLRenderCommandEncoder>)encoder {
+    [self _drawEnvBuffer:_envRoadEdgeVB count:_envRoadEdgeCount
+                   color:(simd_float4){0.55f, 0.48f, 0.36f, 1.f} mvp:mvp encoder:encoder];
     [self _drawEnvBuffer:_envRoadVB count:_envRoadCount
                    color:(simd_float4){0.45f, 0.38f, 0.29f, 1.f} mvp:mvp encoder:encoder];
     [self _drawEnvBuffer:_envRockVB count:_envRockCount
@@ -1541,6 +1583,8 @@ static id<MTLTexture> Rex_makeScoreTexture(id<MTLDevice> device, NSString *score
                    color:(simd_float4){0.20f, 0.42f, 0.21f, 1.f} mvp:mvp encoder:encoder];
     [self _drawEnvBuffer:_envCanopyBVB count:_envCanopyBCount
                    color:(simd_float4){0.28f, 0.50f, 0.25f, 1.f} mvp:mvp encoder:encoder];
+    [self _drawEnvBuffer:_envCloudVB count:_envCloudCount
+                   color:(simd_float4){0.97f, 0.97f, 0.95f, 1.f} mvp:mvp encoder:encoder];
 }
 
 // Full-screen sky gradient, drawn first with depth writes off so all 3D
