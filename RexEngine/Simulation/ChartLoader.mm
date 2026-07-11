@@ -100,6 +100,46 @@ static std::string json_string_for_object(id object) {
     return string ? [string UTF8String] : "{}";
 }
 
+// Optional numeric field: absent -> fallback, present-but-not-a-number ->
+// loud failure (a typo'd value should never silently become the default).
+static float optional_float(NSDictionary *dict, NSString *key, float fallback) {
+    id value = dict[key];
+    if (!value) return fallback;
+    if (![value isKindOfClass:[NSNumber class]]) {
+        throw chart_error([NSString stringWithFormat:@"%@ must be a number", key]);
+    }
+    return [(NSNumber *)value floatValue];
+}
+
+static BossChartConfig parse_boss_config(id bossObject) {
+    if (![bossObject isKindOfClass:[NSDictionary class]]) {
+        throw chart_error(@"boss must be an object");
+    }
+    NSDictionary *dict = (NSDictionary *)bossObject;
+    id species = dict[@"species"];
+    if (![species isKindOfClass:[NSString class]]) {
+        throw chart_error(@"boss.species must be a string");
+    }
+    BossChartConfig out; // field defaults double as the fallback values
+    out.species = [(NSString *)species UTF8String];
+    // Species whitelist mirrors the loadable character set — a typo (or a
+    // species whose asset hasn't landed yet, e.g. triceratops) must fail at
+    // chart load, not silently render the wrong boss.
+    if (out.species != "trex" && out.species != "velociraptor") {
+        throw chart_error([NSString stringWithFormat:
+            @"boss.species '%@' is not a loadable character (supported: trex, velociraptor)",
+            (NSString *)species]);
+    }
+    out.valid = true;
+    out.maxHealth = (int)optional_float(dict, @"health", (float)out.maxHealth);
+    out.attackDamage = (int)optional_float(dict, @"attackDamage", (float)out.attackDamage);
+    out.attackRange = optional_float(dict, @"attackRange", out.attackRange);
+    out.chaseSpeed = optional_float(dict, @"chaseSpeed", out.chaseSpeed);
+    out.holdDuration = optional_float(dict, @"holdDuration", out.holdDuration);
+    if (out.maxHealth < 1) throw chart_error(@"boss.health must be at least 1");
+    return out;
+}
+
 LevelChart ChartLoader_load_file(const char *path) {
     @autoreleasepool {
         @try {
@@ -178,6 +218,11 @@ LevelChart ChartLoader_load_file(const char *path) {
             }
             std::sort(chart.events.begin(), chart.events.end(),
                       [](const ChartEvent& a, const ChartEvent& b) { return a.distance < b.distance; });
+
+            // Optional per-level boss block; absent -> World's built-in
+            // T-Rex defaults (chart.boss.valid stays false).
+            id bossJSON = dict[@"boss"];
+            if (bossJSON) chart.boss = parse_boss_config(bossJSON);
             return chart;
         } @catch (NSException *exception) {
             throw chart_error(exception.reason ?: @"validation failed");

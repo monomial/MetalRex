@@ -103,4 +103,28 @@ static EntityID findDino(World& world) {
     XCTAssertEqual(world.score(1).shotsHit, 2);
 }
 
+
+- (void)test_letterGradeBoundaries {
+    PlayerScoreState score = {};
+    score.shotsFired = 100;
+
+    // S demands both high accuracy AND real interrupt play.
+    score.shotsHit = 80; score.interruptSuccesses = 3;
+    XCTAssertEqual(ScoringSystem_letter_grade(score), 'S');
+    score.interruptSuccesses = 2;
+    XCTAssertEqual(ScoringSystem_letter_grade(score), 'A'); // accuracy alone caps at A
+
+    score.interruptSuccesses = 0;
+    score.shotsHit = 65; XCTAssertEqual(ScoringSystem_letter_grade(score), 'A');
+    score.shotsHit = 64; XCTAssertEqual(ScoringSystem_letter_grade(score), 'B');
+    score.shotsHit = 45; XCTAssertEqual(ScoringSystem_letter_grade(score), 'B');
+    score.shotsHit = 44; XCTAssertEqual(ScoringSystem_letter_grade(score), 'C');
+    score.shotsHit = 25; XCTAssertEqual(ScoringSystem_letter_grade(score), 'C');
+    score.shotsHit = 24; XCTAssertEqual(ScoringSystem_letter_grade(score), 'D');
+
+    // Zero shots fired must not divide by zero; it's a D.
+    PlayerScoreState idle = {};
+    XCTAssertEqual(ScoringSystem_letter_grade(idle), 'D');
+}
+
 @end

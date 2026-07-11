@@ -81,14 +81,14 @@ static void respawn(World& world, EntityID id, DinoBehaviorComponent& dino) {
         target.railDistance = std::max(0.f, world.rail_camera().distance - dino.retreatGap);
         clear_target_hit(target);
     }
-    if (dino.species == DinoSpecies::Velociraptor) {
-        enter_dormant(world, id, dino);
-    } else {
+    if (dino.isBoss) {
         enter_approach(world, id, dino);
+    } else {
+        enter_dormant(world, id, dino);
     }
 }
 
-static void complete_trex_death(World& world, DinoBehaviorComponent& dino) {
+static void complete_boss_death(World& world, DinoBehaviorComponent& dino) {
     dino.active = false;
     dino.activeInEncounter = false;
     if (dino.targetIndex < kM1MaxTargets) {
@@ -132,7 +132,7 @@ static int activate_raptor_wave(World& world,
     for (EntityID id = 0; id < world.entity_count() && activated < wave.groupSize; ++id) {
         if (!world.has_component<DinoBehaviorComponent>(id)) continue;
         DinoBehaviorComponent& dino = world.get_component<DinoBehaviorComponent>(id);
-        if (dino.species != DinoSpecies::Velociraptor) continue;
+        if (dino.species != DinoSpecies::Velociraptor || dino.isBoss) continue;
         if (dino.activeInEncounter || dino.state == DinoBehaviorState::Dying) continue;
         if (dino.targetIndex >= kM1MaxTargets) continue;
 
@@ -357,10 +357,10 @@ void DinoBehaviorSystem_update(World& world, float gameDt) {
                                                    target.railDistance - dino.chaseSpeed * 1.25f * gameDt);
                     float gap = world.rail_camera().distance - target.railDistance;
                     if (gap >= dino.retreatGap || dino.stateTime >= dino.retreatDuration) {
-                        if (dino.species == DinoSpecies::Velociraptor) {
-                            enter_dormant(world, id, dino);
-                        } else {
+                        if (dino.isBoss) {
                             enter_approach(world, id, dino);
+                        } else {
+                            enter_dormant(world, id, dino);
                         }
                     }
                 }
@@ -383,8 +383,8 @@ void DinoBehaviorSystem_update(World& world, float gameDt) {
                 if (deathDone) {
                     anim->deathFade -= gameDt / 0.8f;
                     if (anim->deathFade <= 0.f) {
-                        if (dino.species == DinoSpecies::Trex) {
-                            complete_trex_death(world, dino);
+                        if (dino.isBoss) {
+                            complete_boss_death(world, dino);
                         } else {
                             respawn(world, id, dino);
                         }

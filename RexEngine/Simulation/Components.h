@@ -173,6 +173,9 @@ enum class DinoScoreEvent : uint8_t {
 struct DinoBehaviorComponent {
     bool active = false;
     bool activeInEncounter = false;
+    // The level's boss (chart-driven species — see BossChartConfig): never
+    // returns to the dormant pool, and its death completes the level.
+    bool isBoss = false;
     uint8_t targetIndex = 0;
     DinoSpecies species = DinoSpecies::Velociraptor;
     DinoBehaviorState state = DinoBehaviorState::Dormant;

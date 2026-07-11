@@ -155,41 +155,53 @@ void World::reset_m1_scene() {
         dino.retreatGap = 8.f;
     }
 
-    // T-Rex gets its own centered lane (index 6, the 7th and last slot) —
+    // The boss gets its own centered lane (index 6, the 7th and last slot) —
     // biggest silhouette, framed center with raptors spread on both sides
     // rather than off to one side where it could share a lane with a raptor.
+    // Species and stats come from the chart's optional "boss" block
+    // (BossChartConfig defaults when absent) — different levels get
+    // different bosses by authoring different charts, no code change.
+    const BossChartConfig& bossConfig = _chart.boss; // defaults are the classic T-Rex
+    DinoSpecies bossSpecies = bossConfig.species == "velociraptor"
+                            ? DinoSpecies::Velociraptor : DinoSpecies::Trex;
+    bool bossIsTrex = (bossSpecies == DinoSpecies::Trex);
+
     _targets[6].active = true;
     _targets[6].moving = true;
     _targets[6].railDistance = 0.f;
     _targets[6].baseLateralOffset = 0.f;
     _targets[6].lateralOffset = 0.f;
-    _targets[6].halfWidth = 1.0f;
-    _targets[6].halfHeight = 1.81f;
+    // Hit-box footprint follows the species' authored proportions (the
+    // renderer derives visual scale from halfHeight — see the raptor spawn
+    // comment above).
+    _targets[6].halfWidth = bossIsTrex ? 1.0f : 0.4f;
+    _targets[6].halfHeight = bossIsTrex ? 1.81f : 0.65f;
 
-    EntityID trex = defer_create();
-    AnimationComponent& trexAnim = add_component<AnimationComponent>(trex);
-    trexAnim.currentClip = CharacterClipSlot::Idle;
-    trexAnim.requestedClip = CharacterClipSlot::Idle;
-    FactionComponent& trexFaction = add_component<FactionComponent>(trex);
-    trexFaction.type = FactionComponent::Enemy;
-    DinoBehaviorComponent& trexDino = add_component<DinoBehaviorComponent>(trex);
-    trexDino.active = true;
-    trexDino.activeInEncounter = true;
-    trexDino.targetIndex = 6;
-    trexDino.species = DinoSpecies::Trex;
-    trexDino.state = DinoBehaviorState::Approach;
-    trexDino.chaseSpeed = 1.4f;  // heavy stomp — gains on the jeep slowly
-    trexDino.attackRange = 3.2f; // longer reach, lunges from farther out
-    trexDino.holdDuration = 2.8f; // offset from the raptor wave so attacks don't sync
-    trexDino.maxHealth = 40;     // boss-weight: the level ends when this finally drops
-    trexDino.health = 40;
-    trexDino.tellEndNormalized = 0.28f;
-    trexDino.interruptStartNormalized = 0.18f;
-    trexDino.interruptEndNormalized = 0.46f;
-    trexDino.jumpReactionDuration = 0.35f;
-    trexDino.attackDamage = 30; // heavier bite than a raptor's 15
-    trexDino.retreatDuration = 1.8f;
-    trexDino.retreatGap = 6.f;
+    EntityID boss = defer_create();
+    AnimationComponent& bossAnim = add_component<AnimationComponent>(boss);
+    bossAnim.currentClip = CharacterClipSlot::Idle;
+    bossAnim.requestedClip = CharacterClipSlot::Idle;
+    FactionComponent& bossFaction = add_component<FactionComponent>(boss);
+    bossFaction.type = FactionComponent::Enemy;
+    DinoBehaviorComponent& bossDino = add_component<DinoBehaviorComponent>(boss);
+    bossDino.active = true;
+    bossDino.activeInEncounter = true;
+    bossDino.targetIndex = 6;
+    bossDino.species = bossSpecies;
+    bossDino.isBoss = true;
+    bossDino.state = DinoBehaviorState::Approach;
+    bossDino.chaseSpeed = bossConfig.chaseSpeed;   // heavy stomp — gains on the jeep slowly
+    bossDino.attackRange = bossConfig.attackRange; // longer reach, lunges from farther out
+    bossDino.holdDuration = bossConfig.holdDuration; // offset from the raptor waves
+    bossDino.maxHealth = bossConfig.maxHealth;     // boss-weight: level ends when this drops
+    bossDino.health = bossConfig.maxHealth;
+    bossDino.tellEndNormalized = 0.28f;
+    bossDino.interruptStartNormalized = 0.18f;
+    bossDino.interruptEndNormalized = 0.46f;
+    bossDino.jumpReactionDuration = 0.35f;
+    bossDino.attackDamage = bossConfig.attackDamage; // heavier bite than a raptor's 15
+    bossDino.retreatDuration = 1.8f;
+    bossDino.retreatGap = 6.f;
 }
 
 bool World::any_player_active_and_not_sitting_out() const {

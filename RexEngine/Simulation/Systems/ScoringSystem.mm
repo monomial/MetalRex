@@ -47,3 +47,12 @@ void ScoringSystem_update(World& world, float /*gameDt*/) {
         world.score(player).shotsFired = (int)world.reticle(player).shotCount;
     }
 }
+
+char ScoringSystem_letter_grade(const PlayerScoreState& score) {
+    float accuracy = (float)score.shotsHit / (float)std::max(1, score.shotsFired);
+    if (accuracy >= 0.80f && score.interruptSuccesses >= 3) return 'S';
+    if (accuracy >= 0.65f) return 'A';
+    if (accuracy >= 0.45f) return 'B';
+    if (accuracy >= 0.25f) return 'C';
+    return 'D';
+}

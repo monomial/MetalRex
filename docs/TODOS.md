@@ -175,3 +175,19 @@ Captured during /plan-eng-review of the initial design doc (michaelsmith-main-de
 **Context:** Worth a brief pass (e.g., vary the specific staging beats, not just the names) before considering any distribution beyond friends — not before M0/M1.
 
 **Depends on / blocked by:** Nothing blocking — informational, revisit only if distribution scope ever expands beyond friends.
+
+---
+
+## 12. Level structure vision: transport-mode scenes, per-level bosses (user direction, 2026-07-10)
+
+**What:** Each level is built from scenes/acts distinguished by mode of transportation — jeep (current), helicopter, boat, and standing/walking. Each level ends with its own boss: T-Rex is one, Triceratops another, a third TBD. The standing/walking scenes have a distinct combat grammar: dinos converge from all directions; the player clears a wave from one direction, then turns (recenters?) to face a new wave coming from another angle.
+
+**Why:** Direct user direction from playtesting. Extends M5a's single "jungle act" into a level progression with mechanical variety per scene rather than only content variety.
+
+**Pros:** Transport modes reuse the whole existing stack — a "helicopter" scene is a rail with altitude, a "boat" scene is a rail with different set dressing, and only the standing mode needs a genuinely new mechanic (camera yaw control between waves). Per-level bosses are chart data once boss config is chart-driven.
+
+**Cons:** Standing mode's look-around control needs design care on tvOS (gyro recenter vs. explicit turn input); triceratops and any third boss need new character assets (Quaternius packs have candidates); per-mode set dressing multiplies environment work.
+
+**Context:** Chart-driven boss config (species/health/damage from the level JSON) is the enabling groundwork and is being built now. Boss variety beyond stats (per-species behavior/phases, TODOS item 9) layers on top. The third boss idea is explicitly parked until the user picks one.
+
+**Depends on / blocked by:** M5a act structure (in progress). Standing-mode scenes blocked on a look-around input design. Triceratops blocked on sourcing the asset (hero-asset decision, item 3).

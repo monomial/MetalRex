@@ -70,4 +70,31 @@
     XCTAssertThrows(ChartLoader_load_file([path UTF8String]));
 }
 
+
+- (void)test_bossBlockParsesAndUnknownSpeciesFailsLoudly {
+    LevelChart chart = ChartLoader_load_file([[self fixturePath] UTF8String]);
+    XCTAssertTrue(chart.boss.valid);
+    XCTAssertEqual(chart.boss.species, std::string("trex"));
+    XCTAssertEqual(chart.boss.maxHealth, 40);
+    XCTAssertEqual(chart.boss.attackDamage, 30);
+
+    // A species with no loadable character (triceratops asset hasn't landed
+    // yet) must fail at parse time, not silently render the wrong boss.
+    NSString *path = [NSTemporaryDirectory() stringByAppendingPathComponent:@"metalrex-bad-boss-chart.json"];
+    NSString *json = @"{\"rail\":{\"controlPoints\":[[0,0.3,0],[0,0.3,10],[0,0.3,20],[0,0.3,30]]},"
+                      @"\"lookAtBeats\":[{\"distance\":0,\"target\":[0,0.3,5]}],"
+                      @"\"events\":[],"
+                      @"\"boss\":{\"species\":\"triceratops\"}}";
+    [json writeToFile:path atomically:YES encoding:NSUTF8StringEncoding error:nil];
+
+    bool threw = false;
+    try {
+        ChartLoader_load_file([path UTF8String]);
+    } catch (const std::runtime_error& ex) {
+        threw = true;
+        XCTAssertTrue(std::string(ex.what()).find("triceratops") != std::string::npos);
+    }
+    XCTAssertTrue(threw);
+}
+
 @end

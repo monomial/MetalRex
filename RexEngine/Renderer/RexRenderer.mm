@@ -4,6 +4,7 @@
 #include "Simulation/World.h"
 #include "Simulation/Systems/AnimationSystem.h"
 #include "Simulation/Systems/ReticleSystem.h"
+#include "Simulation/Systems/ScoringSystem.h"
 #include <TargetConditionals.h>
 #include <algorithm>
 #include <vector>
@@ -227,8 +228,8 @@ static id<MTLTexture> Rex_makeSkyGradientTexture(id<MTLDevice> device) {
     id<MTLBuffer> _texQuadVB;
     id<MTLTexture> _gameOverTexture;
     CGSize _gameOverTextureSize;
-    id<MTLTexture> _levelCompleteTexture;
-    CGSize _levelCompleteTextureSize;
+    id<MTLTexture> _gradeTexture;   // end-of-act grade screen, built once per completion
+    CGSize _gradeTextureSize;
     id<MTLTexture> _pressFireTexture;
     CGSize _pressFireTextureSize;
     id<MTLTexture> _scoreTextures[kRexMaxPlayers];
@@ -784,8 +785,12 @@ static id<MTLTexture> Rex_makeGameOverTexture(id<MTLDevice> device, CGSize *outS
     return tex;
 }
 
-static id<MTLTexture> Rex_makeLevelCompleteTexture(id<MTLDevice> device, CGSize *outSize) {
-    NSUInteger w = 620, h = 230;
+// End-of-act grade screen (M5a): per-player letter grade + the stats that
+// earned it, one column per active player. Built once per completion from
+// the frozen final scores (the caller resets the cache when a new run
+// starts), so text rendering never happens per-frame.
+static id<MTLTexture> Rex_makeGradeTexture(id<MTLDevice> device, World *world, CGSize *outSize) {
+    NSUInteger w = 880, h = 430;
     NSUInteger bpr = w * 4;
     NSMutableData *pixels = [NSMutableData dataWithLength:bpr * h];
 
@@ -797,7 +802,7 @@ static id<MTLTexture> Rex_makeLevelCompleteTexture(id<MTLDevice> device, CGSize 
         return nil;
     }
 
-    CGContextSetRGBFillColor(ctx, 0.0, 0.0, 0.0, 0.78);
+    CGContextSetRGBFillColor(ctx, 0.0, 0.0, 0.0, 0.82);
     CGContextFillRect(ctx, CGRectMake(0, 0, w, h));
     CGContextSetRGBStrokeColor(ctx, 0.22, 0.82, 0.52, 0.95);
     CGContextSetLineWidth(ctx, 3.0);
@@ -805,11 +810,41 @@ static id<MTLTexture> Rex_makeLevelCompleteTexture(id<MTLDevice> device, CGSize 
 
     CGColorRef green = CGColorCreateGenericRGB(0.32, 0.95, 0.58, 1);
     CGColorRef white = CGColorCreateGenericRGB(1, 1, 1, 1);
-    Rex_drawCenteredLine(ctx, @"LEVEL COMPLETE", w * 0.5, h * 0.62, w - 48.f, 64.f, 30.f, green);
-    Rex_drawCenteredLine(ctx, @"T-REX DOWN", w * 0.5, h * 0.36, w - 48.f, 34.f, 16.f, white);
-    Rex_drawCenteredLine(ctx, @"PRESS FIRE TO PLAY AGAIN", w * 0.5, h * 0.12, w - 48.f, 22.f, 12.f, white);
+    CGColorRef dim = CGColorCreateGenericRGB(0.78, 0.80, 0.82, 1);
+    Rex_drawCenteredLine(ctx, @"LEVEL COMPLETE", w * 0.5, h * 0.86, w - 48.f, 52.f, 26.f, green);
+
+    int activePlayers[kRexMaxPlayers];
+    int activeCount = 0;
+    for (int i = 0; i < kRexMaxPlayers && activeCount < 2; ++i) {
+        if (world->reticle(i).active) activePlayers[activeCount++] = i;
+    }
+    float columnWidth = (float)w / (float)std::max(1, activeCount);
+    for (int slot = 0; slot < activeCount; ++slot) {
+        int player = activePlayers[slot];
+        const PlayerScoreState& score = world->score(player);
+        float cx = columnWidth * ((float)slot + 0.5f);
+        simd_float4 tint = kReticleColors[player];
+        CGColorRef playerColor = CGColorCreateGenericRGB(tint.x, tint.y, tint.z, 1);
+
+        char grade = ScoringSystem_letter_grade(score);
+        int accuracy = (int)lrintf((float)score.shotsHit * 100.f
+                                   / (float)std::max(1, score.shotsFired));
+        Rex_drawCenteredLine(ctx, [NSString stringWithFormat:@"P%d", player + 1],
+                             cx, h * 0.66, columnWidth - 40.f, 26.f, 14.f, playerColor);
+        Rex_drawCenteredLine(ctx, [NSString stringWithFormat:@"%c", grade],
+                             cx, h * 0.42, columnWidth - 40.f, 96.f, 48.f, playerColor);
+        Rex_drawCenteredLine(ctx, [NSString stringWithFormat:@"SCORE %d   ACC %d%%", score.score, accuracy],
+                             cx, h * 0.30, columnWidth - 40.f, 22.f, 11.f, white);
+        Rex_drawCenteredLine(ctx, [NSString stringWithFormat:@"BEST STREAK X%d   WEAK PTS %d   INTERRUPTS %d",
+                                   score.bestStreak, score.weakPointHits, score.interruptSuccesses],
+                             cx, h * 0.21, columnWidth - 40.f, 18.f, 9.f, dim);
+        CGColorRelease(playerColor);
+    }
+
+    Rex_drawCenteredLine(ctx, @"PRESS FIRE TO PLAY AGAIN", w * 0.5, h * 0.07, w - 48.f, 22.f, 12.f, white);
     CGColorRelease(green);
     CGColorRelease(white);
+    CGColorRelease(dim);
     CGContextRelease(ctx);
     CGColorSpaceRelease(cs);
 
@@ -1316,12 +1351,15 @@ static id<MTLTexture> Rex_makeScoreTexture(id<MTLDevice> device, NSString *score
     }
 
     if (world->level_complete()) {
-        if (!_levelCompleteTexture) {
-            _levelCompleteTexture = Rex_makeLevelCompleteTexture(_device, &_levelCompleteTextureSize);
+        if (!_gradeTexture) {
+            _gradeTexture = Rex_makeGradeTexture(_device, world, &_gradeTextureSize);
         }
-        [self _drawPanelTexture:_levelCompleteTexture size:_levelCompleteTextureSize encoder:encoder];
+        [self _drawPanelTexture:_gradeTexture size:_gradeTextureSize encoder:encoder];
         return;
     }
+    // A fresh run started (play-again): drop last run's grade panel so the
+    // next completion rebuilds it from the new final scores.
+    if (_gradeTexture) _gradeTexture = nil;
 
     bool allSittingOut = !world->any_player_active_and_not_sitting_out();
     if (allSittingOut && activeCount > 0) {
