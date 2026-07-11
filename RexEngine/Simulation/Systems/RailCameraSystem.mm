@@ -233,6 +233,19 @@ void RailCameraSystem_update(World& world, float gameDt) {
     // act instead of looping, at which point this reset never triggers.
     if (camera.distance < distanceBeforeWrap) {
         world.set_next_chart_event_index(0);
+        // Rebase every pursuer by the same amount the camera just jumped,
+        // preserving each one's gap exactly. Without this, gap
+        // (camera.distance - railDistance) went hugely negative at the wrap
+        // and update_targets' "nothing may pass the jeep" clamp slammed
+        // every active dino — including the boss — to exactly 1 unit behind
+        // the player, which read as "the T-Rex suddenly teleported on top
+        // of me" at the loop point. railDistance may go negative here;
+        // that's fine, since target placement is camera-relative (gap
+        // only), and every respawn/recycle path assigns a fresh value.
+        float wrapDelta = distanceBeforeWrap - camera.distance;
+        for (int i = 0; i < kM1MaxTargets; ++i) {
+            world.target(i).railDistance -= wrapDelta;
+        }
     }
     update_targets(world, gameDt);
 }

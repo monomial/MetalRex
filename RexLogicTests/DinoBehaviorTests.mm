@@ -410,4 +410,33 @@ static void placeWithinAttackRange(World& world, DinoBehaviorComponent& dino) {
     XCTAssertEqualWithAccuracy(dino[2], 0.30f, 0.0001f);
 }
 
+- (void)test_railWrapPreservesPursuerGaps {
+    // The looping test rail's wrap used to leave pursuer railDistances
+    // un-rebased: gap went hugely negative and the "nothing may pass the
+    // jeep" clamp slammed every active dino to exactly 1 unit behind the
+    // player — the boss visibly teleported on top of the jeep at the loop
+    // point.
+    World world;
+    EntityID trexId = findTrex(world);
+    XCTAssertNotEqual(trexId, kInvalidEntity);
+    DinoBehaviorComponent& trex = world.get_component<DinoBehaviorComponent>(trexId);
+    activateDino(world, trexId, DinoBehaviorState::Approach);
+
+    // Park the camera just short of the rail's end with the boss 5 behind.
+    float railLength = world.chart().rail.total_length();
+    world.rail_camera().distance = railLength - 0.5f;
+    world.target(trex.targetIndex).railDistance = world.rail_camera().distance - 5.f;
+
+    // One second of travel at the default 1.2 u/s crosses the wrap.
+    float before = world.rail_camera().distance;
+    tick(world, 120);
+    XCTAssertLessThan(world.rail_camera().distance, before); // wrapped
+
+    // Gap preserved through the wrap (boss closes at ~0.2 u/s net, so a
+    // second of chasing only shaves a fraction) — NOT pinned to 1.
+    float gap = world.rail_camera().distance - world.target(trex.targetIndex).railDistance;
+    XCTAssertGreaterThan(gap, 3.5f);
+    XCTAssertLessThan(gap, 6.f);
+}
+
 @end
