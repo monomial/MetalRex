@@ -55,6 +55,143 @@ struct SkinnedUniformsCPU {
     float tintStrength;
 };
 
+// ---------------------------------------------------------------------------
+// Environment geometry builders — all emit non-indexed triangle lists into a
+// shared vertex vector, one vector per color group.
+// ---------------------------------------------------------------------------
+
+// Deterministic scatter RNG (xorshift32): the same chart always grows the
+// same forest, and the sim's own World RNG is never touched, keeping future
+// determinism/replay (M4b) unaffected by set dressing.
+static uint32_t env_rand(uint32_t& state) {
+    state ^= state << 13; state ^= state >> 17; state ^= state << 5;
+    return state;
+}
+static float env_rand01(uint32_t& state) {
+    return (float)(env_rand(state) >> 8) * (1.0f / 16777216.0f);
+}
+static float env_rand_range(uint32_t& state, float lo, float hi) {
+    return lo + env_rand01(state) * (hi - lo);
+}
+
+// Cone with a base cap: canopies sit above eye level on nearby trees, so
+// the underside IS a gameplay angle — an open cone reads as a hollow shell
+// with sky through it from below.
+static void env_append_cone(std::vector<RexVertex>& out, simd_float3 baseCenter,
+                            float radius, float height, int segments) {
+    simd_float3 apex = baseCenter + (simd_float3){0.f, height, 0.f};
+    for (int s = 0; s < segments; ++s) {
+        float a0 = (float)s / (float)segments * 2.f * (float)M_PI;
+        float a1 = (float)(s + 1) / (float)segments * 2.f * (float)M_PI;
+        simd_float3 p0 = baseCenter + (simd_float3){cosf(a0) * radius, 0.f, sinf(a0) * radius};
+        simd_float3 p1 = baseCenter + (simd_float3){cosf(a1) * radius, 0.f, sinf(a1) * radius};
+        out.push_back({p0});
+        out.push_back({p1});
+        out.push_back({apex});
+        out.push_back({p1});
+        out.push_back({p0});
+        out.push_back({baseCenter});
+    }
+}
+
+// Open-ended cylinder (tree trunk).
+static void env_append_cylinder(std::vector<RexVertex>& out, simd_float3 baseCenter,
+                                float radius, float height, int segments) {
+    for (int s = 0; s < segments; ++s) {
+        float a0 = (float)s / (float)segments * 2.f * (float)M_PI;
+        float a1 = (float)(s + 1) / (float)segments * 2.f * (float)M_PI;
+        simd_float3 r0 = {cosf(a0) * radius, 0.f, sinf(a0) * radius};
+        simd_float3 r1 = {cosf(a1) * radius, 0.f, sinf(a1) * radius};
+        simd_float3 b0 = baseCenter + r0, b1 = baseCenter + r1;
+        simd_float3 t0 = b0 + (simd_float3){0.f, height, 0.f};
+        simd_float3 t1 = b1 + (simd_float3){0.f, height, 0.f};
+        out.push_back({b0}); out.push_back({b1}); out.push_back({t0});
+        out.push_back({b1}); out.push_back({t1}); out.push_back({t0});
+    }
+}
+
+// Squashed bipyramid — reads as a low-poly boulder.
+static void env_append_rock(std::vector<RexVertex>& out, simd_float3 center,
+                            float radius, float height, int segments, uint32_t& rng) {
+    simd_float3 top = center + (simd_float3){0.f, height, 0.f};
+    simd_float3 bottom = center - (simd_float3){0.f, height * 0.4f, 0.f};
+    for (int s = 0; s < segments; ++s) {
+        float a0 = (float)s / (float)segments * 2.f * (float)M_PI;
+        float a1 = (float)(s + 1) / (float)segments * 2.f * (float)M_PI;
+        // Jitter each rim vertex so no two rocks look identical.
+        float j0 = env_rand_range(rng, 0.75f, 1.15f);
+        float j1 = env_rand_range(rng, 0.75f, 1.15f);
+        simd_float3 p0 = center + (simd_float3){cosf(a0) * radius * j0, 0.f, sinf(a0) * radius * j0};
+        simd_float3 p1 = center + (simd_float3){cosf(a1) * radius * j1, 0.f, sinf(a1) * radius * j1};
+        out.push_back({p0}); out.push_back({p1}); out.push_back({top});
+        out.push_back({p1}); out.push_back({p0}); out.push_back({bottom});
+    }
+}
+
+// Rail sample that extends past both spline ends along the end tangents, so
+// the road and tree line run to the horizon instead of stopping dead where
+// the authored rail happens to end.
+static simd_float3 env_rail_position(const RailSpline& rail, float distance) {
+    float length = rail.total_length();
+    if (distance < 0.f) {
+        simd_float3 p0 = rex_to_simd(rail.position_at_distance(0.f));
+        simd_float3 t0 = rex_safe_normalize(rex_to_simd(rail.tangent_at_distance(0.f)),
+                                            (simd_float3){0.f, 0.f, 1.f});
+        return p0 + t0 * distance;
+    }
+    if (distance > length) {
+        simd_float3 pL = rex_to_simd(rail.position_at_distance(length));
+        simd_float3 tL = rex_safe_normalize(rex_to_simd(rail.tangent_at_distance(length)),
+                                            (simd_float3){0.f, 0.f, 1.f});
+        return pL + tL * (distance - length);
+    }
+    return rex_to_simd(rail.position_at_distance(distance));
+}
+
+static simd_float3 env_rail_right(const RailSpline& rail, float distance) {
+    float clamped = std::clamp(distance, 0.f, rail.total_length());
+    simd_float3 forward = rex_safe_normalize(rex_to_simd(rail.tangent_at_distance(clamped)),
+                                             (simd_float3){0.f, 0.f, 1.f});
+    return rex_safe_normalize(simd_cross((simd_float3){0.f, 1.f, 0.f}, forward),
+                              (simd_float3){1.f, 0.f, 0.f});
+}
+
+// Vertical sky gradient: deep blue zenith fading into a pale warm haze at
+// the horizon (the haze doubles as cheap aerial perspective — distant trees
+// meet a light band, not a hard sky edge). Drawn full-screen behind the 3D
+// pass through the existing textured-quad pipeline.
+static id<MTLTexture> Rex_makeSkyGradientTexture(id<MTLDevice> device) {
+    const NSUInteger w = 2, h = 256;
+    uint8_t pixels[w * h * 4];
+    const float top[3] = {0.32f, 0.51f, 0.72f};      // zenith blue
+    const float mid[3] = {0.56f, 0.70f, 0.83f};      // mid sky
+    const float horizon[3] = {0.87f, 0.86f, 0.76f};  // warm haze
+    for (NSUInteger y = 0; y < h; ++y) {
+        float t = (float)y / (float)(h - 1); // 0 = top of texture = zenith
+        float rgb[3];
+        for (int c = 0; c < 3; ++c) {
+            rgb[c] = t < 0.62f ? top[c] + (mid[c] - top[c]) * (t / 0.62f)
+                               : mid[c] + (horizon[c] - mid[c]) * ((t - 0.62f) / 0.38f);
+        }
+        for (NSUInteger x = 0; x < w; ++x) {
+            uint8_t *px = &pixels[(y * w + x) * 4];
+            px[0] = (uint8_t)(rgb[0] * 255.f);
+            px[1] = (uint8_t)(rgb[1] * 255.f);
+            px[2] = (uint8_t)(rgb[2] * 255.f);
+            px[3] = 255;
+        }
+    }
+    MTLTextureDescriptor *td = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatRGBA8Unorm
+                                                                                  width:w
+                                                                                 height:h
+                                                                              mipmapped:NO];
+    td.usage = MTLTextureUsageShaderRead;
+    id<MTLTexture> tex = [device newTextureWithDescriptor:td];
+    [tex replaceRegion:MTLRegionMake2D(0, 0, w, h) mipmapLevel:0
+             withBytes:pixels bytesPerRow:w * 4];
+    return tex;
+}
+
 @implementation RexRenderer {
     id<MTLDevice> _device;
     id<MTLRenderPipelineState> _pipeline;
@@ -100,6 +237,21 @@ struct SkinnedUniformsCPU {
     BOOL _debugHUDVisible;
     id<MTLTexture> _debugLabelsTexture;
     CGSize _debugLabelsTextureSize;
+
+    // Environment set dressing (M5a): static world geometry built once from
+    // the level chart's rail spline on the first frame that has a World —
+    // a dirt road ribbon that follows the rail, plus procedurally scattered
+    // low-poly trees/rocks/grass seeded deterministically so every run of a
+    // chart grows the same forest. One buffer per color group (the basic
+    // pipeline is one flat color per draw call).
+    BOOL _envBuilt;
+    id<MTLBuffer> _envRoadVB;      NSUInteger _envRoadCount;
+    id<MTLBuffer> _envTrunkVB;     NSUInteger _envTrunkCount;
+    id<MTLBuffer> _envCanopyAVB;   NSUInteger _envCanopyACount;
+    id<MTLBuffer> _envCanopyBVB;   NSUInteger _envCanopyBCount;
+    id<MTLBuffer> _envRockVB;      NSUInteger _envRockCount;
+    id<MTLBuffer> _envGrassVB;     NSUInteger _envGrassCount;
+    id<MTLTexture> _skyTexture;    // vertical gradient, drawn full-screen behind the 3D pass
 }
 
 - (instancetype)initWithDevice:(id<MTLDevice>)device
@@ -110,12 +262,16 @@ struct SkinnedUniformsCPU {
     _device = device;
     _debugHUDVisible = YES;
     // Extends behind the rail start (z < 0): the camera faces backward off
-    // the jeep, so the ground behind the run must exist too.
+    // the jeep, so the ground behind the run must exist too. Wide enough
+    // (±60) that its edges stay past the horizon line the sky gradient
+    // paints — the old ±8 strip left visible clear-color voids on either
+    // side once real set dressing gave the eye a sense of scale.
     const RexVertex verts[] = {
-        {{-8.f, kGroundWorldY, -20.f}}, {{ 8.f, kGroundWorldY, -20.f}}, {{-8.f, kGroundWorldY, 80.f}},
-        {{ 8.f, kGroundWorldY, -20.f}}, {{ 8.f, kGroundWorldY, 80.f}}, {{-8.f, kGroundWorldY, 80.f}},
+        {{-60.f, kGroundWorldY, -60.f}}, {{ 60.f, kGroundWorldY, -60.f}}, {{-60.f, kGroundWorldY, 140.f}},
+        {{ 60.f, kGroundWorldY, -60.f}}, {{ 60.f, kGroundWorldY, 140.f}}, {{-60.f, kGroundWorldY, 140.f}},
     };
     _groundVB = [_device newBufferWithBytes:verts length:sizeof(verts) options:MTLResourceStorageModeShared];
+    _skyTexture = Rex_makeSkyGradientTexture(_device);
 
     NSMutableString *source = [NSMutableString string];
     for (NSString *name in @[@"Rex", @"SkinnedMesh"]) {
@@ -1245,14 +1401,173 @@ static id<MTLTexture> Rex_makeScoreTexture(id<MTLDevice> device, NSString *score
 }
 #endif
 
+// Builds all static set dressing from the chart's rail spline. Runs once,
+// on the first frame that has a World (the renderer doesn't know the chart
+// at init time).
+- (void)_buildEnvironmentIfNeeded:(World*)world {
+    if (_envBuilt || !world) return;
+    _envBuilt = YES;
+
+    const RailSpline& rail = world->chart().rail;
+    float length = rail.total_length();
+    if (length <= 0.0001f) return;
+
+    const float kRoadHalfWidth = 1.7f;
+    const float kOverrun = 14.f; // road/trees continue past both rail ends
+    float groundY = kGroundWorldY;
+
+    // Road ribbon, slightly above the ground plane to avoid z-fighting.
+    std::vector<RexVertex> road;
+    for (float d = -kOverrun; d < length + kOverrun; d += 0.4f) {
+        float d1 = d + 0.4f;
+        simd_float3 c0 = env_rail_position(rail, d);
+        simd_float3 c1 = env_rail_position(rail, d1);
+        simd_float3 r0 = env_rail_right(rail, d);
+        simd_float3 r1 = env_rail_right(rail, d1);
+        simd_float3 l0 = c0 - r0 * kRoadHalfWidth, g0 = c0 + r0 * kRoadHalfWidth;
+        simd_float3 l1 = c1 - r1 * kRoadHalfWidth, g1 = c1 + r1 * kRoadHalfWidth;
+        l0.y = g0.y = l1.y = g1.y = groundY + 0.02f;
+        road.push_back({l0}); road.push_back({g0}); road.push_back({l1});
+        road.push_back({g0}); road.push_back({g1}); road.push_back({l1});
+    }
+
+    // Tree line on both sides: trunk + two stacked canopy cones, canopy
+    // shade alternating between two greens for variety. Kept off the strip
+    // the raptor lanes use (|lateral| <= ~2.3 incl. weave), so dinos never
+    // run through a trunk.
+    uint32_t rng = 0x52455845u; // 'REXE'
+    std::vector<RexVertex> trunks, canopyA, canopyB, rocks, grass;
+    for (float d = -kOverrun; d < length + kOverrun; d += 0.9f) {
+        for (int side = -1; side <= 1; side += 2) {
+            if (env_rand01(rng) > 0.68f) continue;
+            // Trees close to the road get a smaller scale range: the camera
+            // rides at roughly canopy height, and a full-size tree right
+            // beside the jeep fills the frame with bare trunk while its
+            // canopy crops off the top of the screen.
+            float lateral = env_rand_range(rng, 4.0f, 12.f) * (float)side;
+            simd_float3 base = env_rail_position(rail, d + env_rand_range(rng, -0.4f, 0.4f))
+                             + env_rail_right(rail, d) * lateral;
+            base.y = groundY;
+            float nearRoad = std::clamp((fabsf(lateral) - 4.f) / 4.f, 0.f, 1.f);
+            float maxScale = 1.0f + 0.5f * nearRoad; // 1.0 at the road edge -> 1.5 deep
+            float s = env_rand_range(rng, 0.75f, maxScale);
+            env_append_cylinder(trunks, base, 0.11f * s, 0.9f * s, 6);
+            std::vector<RexVertex>& canopy = (env_rand(rng) & 1) ? canopyA : canopyB;
+            simd_float3 c1 = base + (simd_float3){0.f, 0.55f * s, 0.f};
+            simd_float3 c2 = base + (simd_float3){0.f, 1.25f * s, 0.f};
+            env_append_cone(canopy, c1, 0.72f * s, 1.15f * s, 7);
+            env_append_cone(canopy, c2, 0.48f * s, 0.85f * s, 7);
+        }
+    }
+
+    // Distant treeline "ridge": oversized dark cones far off both sides
+    // (into the darker canopy group), filling the skyline between the road
+    // corridor and the horizon haze so the world doesn't end at a flat
+    // green line.
+    for (float d = -kOverrun * 2.f; d < length + kOverrun * 2.f; d += 2.2f) {
+        for (int side = -1; side <= 1; side += 2) {
+            if (env_rand01(rng) > 0.8f) continue;
+            float lateral = env_rand_range(rng, 14.f, 34.f) * (float)side;
+            simd_float3 base = env_rail_position(rail, d) + env_rail_right(rail, d) * lateral;
+            base.y = groundY;
+            float s = env_rand_range(rng, 2.2f, 4.5f);
+            env_append_cone(canopyA, base, 0.9f * s, 1.9f * s, 6);
+        }
+    }
+
+    // Boulders, sparser, allowed a little closer to the road.
+    for (float d = -kOverrun; d < length + kOverrun; d += 2.6f) {
+        if (env_rand01(rng) > 0.45f) continue;
+        float side = (env_rand(rng) & 1) ? 1.f : -1.f;
+        float lateral = env_rand_range(rng, 2.4f, 9.f) * side;
+        simd_float3 base = env_rail_position(rail, d) + env_rail_right(rail, d) * lateral;
+        base.y = groundY;
+        float s = env_rand_range(rng, 0.18f, 0.55f);
+        env_append_rock(rocks, base, s, s * 0.9f, 6, rng);
+    }
+
+    // Grass tufts hugging the road edges — small enough that dinos and
+    // raptor lanes passing through them reads fine.
+    for (float d = -kOverrun; d < length + kOverrun; d += 0.55f) {
+        for (int side = -1; side <= 1; side += 2) {
+            if (env_rand01(rng) > 0.55f) continue;
+            float lateral = env_rand_range(rng, 1.9f, 4.6f) * (float)side;
+            simd_float3 base = env_rail_position(rail, d + env_rand_range(rng, -0.25f, 0.25f))
+                             + env_rail_right(rail, d) * lateral;
+            base.y = groundY;
+            env_append_cone(grass, base, env_rand_range(rng, 0.06f, 0.14f),
+                            env_rand_range(rng, 0.16f, 0.34f), 4);
+        }
+    }
+
+    auto makeBuffer = [&](std::vector<RexVertex>& v, id<MTLBuffer> __strong *buf, NSUInteger *count) {
+        *count = v.size();
+        *buf = v.empty() ? nil : [_device newBufferWithBytes:v.data()
+                                                      length:sizeof(RexVertex) * v.size()
+                                                     options:MTLResourceStorageModeShared];
+    };
+    makeBuffer(road, &_envRoadVB, &_envRoadCount);
+    makeBuffer(trunks, &_envTrunkVB, &_envTrunkCount);
+    makeBuffer(canopyA, &_envCanopyAVB, &_envCanopyACount);
+    makeBuffer(canopyB, &_envCanopyBVB, &_envCanopyBCount);
+    makeBuffer(rocks, &_envRockVB, &_envRockCount);
+    makeBuffer(grass, &_envGrassVB, &_envGrassCount);
+}
+
+- (void)_drawEnvBuffer:(id<MTLBuffer>)buffer
+                 count:(NSUInteger)count
+                 color:(simd_float4)color
+                   mvp:(simd_float4x4)mvp
+               encoder:(id<MTLRenderCommandEncoder>)encoder {
+    if (!buffer || count == 0) return;
+    RexUniforms uniforms;
+    uniforms.mvp = mvp;
+    uniforms.color = color;
+    [encoder setVertexBuffer:buffer offset:0 atIndex:0];
+    [encoder setVertexBytes:&uniforms length:sizeof(uniforms) atIndex:1];
+    [encoder drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:count];
+}
+
+- (void)_drawEnvironment:(simd_float4x4)mvp encoder:(id<MTLRenderCommandEncoder>)encoder {
+    [self _drawEnvBuffer:_envRoadVB count:_envRoadCount
+                   color:(simd_float4){0.45f, 0.38f, 0.29f, 1.f} mvp:mvp encoder:encoder];
+    [self _drawEnvBuffer:_envRockVB count:_envRockCount
+                   color:(simd_float4){0.47f, 0.46f, 0.44f, 1.f} mvp:mvp encoder:encoder];
+    [self _drawEnvBuffer:_envGrassVB count:_envGrassCount
+                   color:(simd_float4){0.33f, 0.52f, 0.24f, 1.f} mvp:mvp encoder:encoder];
+    [self _drawEnvBuffer:_envTrunkVB count:_envTrunkCount
+                   color:(simd_float4){0.38f, 0.27f, 0.18f, 1.f} mvp:mvp encoder:encoder];
+    [self _drawEnvBuffer:_envCanopyAVB count:_envCanopyACount
+                   color:(simd_float4){0.20f, 0.42f, 0.21f, 1.f} mvp:mvp encoder:encoder];
+    [self _drawEnvBuffer:_envCanopyBVB count:_envCanopyBCount
+                   color:(simd_float4){0.28f, 0.50f, 0.25f, 1.f} mvp:mvp encoder:encoder];
+}
+
+// Full-screen sky gradient, drawn first with depth writes off so all 3D
+// geometry paints over it.
+- (void)_drawSky:(id<MTLRenderCommandEncoder>)encoder {
+    if (!_skyTexture || !_texturePipeline) return;
+    [encoder setRenderPipelineState:_texturePipeline];
+    [encoder setDepthStencilState:_overlayDepthState];
+    RexTextureUniformsCPU uniforms;
+    uniforms.mvp = Rex_make_model_rect(_overlayProjection, 0.f, 0.f, 0.f,
+                                       _halfW * 2.f, _halfH * 2.f);
+    [encoder setVertexBuffer:_texQuadVB offset:0 atIndex:0];
+    [encoder setVertexBytes:&uniforms length:sizeof(uniforms) atIndex:1];
+    [encoder setFragmentTexture:_skyTexture atIndex:0];
+    [encoder setFragmentSamplerState:_sampler atIndex:0];
+    [encoder drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:6];
+}
+
 - (void)drawWorld:(World*)world
            inView:(MTKView*)view
     commandBuffer:(id<MTLCommandBuffer>)commandBuffer {
     MTLRenderPassDescriptor *pass = view.currentRenderPassDescriptor;
     if (!pass || !view.currentDrawable) return;
     if (world) world->rail_camera().aspect = _aspect;
+    [self _buildEnvironmentIfNeeded:world];
 
-    pass.colorAttachments[0].clearColor = MTLClearColorMake(0.36, 0.39, 0.42, 1.0);
+    pass.colorAttachments[0].clearColor = MTLClearColorMake(0.87, 0.86, 0.76, 1.0);
     pass.colorAttachments[0].loadAction = MTLLoadActionClear;
     pass.colorAttachments[0].storeAction = MTLStoreActionStore;
     pass.depthAttachment.clearDepth = 1.0;
@@ -1260,6 +1575,7 @@ static id<MTLTexture> Rex_makeScoreTexture(id<MTLDevice> device, NSString *score
     pass.depthAttachment.storeAction = MTLStoreActionDontCare;
 
     id<MTLRenderCommandEncoder> encoder = [commandBuffer renderCommandEncoderWithDescriptor:pass];
+    [self _drawSky:encoder];
     [encoder setRenderPipelineState:_pipeline];
     [encoder setDepthStencilState:_depthState];
     [encoder setVertexBuffer:_groundVB offset:0 atIndex:0];
@@ -1267,9 +1583,10 @@ static id<MTLTexture> Rex_makeScoreTexture(id<MTLDevice> device, NSString *score
     simd_float4x4 worldMVP = world ? [self _worldViewProjection:world->rail_camera()]
                                    : Rex_make_perspective(1.04719758f, _aspect, 0.1f, 120.f);
     uniforms.mvp = worldMVP;
-    uniforms.color = (simd_float4){0.48f, 0.49f, 0.48f, 1.f};
+    uniforms.color = (simd_float4){0.36f, 0.47f, 0.28f, 1.f}; // grass green
     [encoder setVertexBytes:&uniforms length:sizeof(uniforms) atIndex:1];
     [encoder drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:6];
+    [self _drawEnvironment:worldMVP encoder:encoder];
     if (world) {
         [self _drawM1Targets:world mvp:worldMVP encoder:encoder];
         [self _drawDinos:world mvp:worldMVP encoder:encoder];
