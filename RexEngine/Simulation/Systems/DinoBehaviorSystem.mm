@@ -183,6 +183,20 @@ void DinoBehaviorSystem_update(World& world, float gameDt) {
         if (!world.has_component<DinoBehaviorComponent>(id)) continue;
         DinoBehaviorComponent& dino = world.get_component<DinoBehaviorComponent>(id);
         if (!dino.active) continue;
+        // Boss arrival: the act finale joins once the jeep has covered the
+        // authored distance — until then the boss sits dormant, letting the
+        // raptor waves carry the early act. One-way: the wrap-looping test
+        // rail can't re-trigger it, and play-again resets via
+        // reset_m1_scene.
+        if (dino.isBoss && !dino.activeInEncounter
+            && dino.state == DinoBehaviorState::Dormant
+            && world.rail_camera().distance >= dino.bossArrivalDistance) {
+            if (dino.targetIndex < kM1MaxTargets) {
+                TargetComponent& target = world.target(dino.targetIndex);
+                target.railDistance = std::max(0.f, world.rail_camera().distance - 9.f);
+            }
+            enter_approach(world, id, dino);
+        }
         if (!dino.activeInEncounter && dino.state != DinoBehaviorState::Dormant) {
             dino.state = DinoBehaviorState::Dormant;
         }

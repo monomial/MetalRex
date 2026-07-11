@@ -201,6 +201,7 @@
     "attackDamage": 30,
     "attackRange": 3.2,
     "chaseSpeed": 1.4,
-    "holdDuration": 2.8
+    "holdDuration": 2.8,
+    "arrivalDistance": 26.0
   }
 }

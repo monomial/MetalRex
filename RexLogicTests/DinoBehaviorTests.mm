@@ -215,7 +215,10 @@ static void placeWithinAttackRange(World& world, DinoBehaviorComponent& dino) {
     DinoBehaviorComponent& trex = world.get_component<DinoBehaviorComponent>(trexId);
     XCTAssertEqual(trex.maxHealth, 40);
     XCTAssertEqual(trex.health, 40);
-    XCTAssertTrue(trex.activeInEncounter);
+    // Arrival staging: the chart's boss arrives at distance 26, so it's
+    // dormant at the start of the act. Force it in for this test.
+    XCTAssertFalse(trex.activeInEncounter);
+    activateDino(world, trexId, DinoBehaviorState::Approach);
 
     trex.health = 1;
     world.target(trex.targetIndex).wasHit = true;
@@ -242,7 +245,9 @@ static void placeWithinAttackRange(World& world, DinoBehaviorComponent& dino) {
     XCTAssertNotEqual(trexId, kInvalidEntity);
 
     // Kill the boss with fire HELD — the exact input state a player is in
-    // at the moment the T-Rex drops.
+    // at the moment the T-Rex drops. (Force it into the encounter first —
+    // the chart stages its arrival at distance 26.)
+    activateDino(world, trexId, DinoBehaviorState::Approach);
     world.get_component<DinoBehaviorComponent>(trexId).health = 1;
     world.target(world.get_component<DinoBehaviorComponent>(trexId).targetIndex).wasHit = true;
     InputState heldFire = {};
@@ -263,17 +268,38 @@ static void placeWithinAttackRange(World& world, DinoBehaviorComponent& dino) {
     tick(world, 5);
 
     XCTAssertFalse(world.level_complete());
-    // Fresh scene: boss active again at (nearly) full health — the restart
-    // press itself is still a held trigger in the new scene, and the T-Rex
-    // respawns center-screen under the centered reticle, so that press
-    // legitimately lands one shot on the fresh boss in the restart tick.
+    // Fresh scene: with arrival staging the boss restarts DORMANT (it joins
+    // again at the chart's arrivalDistance), so the restarting trigger press
+    // can't touch it — full health, not yet in the encounter.
     EntityID trexAfter = findTrex(world);
     XCTAssertNotEqual(trexAfter, kInvalidEntity);
     const DinoBehaviorComponent& trex = world.get_component<DinoBehaviorComponent>(trexAfter);
     XCTAssertTrue(trex.active);
+    XCTAssertFalse(trex.activeInEncounter);
+    XCTAssertEqual(trex.health, trex.maxHealth);
+}
+
+- (void)test_bossArrivesAtChartDistance {
+    World world;
+    EntityID trexId = findTrex(world);
+    XCTAssertNotEqual(trexId, kInvalidEntity);
+    DinoBehaviorComponent& trex = world.get_component<DinoBehaviorComponent>(trexId);
+    XCTAssertEqualWithAccuracy(trex.bossArrivalDistance, 26.f, 0.001f);
+
+    // Dormant through the early act (camera starts at 8, speed 1.2).
+    tick(world, 120);
+    XCTAssertFalse(trex.activeInEncounter);
+    XCTAssertEqual(trex.state, DinoBehaviorState::Dormant);
+
+    // Tick until the camera passes the arrival distance, then the finale
+    // begins: boss enters Approach from deep behind the jeep.
+    world.rail_camera().speed = 12.f; // compress the wait, same distances
+    for (int i = 0; i < 400 && !trex.activeInEncounter; ++i) {
+        world.update(1.f / 120.f, 1.f / 120.f);
+    }
     XCTAssertTrue(trex.activeInEncounter);
-    XCTAssertGreaterThanOrEqual(trex.health, trex.maxHealth - 1);
-    XCTAssertGreaterThan(trex.health, 0);
+    XCTAssertGreaterThanOrEqual(world.rail_camera().distance, 26.f);
+    XCTAssertTrue(world.target(trex.targetIndex).active);
 }
 
 - (void)test_chartRaptorWaveActivatesSoloPairAndPack {

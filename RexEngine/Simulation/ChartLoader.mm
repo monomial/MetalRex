@@ -136,7 +136,9 @@ static BossChartConfig parse_boss_config(id bossObject) {
     out.attackRange = optional_float(dict, @"attackRange", out.attackRange);
     out.chaseSpeed = optional_float(dict, @"chaseSpeed", out.chaseSpeed);
     out.holdDuration = optional_float(dict, @"holdDuration", out.holdDuration);
+    out.arrivalDistance = optional_float(dict, @"arrivalDistance", out.arrivalDistance);
     if (out.maxHealth < 1) throw chart_error(@"boss.health must be at least 1");
+    if (out.arrivalDistance < 0.f) throw chart_error(@"boss.arrivalDistance must be non-negative");
     return out;
 }
 

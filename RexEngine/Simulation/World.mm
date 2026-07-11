@@ -166,7 +166,8 @@ void World::reset_m1_scene() {
                             ? DinoSpecies::Velociraptor : DinoSpecies::Trex;
     bool bossIsTrex = (bossSpecies == DinoSpecies::Trex);
 
-    _targets[6].active = true;
+    bool bossArrivesLater = bossConfig.arrivalDistance > 0.f;
+    _targets[6].active = !bossArrivesLater;
     _targets[6].moving = true;
     _targets[6].railDistance = 0.f;
     _targets[6].baseLateralOffset = 0.f;
@@ -185,11 +186,13 @@ void World::reset_m1_scene() {
     bossFaction.type = FactionComponent::Enemy;
     DinoBehaviorComponent& bossDino = add_component<DinoBehaviorComponent>(boss);
     bossDino.active = true;
-    bossDino.activeInEncounter = true;
+    bossDino.activeInEncounter = !bossArrivesLater;
     bossDino.targetIndex = 6;
     bossDino.species = bossSpecies;
     bossDino.isBoss = true;
-    bossDino.state = DinoBehaviorState::Approach;
+    bossDino.bossArrivalDistance = bossConfig.arrivalDistance;
+    bossDino.state = bossArrivesLater ? DinoBehaviorState::Dormant
+                                      : DinoBehaviorState::Approach;
     bossDino.chaseSpeed = bossConfig.chaseSpeed;   // heavy stomp — gains on the jeep slowly
     bossDino.attackRange = bossConfig.attackRange; // longer reach, lunges from farther out
     bossDino.holdDuration = bossConfig.holdDuration; // offset from the raptor waves

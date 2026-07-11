@@ -40,6 +40,9 @@ struct BossChartConfig {
     float attackRange = 3.2f;
     float chaseSpeed = 1.4f;
     float holdDuration = 2.8f;
+    // Rail distance at which the boss joins the encounter (the act finale).
+    // 0 = present from the start.
+    float arrivalDistance = 0.f;
 };
 
 struct LevelChart {

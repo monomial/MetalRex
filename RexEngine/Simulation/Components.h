@@ -176,6 +176,10 @@ struct DinoBehaviorComponent {
     // The level's boss (chart-driven species — see BossChartConfig): never
     // returns to the dormant pool, and its death completes the level.
     bool isBoss = false;
+    // Boss stays Dormant until the camera reaches this rail distance — the
+    // act's finale arrives after the waves, not alongside them. 0 = present
+    // from the start.
+    float bossArrivalDistance = 0.f;
     uint8_t targetIndex = 0;
     DinoSpecies species = DinoSpecies::Velociraptor;
     DinoBehaviorState state = DinoBehaviorState::Dormant;

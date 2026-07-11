@@ -226,6 +226,7 @@ static void activateDinoForTarget(World& world, int targetIndex) {
     // containing box hit, so shooting the raptor also chipped the boss.
     World world;
     activateDinoForTarget(world, 0);
+    activateDinoForTarget(world, 6); // boss arrives late by chart; force it in
     // Park the raptor directly in front of the T-Rex: same lane, same weave
     // phase (raptor slot 0 spawns at lane -1.9 by default, nowhere near the
     // boss's centered box).
