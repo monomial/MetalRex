@@ -6,6 +6,7 @@
 #include "Systems/ReticleSystem.h"
 #include "Systems/ScoringSystem.h"
 #include "Systems/AnimationSystem.h"
+#include "Systems/ScreenShakeSystem.h"
 #import <Foundation/Foundation.h>
 #include <algorithm>
 #include <cassert>
@@ -323,6 +324,10 @@ void World::tick(float gameDt) {
         return;
     }
     InputSystem_update(*this);
+    // Always ticks, same as PlayerHealthSystem below: a shake triggered right
+    // before a level-complete/all-out freeze should still decay rather than
+    // hang at full magnitude forever.
+    ScreenShakeSystem_update(*this, gameDt);
     // Always ticks: it owns the hit-flash/invulnerability timers and is the
     // only thing watching for the "insert coin" fire press while frozen.
     PlayerHealthSystem_update(*this, gameDt);

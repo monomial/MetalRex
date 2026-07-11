@@ -1,5 +1,6 @@
 #include "DinoBehaviorSystem.h"
 #include "Simulation/Systems/AnimationSystem.h"
+#include "Simulation/Systems/ScreenShakeSystem.h"
 #include <algorithm>
 #include <math.h>
 
@@ -244,6 +245,10 @@ void DinoBehaviorSystem_update(World& world, float gameDt) {
                         dino.chaseSpeed *= 1.2f;
                     }
                     dino.ragePhase = phase;
+                    // A stat change alone reads as "the boss quietly got
+                    // harder" — a shake makes the escalation an actual
+                    // moment the player feels, not just a hidden number.
+                    ScreenShakeSystem_trigger(world, 0.12f * (float)phase);
                 }
             }
             if (dino.health <= 0) {
@@ -251,6 +256,11 @@ void DinoBehaviorSystem_update(World& world, float gameDt) {
                                world.target(dino.targetIndex));
                 dino.state = DinoBehaviorState::Dying;
                 dino.stateTime = 0.f;
+                if (dino.isBoss) {
+                    // The kill lands harder than a phase escalation — this
+                    // is the fight's one moment, not a repeatable beat.
+                    ScreenShakeSystem_trigger(world, 0.32f);
+                }
                 // Force: death must cut through whatever is playing,
                 // including a mid-flight Attack.
                 AnimationSystem_force_clip(world, id, CharacterClipSlot::Death);

@@ -5,6 +5,7 @@
 #include "Simulation/Systems/AnimationSystem.h"
 #include "Simulation/Systems/ReticleSystem.h"
 #include "Simulation/Systems/ScoringSystem.h"
+#include "Simulation/Systems/ScreenShakeSystem.h"
 #include <TargetConditionals.h>
 #include <algorithm>
 #include <vector>
@@ -522,9 +523,24 @@ static id<MTLTexture> Rex_makeSkyGradientTexture(id<MTLDevice> device) {
     vertices.push_back({{l, t, z}});
 }
 
-- (simd_float4x4)_worldViewProjection:(const RailCameraState&)camera {
+// Shake is applied here, at render time, rather than inside
+// RailCameraSystem: that system's own camera-position copy also anchors
+// where dinos and hit-test boxes are placed on screen, so perturbing it
+// would make boss-phase shake jitter the reticle's actual hit targets.
+// Keeping the shake purely a render-time offset on top of the simulation's
+// unshaken camera pose makes it cosmetic only — screen-space juice with no
+// effect on aim fairness.
+- (simd_float4x4)_worldViewProjection:(const RailCameraState&)camera world:(World *)world {
     simd_float3 eye = (simd_float3){camera.positionX, camera.positionY, camera.positionZ};
     simd_float3 lookAt = (simd_float3){camera.lookAtX, camera.lookAtY, camera.lookAtZ};
+    if (world) {
+        simd_float2 shake = ScreenShakeSystem_offset(*world);
+        simd_float3 right = (simd_float3){camera.rightX, camera.rightY, camera.rightZ};
+        simd_float3 up = (simd_float3){camera.upX, camera.upY, camera.upZ};
+        simd_float3 shakeOffset = right * shake.x + up * shake.y;
+        eye += shakeOffset;
+        lookAt += shakeOffset;
+    }
     simd_float4x4 view = Rex_make_look_at(eye, lookAt, (simd_float3){0.f, 1.f, 0.f});
     simd_float4x4 projection = Rex_make_perspective(camera.fovYRadians, _aspect, camera.nearZ, camera.farZ);
     return simd_mul(projection, view);
@@ -1945,7 +1961,7 @@ static id<MTLTexture> Rex_makeScoreTexture(id<MTLDevice> device, NSString *score
     [encoder setDepthStencilState:_depthState];
     [encoder setVertexBuffer:_groundVB offset:0 atIndex:0];
     RexUniforms uniforms;
-    simd_float4x4 worldMVP = world ? [self _worldViewProjection:world->rail_camera()]
+    simd_float4x4 worldMVP = world ? [self _worldViewProjection:world->rail_camera() world:world]
                                    : Rex_make_perspective(1.04719758f, _aspect, 0.1f, 120.f);
     uniforms.mvp = worldMVP;
     uniforms.color = (simd_float4){0.36f, 0.47f, 0.28f, 1.f}; // grass green

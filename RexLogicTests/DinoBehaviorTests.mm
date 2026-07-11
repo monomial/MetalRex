@@ -2,6 +2,7 @@
 #include "Assets/CharacterLoader.h"
 #include "Simulation/Systems/DinoBehaviorSystem.h"
 #include "Simulation/Systems/AnimationSystem.h"
+#include "Simulation/Systems/ScreenShakeSystem.h"
 #include "Simulation/World.h"
 #include <cmath>
 #include <string>
@@ -497,6 +498,38 @@ static void placeWithinAttackRange(World& world, DinoBehaviorComponent& dino) {
     tick(world, 1);
     XCTAssertEqual(trex.ragePhase, 2);
     XCTAssertEqualWithAccuracy(trex.holdDuration, phase2Hold, 0.0001f);
+}
+
+- (void)test_bossRagePhaseEscalationTriggersScreenShake {
+    World world;
+    // ScreenShakeSystem is deliberately global module state ("one camera,
+    // one shake" — see its header), so a prior test in this same xctest
+    // process can leave a nonzero magnitude behind. Drain it with an
+    // oversized physicalDt before asserting so this test's result reflects
+    // only the trigger below, not leftover state.
+    ScreenShakeSystem_update(world, 10.f);
+    XCTAssertEqual(simd_length(ScreenShakeSystem_offset(world)), 0.f);
+
+    EntityID trexId = findTrex(world);
+    XCTAssertNotEqual(trexId, kInvalidEntity);
+    DinoBehaviorComponent& trex = world.get_component<DinoBehaviorComponent>(trexId);
+    activateDino(world, trexId, DinoBehaviorState::Approach);
+
+    TargetComponent& target = world.target(trex.targetIndex);
+    // Same body-shot count as test_bossRagePhasesEscalateAtHealthThresholds
+    // to land exactly on the phase-1 threshold.
+    for (int i = 0; i < 14; ++i) {
+        target.wasHit = true;
+        target.lastHitWasWeakPoint = false;
+        tick(world, 1);
+    }
+    XCTAssertEqual(trex.ragePhase, 1);
+    // The trigger call lands inside this same tick's DinoBehaviorSystem_update,
+    // which runs AFTER ScreenShakeSystem_update in World::tick — so the
+    // freshly triggered magnitude doesn't reach _offset until the next tick
+    // decays it into an angle/offset pair.
+    tick(world, 1);
+    XCTAssertGreaterThan(simd_length(ScreenShakeSystem_offset(world)), 0.f);
 }
 
 @end
