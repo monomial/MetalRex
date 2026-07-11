@@ -146,6 +146,10 @@ public:
     bool level_complete() const { return _levelComplete; }
     void complete_level() { _levelComplete = true; }
     GamePhase phase() const { return _phase; }
+    // Title-screen mode select: 0 = 1 PLAYER, 1 = 2 PLAYERS. Toggled with
+    // the stick at the title; confirmed by the fire press that starts the
+    // game (2 PLAYERS activates both slots immediately).
+    int title_selection() const { return _titleSelection; }
     // Puts the world on the title screen: no joined players, gameplay
     // frozen (no active reticles means no system ticks), waiting for a
     // release-then-press fire edge to join and start. Called by the render
@@ -176,6 +180,8 @@ private:
     size_t _nextChartEventIndex;
     bool _levelComplete;
     GamePhase _phase;
+    int _titleSelection;
+    bool _titleStickNeutral;
     // Per-player fire release tracking for join edges (title and mid-game):
     // a press only joins after fire has been seen UP at least once, so held
     // triggers and launch presses never join anyone accidentally.

@@ -230,8 +230,11 @@ static id<MTLTexture> Rex_makeSkyGradientTexture(id<MTLDevice> device) {
     CGSize _gameOverTextureSize;
     id<MTLTexture> _gradeTexture;   // end-of-act grade screen, built once per completion
     CGSize _gradeTextureSize;
-    id<MTLTexture> _titleTexture;   // title screen panel, static content
+    id<MTLTexture> _titleTexture;   // text-card fallback, static content
     CGSize _titleTextureSize;
+    id<MTLTexture> _titleArtTexture; // full-screen title art (assets/ui)
+    CGSize _titleArtSize;
+    BOOL _titleArtLoadAttempted;
     id<MTLTexture> _pressFireTexture;
     CGSize _pressFireTextureSize;
     id<MTLTexture> _scoreTextures[kRexMaxPlayers];
@@ -783,6 +786,48 @@ static id<MTLTexture> Rex_makeGameOverTexture(id<MTLDevice> device, CGSize *outS
            mipmapLevel:0
              withBytes:pixels.bytes
            bytesPerRow:bpr];
+    if (outSize) *outSize = CGSizeMake(w, h);
+    return tex;
+}
+
+// Loads a bundled PNG into an RGBA8 texture (title art and future UI).
+// Returns nil (and logs) if the resource is missing or undecodable.
+static id<MTLTexture> Rex_loadBundlePNGTexture(id<MTLDevice> device, NSString *name,
+                                               NSString *directory, CGSize *outSize) {
+    NSString *path = [[NSBundle mainBundle] pathForResource:name ofType:@"png"
+                                                inDirectory:directory];
+    if (!path) {
+        NSLog(@"RexRenderer: %@/%@.png missing from bundle", directory, name);
+        return nil;
+    }
+    NSURL *url = [NSURL fileURLWithPath:path];
+    CGImageSourceRef source = CGImageSourceCreateWithURL((__bridge CFURLRef)url, NULL);
+    CGImageRef image = source ? CGImageSourceCreateImageAtIndex(source, 0, NULL) : NULL;
+    if (source) CFRelease(source);
+    if (!image) {
+        NSLog(@"RexRenderer: failed to decode %@.png", name);
+        return nil;
+    }
+    NSUInteger w = CGImageGetWidth(image), h = CGImageGetHeight(image);
+    NSUInteger bpr = w * 4;
+    NSMutableData *pixels = [NSMutableData dataWithLength:bpr * h];
+    CGColorSpaceRef cs = CGColorSpaceCreateDeviceRGB();
+    CGBitmapInfo bitmapInfo = (CGBitmapInfo)kCGImageAlphaPremultipliedLast | kCGBitmapByteOrder32Big;
+    CGContextRef ctx = CGBitmapContextCreate(pixels.mutableBytes, w, h, 8, bpr, cs, bitmapInfo);
+    if (ctx) CGContextDrawImage(ctx, CGRectMake(0, 0, w, h), image);
+    CGImageRelease(image);
+    if (ctx) CGContextRelease(ctx);
+    CGColorSpaceRelease(cs);
+    if (!ctx) return nil;
+
+    MTLTextureDescriptor *td = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatRGBA8Unorm
+                                                                                  width:w
+                                                                                 height:h
+                                                                              mipmapped:NO];
+    td.usage = MTLTextureUsageShaderRead;
+    id<MTLTexture> tex = [device newTextureWithDescriptor:td];
+    [tex replaceRegion:MTLRegionMake2D(0, 0, w, h) mipmapLevel:0
+             withBytes:pixels.bytes bytesPerRow:bpr];
     if (outSize) *outSize = CGSizeMake(w, h);
     return tex;
 }
@@ -1349,10 +1394,75 @@ static id<MTLTexture> Rex_makeScoreTexture(id<MTLDevice> device, NSString *score
 // the shared GAME OVER / continue panel.
 - (void)_drawHUD:(World *)world encoder:(id<MTLRenderCommandEncoder>)encoder {
     if (world->phase() == GamePhase::Title) {
-        if (!_titleTexture) {
-            _titleTexture = Rex_makeTitleTexture(_device, &_titleTextureSize);
+        if (!_titleArtLoadAttempted) {
+            _titleArtLoadAttempted = YES;
+            _titleArtTexture = Rex_loadBundlePNGTexture(_device, @"metalrex-title",
+                                                        @"assets/ui", &_titleArtSize);
         }
-        [self _drawPanelTexture:_titleTexture size:_titleTextureSize encoder:encoder];
+        if (!_titleArtTexture) {
+            // Text-card fallback if the art asset is missing.
+            if (!_titleTexture) {
+                _titleTexture = Rex_makeTitleTexture(_device, &_titleTextureSize);
+            }
+            [self _drawPanelTexture:_titleTexture size:_titleTextureSize encoder:encoder];
+            return;
+        }
+
+        // Full-screen aspect-FILL (crop overflow, never letterbox).
+        float scale = std::max((_halfW * 2.f) / (float)_titleArtSize.width,
+                               (_halfH * 2.f) / (float)_titleArtSize.height);
+        float drawW = (float)_titleArtSize.width * scale;
+        float drawH = (float)_titleArtSize.height * scale;
+        RexTextureUniformsCPU uniforms;
+        uniforms.mvp = Rex_make_model_rect(_overlayProjection, 0.f, 0.f, 0.f, drawW, drawH);
+        [encoder setRenderPipelineState:_texturePipeline];
+        [encoder setVertexBuffer:_texQuadVB offset:0 atIndex:0];
+        [encoder setVertexBytes:&uniforms length:sizeof(uniforms) atIndex:1];
+        [encoder setFragmentTexture:_titleArtTexture atIndex:0];
+        [encoder setFragmentSamplerState:_sampler atIndex:0];
+        [encoder drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:6];
+        [encoder setRenderPipelineState:_pipeline];
+
+        // 1P/2P selection overlays. Button rects measured off the art in
+        // image-normalized coords (u right, v down), mapped through the
+        // same aspect-fill transform as the art quad.
+        auto buttonQuad = [&](float u0, float v0, float u1, float v1,
+                              simd_float4 color, float inset) {
+            float x0 = (u0 - 0.5f) * drawW + inset, x1 = (u1 - 0.5f) * drawW - inset;
+            float y0 = (0.5f - v1) * drawH + inset, y1 = (0.5f - v0) * drawH - inset;
+            std::vector<RexVertex> quad;
+            [self _appendQuad:quad center:(simd_float3){(x0 + x1) * 0.5f, (y0 + y1) * 0.5f, 0.01f}
+                        halfW:(x1 - x0) * 0.5f halfH:(y1 - y0) * 0.5f];
+            [self _drawVertices:quad color:color
+                      primitive:MTLPrimitiveTypeTriangle mvp:_overlayProjection encoder:encoder];
+        };
+        const float oneU0 = 0.135f, oneU1 = 0.478f;
+        const float twoU0 = 0.521f, twoU1 = 0.865f;
+        const float btnV0 = 0.656f, btnV1 = 0.845f;
+        bool twoSelected = world->title_selection() == 1;
+        // Mute the unselected button (the art bakes a glow into 1 PLAYER).
+        if (twoSelected) {
+            buttonQuad(oneU0, btnV0, oneU1, btnV1, (simd_float4){0.f, 0.f, 0.f, 0.55f}, 0.f);
+        } else {
+            buttonQuad(twoU0, btnV0, twoU1, btnV1, (simd_float4){0.f, 0.f, 0.f, 0.45f}, 0.f);
+        }
+        // Bright border on the selected button: four thin edge strips.
+        float su0 = twoSelected ? twoU0 : oneU0, su1 = twoSelected ? twoU1 : oneU1;
+        simd_float4 glow = (simd_float4){0.62f, 0.85f, 1.f, 0.95f};
+        float bx0 = (su0 - 0.5f) * drawW, bx1 = (su1 - 0.5f) * drawW;
+        float by0 = (0.5f - btnV1) * drawH, by1 = (0.5f - btnV0) * drawH;
+        float t = std::max(2.5f, drawH * 0.004f);
+        std::vector<RexVertex> border;
+        [self _appendQuad:border center:(simd_float3){(bx0 + bx1) * 0.5f, by1 - t * 0.5f, 0.02f}
+                    halfW:(bx1 - bx0) * 0.5f halfH:t * 0.5f];
+        [self _appendQuad:border center:(simd_float3){(bx0 + bx1) * 0.5f, by0 + t * 0.5f, 0.02f}
+                    halfW:(bx1 - bx0) * 0.5f halfH:t * 0.5f];
+        [self _appendQuad:border center:(simd_float3){bx0 + t * 0.5f, (by0 + by1) * 0.5f, 0.02f}
+                    halfW:t * 0.5f halfH:(by1 - by0) * 0.5f];
+        [self _appendQuad:border center:(simd_float3){bx1 - t * 0.5f, (by0 + by1) * 0.5f, 0.02f}
+                    halfW:t * 0.5f halfH:(by1 - by0) * 0.5f];
+        [self _drawVertices:border color:glow
+                  primitive:MTLPrimitiveTypeTriangle mvp:_overlayProjection encoder:encoder];
         return;
     }
 

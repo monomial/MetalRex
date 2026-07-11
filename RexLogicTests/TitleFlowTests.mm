@@ -104,4 +104,48 @@ static void tick(World& world, int count) {
     XCTAssertFalse(world.reticle(1).active);
 }
 
+- (void)test_titleStickTogglesModeSelectionEdgeGated {
+    World world;
+    world.enter_title();
+    XCTAssertEqual(world.title_selection(), 0); // defaults to 1 PLAYER
+
+    // Flick right: selects 2 PLAYERS once, not repeatedly while held.
+    InputState right = {};
+    right.stickX = 1.f;
+    world.set_input(right, 0);
+    tick(world, 30);
+    XCTAssertEqual(world.title_selection(), 1);
+
+    // Still held: no oscillation back.
+    tick(world, 30);
+    XCTAssertEqual(world.title_selection(), 1);
+
+    // Return to neutral, then flick left: back to 1 PLAYER.
+    world.set_input(InputState{}, 0);
+    tick(world, 5);
+    InputState left = {};
+    left.stickX = -1.f;
+    world.set_input(left, 0);
+    tick(world, 5);
+    XCTAssertEqual(world.title_selection(), 0);
+}
+
+- (void)test_confirmingTwoPlayersActivatesBothSlots {
+    World world;
+    world.enter_title();
+    InputState right = {};
+    right.stickX = 1.f;
+    world.set_input(right, 0);
+    tick(world, 5); // select 2 PLAYERS (also arms the fire edge via released fire)
+
+    InputState press = {};
+    press.fire = true;
+    world.set_input(press, 0);
+    tick(world, 1);
+
+    XCTAssertEqual(world.phase(), GamePhase::Playing);
+    XCTAssertTrue(world.reticle(0).active);
+    XCTAssertTrue(world.reticle(1).active);
+}
+
 @end

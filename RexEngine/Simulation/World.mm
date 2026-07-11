@@ -9,6 +9,7 @@
 #import <Foundation/Foundation.h>
 #include <algorithm>
 #include <cassert>
+#include <cmath>
 
 static constexpr float kFixedDt = 1.0f / 120.0f;
 
@@ -31,6 +32,8 @@ World::World()
     , _nextChartEventIndex(0)
     , _levelComplete(false)
     , _phase(GamePhase::Playing)
+    , _titleSelection(0)
+    , _titleStickNeutral(true)
     , _fireSeenReleased{}
     , _levelCompleteElapsed(0.f)
     , _levelCompleteFireReleased(false)
@@ -251,6 +254,8 @@ void World::enter_title() {
         _fireSeenReleased[i] = false;
     }
     reset_m1_scene();
+    _titleSelection = 0;
+    _titleStickNeutral = true;
     _phase = GamePhase::Title;
 }
 
@@ -265,6 +270,21 @@ static void join_player(World& world, int player) {
 }
 
 void World::tick(float gameDt) {
+    // Title mode select: any player's stick flicks the 1P/2P highlight.
+    // Edge-gated on returning to neutral so holding the stick doesn't
+    // oscillate the selection at 120Hz.
+    if (_phase == GamePhase::Title) {
+        float stickX = 0.f;
+        for (int p = 0; p < kRexMaxPlayers; ++p) {
+            if (fabsf(_inputs[p].stickX) > fabsf(stickX)) stickX = _inputs[p].stickX;
+        }
+        if (_titleStickNeutral) {
+            if (stickX > 0.5f) { _titleSelection = 1; _titleStickNeutral = false; }
+            else if (stickX < -0.5f) { _titleSelection = 0; _titleStickNeutral = false; }
+        } else if (fabsf(stickX) < 0.3f) {
+            _titleStickNeutral = true;
+        }
+    }
     // Join edges — title and mid-run. A press counts only after that
     // player's fire has been seen released once (held triggers and launch
     // presses can't join anyone).
@@ -276,6 +296,12 @@ void World::tick(float gameDt) {
             bool firstJoin = (_phase == GamePhase::Title);
             join_player(*this, p);
             if (firstJoin) {
+                // Confirming 2 PLAYERS brings both slots in immediately —
+                // classic cabinet behavior; the join-anytime path still
+                // covers a second controller arriving later in 1P mode.
+                if (_titleSelection == 1) {
+                    join_player(*this, p == 0 ? 1 : 0);
+                }
                 // First player in starts the run: fresh scene, off the title.
                 reset_m1_scene();
                 _phase = GamePhase::Playing;
