@@ -439,4 +439,64 @@ static void placeWithinAttackRange(World& world, DinoBehaviorComponent& dino) {
     XCTAssertLessThan(gap, 6.f);
 }
 
+- (void)test_weakPointHitsDealDoubleDamage {
+    World world;
+    EntityID dinoId = findDino(world);
+    XCTAssertNotEqual(dinoId, kInvalidEntity);
+    DinoBehaviorComponent& dino = world.get_component<DinoBehaviorComponent>(dinoId);
+    activateDino(world, dinoId, DinoBehaviorState::Approach);
+    dino.holdDuration = 100.f;
+    int startHealth = dino.health;
+
+    TargetComponent& target = world.target(dino.targetIndex);
+    target.wasHit = true;
+    target.lastHitWasWeakPoint = true;
+    tick(world, 1);
+    XCTAssertEqual(dino.health, startHealth - 2);
+
+    target.wasHit = true;
+    target.lastHitWasWeakPoint = false;
+    tick(world, 1);
+    XCTAssertEqual(dino.health, startHealth - 3);
+}
+
+- (void)test_bossRagePhasesEscalateAtHealthThresholds {
+    World world;
+    EntityID trexId = findTrex(world);
+    XCTAssertNotEqual(trexId, kInvalidEntity);
+    DinoBehaviorComponent& trex = world.get_component<DinoBehaviorComponent>(trexId);
+    activateDino(world, trexId, DinoBehaviorState::Approach);
+    float baseHold = trex.holdDuration;
+    float baseChase = trex.chaseSpeed;
+    XCTAssertEqual(trex.ragePhase, 0);
+
+    TargetComponent& target = world.target(trex.targetIndex);
+    // Body-shoot down to just past 1/3 damage taken (40 -> 26).
+    for (int i = 0; i < 14; ++i) {
+        target.wasHit = true;
+        target.lastHitWasWeakPoint = false;
+        tick(world, 1);
+    }
+    XCTAssertEqual(trex.ragePhase, 1);
+    XCTAssertLessThan(trex.holdDuration, baseHold);
+    XCTAssertGreaterThan(trex.chaseSpeed, baseChase);
+
+    // Past 2/3 damage taken (26 -> 13).
+    float phase1Hold = trex.holdDuration;
+    for (int i = 0; i < 13; ++i) {
+        target.wasHit = true;
+        target.lastHitWasWeakPoint = false;
+        tick(world, 1);
+    }
+    XCTAssertEqual(trex.ragePhase, 2);
+    XCTAssertLessThan(trex.holdDuration, phase1Hold);
+    // One-way: healing never exists, but the phase must never regress
+    // and never re-apply multipliers on later hits within the phase.
+    float phase2Hold = trex.holdDuration;
+    target.wasHit = true;
+    tick(world, 1);
+    XCTAssertEqual(trex.ragePhase, 2);
+    XCTAssertEqualWithAccuracy(trex.holdDuration, phase2Hold, 0.0001f);
+}
+
 @end

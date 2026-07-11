@@ -190,6 +190,11 @@ struct DinoBehaviorComponent {
     // act's finale arrives after the waves, not alongside them. 0 = present
     // from the start.
     float bossArrivalDistance = 0.f;
+    // Boss escalation: 0 below 1/3 damage taken, 1 past it, 2 past 2/3 —
+    // each phase shortens the hold before attacks and quickens the chase
+    // (DinoBehaviorSystem applies the multipliers; the renderer tints the
+    // boss progressively redder so the escalation reads at a glance).
+    uint8_t ragePhase = 0;
     uint8_t targetIndex = 0;
     DinoSpecies species = DinoSpecies::Velociraptor;
     DinoBehaviorState state = DinoBehaviorState::Dormant;

@@ -227,8 +227,24 @@ void DinoBehaviorSystem_update(World& world, float gameDt) {
             dino.hitFlashTime = std::max(0.f, dino.hitFlashTime - gameDt);
         }
         if (wasShot && dino.state != DinoBehaviorState::Dying) {
-            dino.health -= 1;
+            // Weak-point hits (the head region) deal double damage — aim
+            // skill shortens every fight, and it's what makes the boss's
+            // health pool feel like a puzzle instead of a grind.
+            dino.health -= shotWasWeakPoint ? 2 : 1;
             dino.hitFlashTime = 0.2f;
+            if (dino.isBoss) {
+                // Escalation phases at 1/3 and 2/3 damage taken: shorter
+                // holds and a quicker chase each phase. One-way per run.
+                float taken = 1.f - (float)std::max(0, dino.health) / (float)dino.maxHealth;
+                uint8_t phase = taken >= (2.f / 3.f) ? 2 : (taken >= (1.f / 3.f) ? 1 : 0);
+                if (phase > dino.ragePhase) {
+                    for (uint8_t step = dino.ragePhase; step < phase; ++step) {
+                        dino.holdDuration *= 0.6f;
+                        dino.chaseSpeed *= 1.2f;
+                    }
+                    dino.ragePhase = phase;
+                }
+            }
             if (dino.health <= 0) {
                 emit_hit_score(world, shotPlayer, dino.species, shotWasWeakPoint);
                 dino.state = DinoBehaviorState::Dying;

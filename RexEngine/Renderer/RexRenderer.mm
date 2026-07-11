@@ -634,13 +634,20 @@ static id<MTLTexture> Rex_makeSkyGradientTexture(id<MTLDevice> device) {
         bool hitFlash = dino.hitFlashTime > 0.f;
         uniforms.color = hitFlash ? (simd_float4){0.96f, 0.78f, 0.24f, anim.deathFade}
                                   : (simd_float4){1.f, 1.f, 1.f, anim.deathFade};
+        // Boss escalation reads as a deepening red flush: phase 1 warms the
+        // hide, phase 2 is unmistakably enraged. The hit flash still wins
+        // while it runs (brighter, distinct color).
+        float rageTint = (float)dino.ragePhase * 0.16f;
         // Light from the camera's side, raised a bit so top surfaces read
         // brighter than undersides (pure headlight lighting looks flat).
         simd_float3 towardCamera = simd_normalize((simd_float3){
             dx, camera.positionY - target.worldY, dz});
         simd_float3 lightDir = simd_normalize(towardCamera + (simd_float3){0.f, 0.9f, 0.f});
         uniforms.lightDir = (simd_float4){lightDir.x, lightDir.y, lightDir.z, 0.f};
-        uniforms.tintStrength = hitFlash ? 0.45f : 0.f;
+        if (!hitFlash && rageTint > 0.f) {
+            uniforms.color = (simd_float4){1.f, 0.30f, 0.22f, anim.deathFade};
+        }
+        uniforms.tintStrength = hitFlash ? 0.45f : rageTint;
 
         [encoder setVertexBuffer:character->vertexBuffer offset:0 atIndex:0];
         [encoder setVertexBytes:anim.boneMatrices length:sizeof(anim.boneMatrices) atIndex:1];
