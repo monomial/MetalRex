@@ -110,6 +110,14 @@ static const int kMaxPlayers = 4;
 
 - (void)_attachController:(GCController *)controller {
     if (!controller) return;
+    // Only real gamepads claim player slots. The Siri Remote is ALSO a
+    // GCController (microGamepad profile, no extendedGamepad) and it's
+    // nearly always connected on tvOS — without this check it grabbed
+    // slot 0 (Player 1) as a dead slot with no input wiring, pushing the
+    // first real gamepad to P2 and the second to P3, whose reticle isn't
+    // active — i.e. "two controllers connected but only one recognized."
+    // Its motion sensors were also feeding remote wobble into P1's gyro.
+    if (!controller.extendedGamepad) return;
     for (int i = 0; i < kMaxPlayers; ++i) {
         if (_assignedControllers[i] == controller) return;
     }
@@ -124,6 +132,9 @@ static const int kMaxPlayers = 4;
     if (slot < 0) return;
 
     _assignedControllers[slot] = controller;
+    // Light the controller's player indicator so each player can see which
+    // reticle is theirs (P1 pink = indicator 1, P2 cyan = indicator 2).
+    controller.playerIndex = (GCControllerPlayerIndex)(GCControllerPlayerIndex1 + slot);
     if (controller.motion) {
         controller.motion.sensorsActive = YES;
     }

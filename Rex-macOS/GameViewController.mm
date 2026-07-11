@@ -231,6 +231,11 @@
 
 - (void)_attachController:(GCController *)controller {
     if (!controller || _controller == controller) return;
+    // Only real gamepads take the (single) controller slot — a device with
+    // no extendedGamepad profile would otherwise replace a working pad and
+    // die at the wiring step below (same bug family as tvOS's Siri Remote
+    // claiming Player 1).
+    if (!controller.extendedGamepad) return;
     _controller = controller;
     if (_controller.motion) {
         _controller.motion.sensorsActive = YES;
