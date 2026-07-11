@@ -461,6 +461,14 @@ static void placeWithinAttackRange(World& world, DinoBehaviorComponent& dino) {
     XCTAssertEqual(dino.health, startHealth - 3);
 }
 
+// Both rage-phase tests below also incidentally arm world.major_attack() in
+// the background (phase escalation triggers it — see DinoBehaviorSystem.mm).
+// That's harmless to these tests' own assertions: major attack is slow
+// motion, not a freeze, so the health-decrement/phase-escalation logic they
+// drive via direct target.wasHit pokes keeps working at any tick count
+// (see BossMajorAttackTests.mm for coverage of the popup itself, and the
+// death-vs-major-attack interaction in DinoBehaviorSystem.mm where a
+// killing blow always cancels an in-progress major attack).
 - (void)test_bossRagePhasesEscalateAtHealthThresholds {
     World world;
     EntityID trexId = findTrex(world);

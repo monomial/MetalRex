@@ -249,6 +249,10 @@ void DinoBehaviorSystem_update(World& world, float gameDt) {
                     // harder" — a shake makes the escalation an actual
                     // moment the player feels, not just a hidden number.
                     ScreenShakeSystem_trigger(world, 0.12f * (float)phase);
+                    // The boss's own "big spectacle moment": a timed QTE
+                    // popup asking the player to hit 4 marked points before
+                    // it retaliates. See World::begin_boss_major_attack.
+                    world.begin_boss_major_attack(id, dino.species, phase);
                 }
             }
             if (dino.health <= 0) {
@@ -260,6 +264,15 @@ void DinoBehaviorSystem_update(World& world, float gameDt) {
                     // The kill lands harder than a phase escalation — this
                     // is the fight's one moment, not a repeatable beat.
                     ScreenShakeSystem_trigger(world, 0.32f);
+                    // The killing blow can itself cross a rage-phase
+                    // threshold and arm a major attack the same tick (a big
+                    // enough hit jumps straight past 2/3 taken). A dead boss
+                    // has nothing left to retaliate with, and leaving the
+                    // popup active would keep AnimationSystem/DinoBehavior
+                    // running in slow motion (see World::tick) — including
+                    // the Death clip that's about to play — so the fight
+                    // would never actually end. Death always wins.
+                    world.major_attack_mutable() = BossMajorAttackState{};
                 }
                 // Force: death must cut through whatever is playing,
                 // including a mid-flight Attack.
@@ -368,7 +381,18 @@ void DinoBehaviorSystem_update(World& world, float gameDt) {
                                world.target(dino.targetIndex));
                 }
 
-                if (anim->clipDone && anim->currentClip == CharacterClipSlot::Attack) {
+                // The extra !major_attack_active() guard is defense in depth
+                // against a boss's own Attack clip completing WHILE its major
+                // attack QTE popup is up: the slow-motion scale (see
+                // kMajorAttackSlowMoScale) is already sized so this can't
+                // happen with any clip length seen in this project, but this
+                // makes the "attack landed unopposed" branch structurally
+                // unable to fire during the popup regardless of future
+                // tuning or a faster future boss animation — a double-attack
+                // (this branch's normal damage AND the QTE's own damage
+                // curve both landing) would otherwise be possible.
+                if (anim->clipDone && anim->currentClip == CharacterClipSlot::Attack
+                    && !world.major_attack_active()) {
                     dino.lastOutcome = DinoInterruptOutcome::Failed;
                     dino.outcomeThisCycle = true;
                     // The attack finished without being interrupted — it

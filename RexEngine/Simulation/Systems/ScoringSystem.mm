@@ -11,6 +11,8 @@ static int points_for_event(DinoScoreEvent event) {
         case DinoScoreEvent::Hit: return 10;
         case DinoScoreEvent::WeakPointHit: return 25;
         case DinoScoreEvent::InterruptSuccess: return 50;
+        case DinoScoreEvent::MajorAttackPointHit: return 40;
+        case DinoScoreEvent::MajorAttackPerfect: return 250;
         case DinoScoreEvent::InterruptFail:
         case DinoScoreEvent::TellMissed: return 0;
     }
@@ -35,6 +37,19 @@ static void apply_score_event(PlayerScoreState& score, DinoScoreEvent event) {
             score.shotsHit += 1;
             score.interruptSuccesses += 1;
             continue_streak(score);
+            break;
+        case DinoScoreEvent::MajorAttackPointHit:
+            // A landed shot at one of the 4 popup points — same bookkeeping
+            // as a normal Hit/WeakPointHit, just worth more.
+            score.score += 40;
+            score.shotsHit += 1;
+            continue_streak(score);
+            break;
+        case DinoScoreEvent::MajorAttackPerfect:
+            // A bonus, not a shot: doesn't touch shotsHit/shotsFired
+            // (accuracy) or the streak — each of the 4 points that earned
+            // it already did that individually via MajorAttackPointHit.
+            score.score += 250;
             break;
         case DinoScoreEvent::InterruptFail:
         case DinoScoreEvent::TellMissed:

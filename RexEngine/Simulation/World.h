@@ -184,6 +184,15 @@ public:
     // check next to the only place health actually decreases.
     void damage_player(int playerIndex, int amount);
 
+    // Boss major-attack QTE (see BossMajorAttackSystem). Arms on rage-phase
+    // escalation; while active, World::tick runs the camera/boss/animation
+    // systems in slow motion (see tick()) but aiming/countdown/scoring stay
+    // real-time.
+    const BossMajorAttackState& major_attack() const { return _majorAttack; }
+    BossMajorAttackState& major_attack_mutable() { return _majorAttack; }
+    bool major_attack_active() const { return _majorAttack.active; }
+    void begin_boss_major_attack(uint32_t bossEntity, DinoSpecies species, uint8_t ragePhase);
+
 private:
     void flush();
     void reset_m1_scene();
@@ -229,6 +238,7 @@ private:
     LevelChart _chart;
     PlayerHealthState _playerHealth[kRexMaxPlayers];
     PlayerScoreState _playerScore[kRexMaxPlayers];
+    BossMajorAttackState _majorAttack;
 };
 
 template<typename T>

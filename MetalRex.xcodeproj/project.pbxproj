@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		026C5D46C2CF7F50D45B18E0 /* ChartLoader.mm in Sources */ = {isa = PBXBuildFile; fileRef = 023616D91291A9D8D903896B /* ChartLoader.mm */; };
 		04FAD9843FC745871671B78A /* ChartLoader.mm in Sources */ = {isa = PBXBuildFile; fileRef = 023616D91291A9D8D903896B /* ChartLoader.mm */; };
+		0A9B11E00BBAAA99AB2EFCC9 /* BossMajorAttackSystem.mm in Sources */ = {isa = PBXBuildFile; fileRef = 1D129F32809AC4D2196A3946 /* BossMajorAttackSystem.mm */; };
 		0B5C2B32FE0B1CE49F9E620B /* RailCameraSystem.mm in Sources */ = {isa = PBXBuildFile; fileRef = 80FAA2F6BAC5124039F91CD7 /* RailCameraSystem.mm */; };
 		0C6E607D0A3D5DE997BA013B /* ScreenShakeSystem.mm in Sources */ = {isa = PBXBuildFile; fileRef = 0604376B2E287273A588D819 /* ScreenShakeSystem.mm */; };
 		0D99D6CE30057EF551EE5069 /* HapticsEngine.mm in Sources */ = {isa = PBXBuildFile; fileRef = DF0E49C9D1B509090135F40B /* HapticsEngine.mm */; };
@@ -16,6 +17,7 @@
 		11E836CEB88EC88F05CD7E21 /* PhysicsSystem.mm in Sources */ = {isa = PBXBuildFile; fileRef = 19CFD438813570373EF78E93 /* PhysicsSystem.mm */; };
 		155C9A2701741481F0484438 /* PhysicsSystem.mm in Sources */ = {isa = PBXBuildFile; fileRef = 19CFD438813570373EF78E93 /* PhysicsSystem.mm */; };
 		166FC9F8D6363EEB2AF1DB7B /* assets in Resources */ = {isa = PBXBuildFile; fileRef = 9285B510089C9CA623582EE1 /* assets */; };
+		1CB497BF582E38C2E7E6CBE4 /* BossMajorAttackPoints.mm in Sources */ = {isa = PBXBuildFile; fileRef = 3498AD7A47714359C377EC68 /* BossMajorAttackPoints.mm */; };
 		1CDB33AA5FF38F7E94F72FA2 /* MetalKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E2CD79E815BBA360995598A8 /* MetalKit.framework */; };
 		1CE0020179C85A64AB34029E /* AnimationSystem.mm in Sources */ = {isa = PBXBuildFile; fileRef = DDE8330981F4B3171E516CDD /* AnimationSystem.mm */; };
 		1DCF0E2D00C57D754E3466C4 /* AnimationSystem.mm in Sources */ = {isa = PBXBuildFile; fileRef = DDE8330981F4B3171E516CDD /* AnimationSystem.mm */; };
@@ -33,9 +35,11 @@
 		3D50833CE1DF4FDF2428B717 /* HealthTests.mm in Sources */ = {isa = PBXBuildFile; fileRef = 215B80C5038893DB52B737C0 /* HealthTests.mm */; };
 		3DFBAA24F2984154510FCA2C /* ChartLoaderTests.mm in Sources */ = {isa = PBXBuildFile; fileRef = EC0C28A795440865E01D6BDB /* ChartLoaderTests.mm */; };
 		44407FF0359B21C599ED6F47 /* RexGameHost.mm in Sources */ = {isa = PBXBuildFile; fileRef = 34A962C9761AE26A1155D1F1 /* RexGameHost.mm */; };
+		46F31797C623229F3A8273BC /* BossMajorAttackSystem.mm in Sources */ = {isa = PBXBuildFile; fileRef = 1D129F32809AC4D2196A3946 /* BossMajorAttackSystem.mm */; };
 		4B06A94AD6DF538453690CA4 /* CoreGraphics.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 34892C62ADBBD67118CC0D23 /* CoreGraphics.framework */; };
 		4B0CBEA08D2A70E4D360AA17 /* InputSystem.mm in Sources */ = {isa = PBXBuildFile; fileRef = E24115F77C07DE877C58A1D9 /* InputSystem.mm */; };
 		4B3223B2C8BC6C8975B540CA /* PlayerHealthSystem.mm in Sources */ = {isa = PBXBuildFile; fileRef = B709D13B5703D3FFE4734D8B /* PlayerHealthSystem.mm */; };
+		4E6C5FFCC5205F0F5A49D157 /* BossMajorAttackPoints.mm in Sources */ = {isa = PBXBuildFile; fileRef = 3498AD7A47714359C377EC68 /* BossMajorAttackPoints.mm */; };
 		4E96425B90F675E9D199BFEA /* ModelIO.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FF21A3D89DFCD32DB2F372CF /* ModelIO.framework */; };
 		4F73DEAFE2E7C817EFB73766 /* GameViewController.mm in Sources */ = {isa = PBXBuildFile; fileRef = 36C9F6F43FE862FE83C07921 /* GameViewController.mm */; };
 		4FE9E86E41CB3DCC9D8A08CA /* CoreGraphics.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 34892C62ADBBD67118CC0D23 /* CoreGraphics.framework */; };
@@ -68,6 +72,7 @@
 		80AD01AAB6C768EB1B4E4D4F /* RexRenderer.mm in Sources */ = {isa = PBXBuildFile; fileRef = D19215428D510F18874F5DC5 /* RexRenderer.mm */; };
 		820A52F745B7074732605D8E /* ControllerRumble.mm in Sources */ = {isa = PBXBuildFile; fileRef = 7C33B342517DC4C678297EBB /* ControllerRumble.mm */; };
 		84A86A9EF8BF321FD7043AB2 /* RailCameraSystem.mm in Sources */ = {isa = PBXBuildFile; fileRef = 80FAA2F6BAC5124039F91CD7 /* RailCameraSystem.mm */; };
+		84FA329CB64726691C9135B3 /* BossMajorAttackTests.mm in Sources */ = {isa = PBXBuildFile; fileRef = A105B2EDF7085318E71DBDC5 /* BossMajorAttackTests.mm */; };
 		860E6CDE09E8A15BFCD8C42D /* InputSystem.mm in Sources */ = {isa = PBXBuildFile; fileRef = E24115F77C07DE877C58A1D9 /* InputSystem.mm */; };
 		876C6B4D41C5B7ED5A2D1A3D /* RexGameHost.mm in Sources */ = {isa = PBXBuildFile; fileRef = 34A962C9761AE26A1155D1F1 /* RexGameHost.mm */; };
 		88625F037988C89DA4E57FF3 /* CoreText.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F133AD737FDF28F461217E8A /* CoreText.framework */; };
@@ -93,11 +98,13 @@
 		ACEE1ADC2FDEFDE0EA723E2C /* AudioEngine.mm in Sources */ = {isa = PBXBuildFile; fileRef = 2A7C75196D06EAC27F9A64E2 /* AudioEngine.mm */; };
 		AF2F683A80A8998A9AD78C43 /* ParticleSim.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 97C15A79A4F325FCF1A47F0D /* ParticleSim.cpp */; };
 		B35342C01E5D6E5A3B90ED0C /* CoreHaptics.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 60C0E90E9C621BF1852AFA13 /* CoreHaptics.framework */; };
+		B5CB9D3D404F27F564728D76 /* BossMajorAttackPoints.mm in Sources */ = {isa = PBXBuildFile; fileRef = 3498AD7A47714359C377EC68 /* BossMajorAttackPoints.mm */; };
 		BAA67AED3B0E4ECBD0A7F3BA /* main.mm in Sources */ = {isa = PBXBuildFile; fileRef = 50CE385CDDEA3219EBC451EB /* main.mm */; };
 		BF82031A273824896A149CC4 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 2DC8B19B98734D8A5BCB46C7 /* Assets.xcassets */; };
 		CC8A8DEDDE3586398DD26B1E /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = EB68E680D43E6A243EE60DAE /* Cocoa.framework */; };
 		CEF2EA681102A26BB102CD5F /* Shaders in Resources */ = {isa = PBXBuildFile; fileRef = 105B2556BDC7A289744004EC /* Shaders */; };
 		D1AF1DB4EF5DCED0DFAFA6F0 /* DinoBehaviorTests.mm in Sources */ = {isa = PBXBuildFile; fileRef = EA80D5C012615225879CF397 /* DinoBehaviorTests.mm */; };
+		D1F4D5B10FA5CF703E19A060 /* BossMajorAttackSystem.mm in Sources */ = {isa = PBXBuildFile; fileRef = 1D129F32809AC4D2196A3946 /* BossMajorAttackSystem.mm */; };
 		D257549259C4FD1D7C87227C /* DinoBehaviorSystem.mm in Sources */ = {isa = PBXBuildFile; fileRef = DC48A4FFFCED309C5A20C805 /* DinoBehaviorSystem.mm */; };
 		D496A27D1EFE7F1558662C86 /* AVFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 06C96980F27DD82DD5C0F838 /* AVFoundation.framework */; };
 		DA5A71C41D646251B75EB44F /* ScreenShakeSystem.mm in Sources */ = {isa = PBXBuildFile; fileRef = 0604376B2E287273A588D819 /* ScreenShakeSystem.mm */; };
@@ -128,6 +135,7 @@
 		105B2556BDC7A289744004EC /* Shaders */ = {isa = PBXFileReference; lastKnownFileType = folder; path = Shaders; sourceTree = SOURCE_ROOT; };
 		15F5E5BB6F9B426318D2F765 /* ParticleSim.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ParticleSim.h; sourceTree = "<group>"; };
 		19CFD438813570373EF78E93 /* PhysicsSystem.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = PhysicsSystem.mm; sourceTree = "<group>"; };
+		1D129F32809AC4D2196A3946 /* BossMajorAttackSystem.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = BossMajorAttackSystem.mm; sourceTree = "<group>"; };
 		1D4170C632E74E0BC0DCAC6E /* GameController.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = GameController.framework; path = System/Library/Frameworks/GameController.framework; sourceTree = SDKROOT; };
 		1D7B034B00A4E0F74AED4A97 /* TitleFlowTests.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = TitleFlowTests.mm; sourceTree = "<group>"; };
 		215B35A2BB13635BCE5C9BFD /* RexLogicTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = RexLogicTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -140,8 +148,10 @@
 		322F98B61C57C3BA906BA5A4 /* Components.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = Components.h; sourceTree = "<group>"; };
 		32BFDE2E89C9BCDDAD0C49D8 /* RexGameHost.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = RexGameHost.h; sourceTree = "<group>"; };
 		34892C62ADBBD67118CC0D23 /* CoreGraphics.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreGraphics.framework; path = System/Library/Frameworks/CoreGraphics.framework; sourceTree = SDKROOT; };
+		3498AD7A47714359C377EC68 /* BossMajorAttackPoints.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = BossMajorAttackPoints.mm; sourceTree = "<group>"; };
 		34A962C9761AE26A1155D1F1 /* RexGameHost.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = RexGameHost.mm; sourceTree = "<group>"; };
 		36C9F6F43FE862FE83C07921 /* GameViewController.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = GameViewController.mm; sourceTree = "<group>"; };
+		3D784BB894793F7E159097AD /* BossMajorAttackPoints.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BossMajorAttackPoints.h; sourceTree = "<group>"; };
 		40E98F035D1058105BC446ED /* RailSpline.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = RailSpline.mm; sourceTree = "<group>"; };
 		44240F80D2BF011C75CD0B47 /* PLAN-M2.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = "PLAN-M2.md"; sourceTree = "<group>"; };
 		452B29F363637142692AC819 /* AppDelegate.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AppDelegate.h; sourceTree = "<group>"; };
@@ -156,6 +166,7 @@
 		6018D8CDCD626BCE41A6C233 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		60C0E90E9C621BF1852AFA13 /* CoreHaptics.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreHaptics.framework; path = System/Library/Frameworks/CoreHaptics.framework; sourceTree = SDKROOT; };
 		62B42ED1E2636BF79323DFDA /* WorldSmokeTests.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = WorldSmokeTests.mm; sourceTree = "<group>"; };
+		6A724D572F1E22143A381D5C /* BossMajorAttackSystem.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BossMajorAttackSystem.h; sourceTree = "<group>"; };
 		6C3CE5C8074A8EC650F1C61B /* World.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = World.mm; sourceTree = "<group>"; };
 		6CF16262AD420C9CCC907874 /* SceneDelegate.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = SceneDelegate.mm; sourceTree = "<group>"; };
 		6DC490049C0E8A3EF205B9BF /* ScoringSystem.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ScoringSystem.h; sourceTree = "<group>"; };
@@ -176,6 +187,7 @@
 		97A9E9F75EB92741A532C750 /* ScoringSystem.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = ScoringSystem.mm; sourceTree = "<group>"; };
 		97C15A79A4F325FCF1A47F0D /* ParticleSim.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = ParticleSim.cpp; sourceTree = "<group>"; };
 		9B5C40306347D48D25BFFC35 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		A105B2EDF7085318E71DBDC5 /* BossMajorAttackTests.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = BossMajorAttackTests.mm; sourceTree = "<group>"; };
 		A40566C90DE1D326A699485D /* EventBus.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = EventBus.h; sourceTree = "<group>"; };
 		A76351B00D3C69B10C9A91A7 /* main.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = main.mm; sourceTree = "<group>"; };
 		ABAB2B43F9A5A68DA6B8DD97 /* ScreenShakeSystem.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ScreenShakeSystem.h; sourceTree = "<group>"; };
@@ -299,6 +311,7 @@
 		4611987C1DE633582A1DBCCA /* RexLogicTests */ = {
 			isa = PBXGroup;
 			children = (
+				A105B2EDF7085318E71DBDC5 /* BossMajorAttackTests.mm */,
 				EC0C28A795440865E01D6BDB /* ChartLoaderTests.mm */,
 				EA80D5C012615225879CF397 /* DinoBehaviorTests.mm */,
 				215B80C5038893DB52B737C0 /* HealthTests.mm */,
@@ -373,6 +386,8 @@
 		9B7534EE5ADBC566F8521AC3 /* Simulation */ = {
 			isa = PBXGroup;
 			children = (
+				3D784BB894793F7E159097AD /* BossMajorAttackPoints.h */,
+				3498AD7A47714359C377EC68 /* BossMajorAttackPoints.mm */,
 				4B41DE97DAC43FDAF06D8614 /* CameraMath.h */,
 				BC1452D0655C80FE714C62EE /* ChartLoader.h */,
 				023616D91291A9D8D903896B /* ChartLoader.mm */,
@@ -411,6 +426,8 @@
 			children = (
 				AE2D0D4CC6CEEC753D54A8E2 /* AnimationSystem.h */,
 				DDE8330981F4B3171E516CDD /* AnimationSystem.mm */,
+				6A724D572F1E22143A381D5C /* BossMajorAttackSystem.h */,
+				1D129F32809AC4D2196A3946 /* BossMajorAttackSystem.mm */,
 				BB3B5CBD52BAF7B79D5FFC1B /* DinoBehaviorSystem.h */,
 				DC48A4FFFCED309C5A20C805 /* DinoBehaviorSystem.mm */,
 				B071ADC542095BF0F8CD7E64 /* InputSystem.h */,
@@ -617,6 +634,8 @@
 				1CE0020179C85A64AB34029E /* AnimationSystem.mm in Sources */,
 				94729FDF10BC4E37667B3F1C /* AppDelegate.mm in Sources */,
 				31606CC8BF1AF50087CE8D4F /* AudioEngine.mm in Sources */,
+				1CB497BF582E38C2E7E6CBE4 /* BossMajorAttackPoints.mm in Sources */,
+				0A9B11E00BBAAA99AB2EFCC9 /* BossMajorAttackSystem.mm in Sources */,
 				A1CED7364AAFDFDA8360962C /* CharacterLoader.mm in Sources */,
 				026C5D46C2CF7F50D45B18E0 /* ChartLoader.mm in Sources */,
 				6BC947887EA4EB43EF3BB5BF /* ControllerRumble.mm in Sources */,
@@ -645,6 +664,9 @@
 			files = (
 				1DCF0E2D00C57D754E3466C4 /* AnimationSystem.mm in Sources */,
 				5218353F3036242B883DED5D /* AudioEngine.mm in Sources */,
+				B5CB9D3D404F27F564728D76 /* BossMajorAttackPoints.mm in Sources */,
+				D1F4D5B10FA5CF703E19A060 /* BossMajorAttackSystem.mm in Sources */,
+				84FA329CB64726691C9135B3 /* BossMajorAttackTests.mm in Sources */,
 				2746852A475BCA27D42DF89B /* CharacterLoader.mm in Sources */,
 				04FAD9843FC745871671B78A /* ChartLoader.mm in Sources */,
 				3DFBAA24F2984154510FCA2C /* ChartLoaderTests.mm in Sources */,
@@ -680,6 +702,8 @@
 				9D7F92C0E116BA302E450479 /* AnimationSystem.mm in Sources */,
 				992A2BF914C0273D6867A7FA /* AppDelegate.mm in Sources */,
 				ACEE1ADC2FDEFDE0EA723E2C /* AudioEngine.mm in Sources */,
+				4E6C5FFCC5205F0F5A49D157 /* BossMajorAttackPoints.mm in Sources */,
+				46F31797C623229F3A8273BC /* BossMajorAttackSystem.mm in Sources */,
 				EB78733079BAA5A7702561D9 /* CharacterLoader.mm in Sources */,
 				9B228E502AD1AA29F07E487C /* ChartLoader.mm in Sources */,
 				0E6F7D7973F946BD55F3012B /* ControllerRumble.mm in Sources */,

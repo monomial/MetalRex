@@ -6,6 +6,7 @@
 #include "Simulation/Systems/ReticleSystem.h"
 #include "Simulation/Systems/ScoringSystem.h"
 #include "Simulation/Systems/ScreenShakeSystem.h"
+#include "Simulation/BossMajorAttackPoints.h"
 #include <TargetConditionals.h>
 #include <algorithm>
 #include <vector>
@@ -237,6 +238,14 @@ static id<MTLTexture> Rex_makeSkyGradientTexture(id<MTLDevice> device) {
     id<MTLTexture> _titleArtTexture; // full-screen title art (assets/ui)
     CGSize _titleArtSize;
     BOOL _titleArtLoadAttempted;
+
+    // Boss major-attack popup: a per-species portrait (assets/ui), or a
+    // CoreGraphics-drawn fallback if that art hasn't been supplied yet.
+    id<MTLTexture> _bossPortraitTexture;
+    CGSize _bossPortraitSize;
+    BOOL _bossPortraitLoadAttempted;
+    id<MTLTexture> _bossPortraitFallbackTexture;
+    CGSize _bossPortraitFallbackSize;
 
     // Score popups ("+10" floaters rising from hit positions) — renderer
     // cosmetics fed by World's per-frame ScorePopupEvent buffer. Textures
@@ -810,6 +819,81 @@ static id<MTLTexture> Rex_makeGameOverTexture(id<MTLDevice> device, CGSize *outS
     Rex_drawCenteredLine(ctx, @"GAME OVER", w * 0.5, h * 0.60, w - 48.f, 64.f, 32.f, red);
     Rex_drawCenteredLine(ctx, @"PRESS FIRE TO CONTINUE", w * 0.5, h * 0.28, w - 48.f, 30.f, 16.f, white);
     CGColorRelease(red);
+    CGColorRelease(white);
+    CGContextRelease(ctx);
+    CGColorSpaceRelease(cs);
+
+    MTLTextureDescriptor *td = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatRGBA8Unorm
+                                                                                  width:w
+                                                                                 height:h
+                                                                              mipmapped:NO];
+    td.usage = MTLTextureUsageShaderRead;
+    id<MTLTexture> tex = [device newTextureWithDescriptor:td];
+    [tex replaceRegion:MTLRegionMake2D(0, 0, w, h)
+           mipmapLevel:0
+             withBytes:pixels.bytes
+           bytesPerRow:bpr];
+    if (outSize) *outSize = CGSizeMake(w, h);
+    return tex;
+}
+
+static NSString *Rex_bossSpeciesDisplayName(DinoSpecies species) {
+    switch (species) {
+        case DinoSpecies::Trex: return @"TYRANNOSAURUS REX";
+        case DinoSpecies::Velociraptor: return @"VELOCIRAPTOR";
+        case DinoSpecies::Count: break;
+    }
+    return @"UNKNOWN";
+}
+
+// Fallback for the boss major-attack popup when its real portrait PNG
+// (assets/ui/boss-<species>-portrait.png) hasn't been supplied yet: species
+// name plus 4 numbered circles at the SAME authored (u,v) positions the real
+// point markers use (BossMajorAttackPoints_for), so the popup is playable
+// and the hit-test/marker alignment is verifiable before any art exists.
+// Built at the fixed logical canvas's own aspect ratio (matching the
+// full-bleed draw path — see _drawHUD's major-attack branch) so the point
+// positions land in the same place a correctly-authored real portrait would
+// put them.
+static id<MTLTexture> Rex_makeBossMajorAttackFallbackTexture(id<MTLDevice> device, DinoSpecies species,
+                                                              CGSize *outSize) {
+    NSUInteger w = 1280, h = 840;
+    NSUInteger bpr = w * 4;
+    NSMutableData *pixels = [NSMutableData dataWithLength:bpr * h];
+
+    CGColorSpaceRef cs = CGColorSpaceCreateDeviceRGB();
+    CGBitmapInfo bitmapInfo = (CGBitmapInfo)kCGImageAlphaPremultipliedLast | kCGBitmapByteOrder32Big;
+    CGContextRef ctx = CGBitmapContextCreate(pixels.mutableBytes, w, h, 8, bpr, cs, bitmapInfo);
+    if (!ctx) {
+        CGColorSpaceRelease(cs);
+        return nil;
+    }
+
+    CGContextSetRGBFillColor(ctx, 0.10, 0.09, 0.07, 1.0);
+    CGContextFillRect(ctx, CGRectMake(0, 0, w, h));
+
+    CGColorRef amber = CGColorCreateGenericRGB(0.95, 0.65, 0.20, 1);
+    CGColorRef white = CGColorCreateGenericRGB(1, 1, 1, 1);
+    Rex_drawCenteredLine(ctx, @"MAJOR ATTACK", w * 0.5, h * 0.90, w - 80.f, 56.f, 30.f, amber);
+    Rex_drawCenteredLine(ctx, Rex_bossSpeciesDisplayName(species), w * 0.5, h * 0.82,
+                         w - 80.f, 30.f, 16.f, white);
+
+    const BossMajorAttackPoint *points = BossMajorAttackPoints_for(species);
+    CGColorRef amberFill = CGColorCreateGenericRGB(0.95, 0.65, 0.20, 0.35);
+    for (int i = 0; i < kBossMajorAttackPointCount; ++i) {
+        CGFloat cx = points[i].u * w;
+        CGFloat cy = (1.0 - points[i].v) * h; // v-down authoring -> CGContext's y-up
+        CGFloat r = points[i].hitRadius * std::min(w, h);
+        CGContextSetFillColorWithColor(ctx, amberFill);
+        CGContextFillEllipseInRect(ctx, CGRectMake(cx - r, cy - r, r * 2, r * 2));
+        CGContextSetStrokeColorWithColor(ctx, amber);
+        CGContextSetLineWidth(ctx, 3.0);
+        CGContextStrokeEllipseInRect(ctx, CGRectMake(cx - r, cy - r, r * 2, r * 2));
+        Rex_drawCenteredLine(ctx, [NSString stringWithFormat:@"%d", i + 1], cx, cy - 9.f,
+                             r * 2.f, 22.f, 12.f, white);
+    }
+    CGColorRelease(amberFill);
+    CGColorRelease(amber);
     CGColorRelease(white);
     CGContextRelease(ctx);
     CGColorSpaceRelease(cs);
@@ -1414,6 +1498,96 @@ static id<MTLTexture> Rex_makeScoreTexture(id<MTLDevice> device, NSString *score
     }
 }
 
+// Boss major-attack QTE popup: full-bleed portrait (real art if supplied,
+// else the CoreGraphics-drawn fallback), 4 point markers (bright = unhit,
+// dim = claimed), and a countdown bar. Reuses the title screen's aspect-fill
+// art-quad technique and the boss health bar's quad primitives. Called
+// between the boss health bar and the score-popup floaters in _drawHUD so a
+// point's "+40" floater still renders on top of the portrait, not hidden
+// underneath it.
+- (void)_drawBossMajorAttackPopup:(World *)world encoder:(id<MTLRenderCommandEncoder>)encoder {
+    const BossMajorAttackState& attack = world->major_attack();
+    if (!attack.active) return;
+
+    if (!_bossPortraitLoadAttempted) {
+        _bossPortraitLoadAttempted = YES;
+        _bossPortraitTexture = Rex_loadBundlePNGTexture(_device, @"boss-trex-portrait",
+                                                         @"assets/ui", &_bossPortraitSize);
+    }
+    id<MTLTexture> portraitTexture = _bossPortraitTexture;
+    CGSize portraitSize = _bossPortraitSize;
+    if (!portraitTexture) {
+        if (!_bossPortraitFallbackTexture) {
+            _bossPortraitFallbackTexture = Rex_makeBossMajorAttackFallbackTexture(
+                _device, attack.species, &_bossPortraitFallbackSize);
+        }
+        portraitTexture = _bossPortraitFallbackTexture;
+        portraitSize = _bossPortraitFallbackSize;
+    }
+    if (!portraitTexture || !_texturePipeline) return;
+
+    // Full-bleed aspect-fill (crop overflow, never letterbox) — same
+    // technique as the title screen's art quad.
+    float scale = std::max((_halfW * 2.f) / (float)portraitSize.width,
+                           (_halfH * 2.f) / (float)portraitSize.height);
+    float drawW = (float)portraitSize.width * scale;
+    float drawH = (float)portraitSize.height * scale;
+    RexTextureUniformsCPU uniforms;
+    uniforms.mvp = Rex_make_model_rect(_overlayProjection, 0.f, 0.f, 0.f, drawW, drawH);
+    [encoder setRenderPipelineState:_texturePipeline];
+    [encoder setVertexBuffer:_texQuadVB offset:0 atIndex:0];
+    [encoder setVertexBytes:&uniforms length:sizeof(uniforms) atIndex:1];
+    [encoder setFragmentTexture:portraitTexture atIndex:0];
+    [encoder setFragmentSamplerState:_sampler atIndex:0];
+    [encoder drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:6];
+    [encoder setRenderPipelineState:_pipeline];
+
+    // Point markers: same image-normalized-rect-through-aspect-fill mapping
+    // as the title screen's 1P/2P button quads, drawn as a thin ring (four
+    // edge strips) rather than a filled quad so the portrait stays visible
+    // underneath each marker.
+    const BossMajorAttackPoint *points = BossMajorAttackPoints_for(attack.species);
+    for (int i = 0; i < kBossMajorAttackPointCount; ++i) {
+        float cx = (points[i].u - 0.5f) * drawW;
+        float cy = (0.5f - points[i].v) * drawH;
+        float r = points[i].hitRadius * std::min(drawW, drawH);
+        bool hit = (attack.hitMask & (1 << i)) != 0;
+        simd_float4 color = hit ? (simd_float4){0.4f, 0.4f, 0.4f, 0.5f}
+                                 : (simd_float4){0.95f, 0.65f, 0.20f, 0.95f};
+        float t = std::max(2.5f, r * 0.15f);
+        std::vector<RexVertex> ring;
+        [self _appendQuad:ring center:(simd_float3){cx, cy + r - t * 0.5f, 0.03f} halfW:r halfH:t * 0.5f];
+        [self _appendQuad:ring center:(simd_float3){cx, cy - r + t * 0.5f, 0.03f} halfW:r halfH:t * 0.5f];
+        [self _appendQuad:ring center:(simd_float3){cx - r + t * 0.5f, cy, 0.03f} halfW:t * 0.5f halfH:r];
+        [self _appendQuad:ring center:(simd_float3){cx + r - t * 0.5f, cy, 0.03f} halfW:t * 0.5f halfH:r];
+        [self _drawVertices:ring color:color
+                  primitive:MTLPrimitiveTypeTriangle mvp:_overlayProjection encoder:encoder];
+    }
+
+    // Countdown bar (top-center) — same quad primitive as the boss health
+    // bar; runs at real time even though the scene behind it is slow motion.
+    float barWidth = 420.f;
+    float barHeight = 14.f;
+    float centerX = 0.f;
+    float centerY = _halfH - 20.f - barHeight * 0.5f;
+    std::vector<RexVertex> bg;
+    [self _appendQuad:bg center:(simd_float3){centerX, centerY, 0.05f}
+                halfW:barWidth * 0.5f + 3.f halfH:barHeight * 0.5f + 3.f];
+    [self _drawVertices:bg color:(simd_float4){0.05f, 0.05f, 0.06f, 0.85f}
+              primitive:MTLPrimitiveTypeTriangle mvp:_overlayProjection encoder:encoder];
+    float fraction = attack.countdownDuration > 0.f
+                    ? std::clamp(attack.timeRemaining / attack.countdownDuration, 0.f, 1.f)
+                    : 0.f;
+    if (fraction > 0.f) {
+        float fillWidth = barWidth * fraction;
+        std::vector<RexVertex> fill;
+        [self _appendQuad:fill center:(simd_float3){centerX - barWidth * 0.5f + fillWidth * 0.5f, centerY, 0.06f}
+                    halfW:fillWidth * 0.5f halfH:barHeight * 0.5f];
+        [self _drawVertices:fill color:(simd_float4){0.95f, 0.65f, 0.20f, 1.f}
+                  primitive:MTLPrimitiveTypeTriangle mvp:_overlayProjection encoder:encoder];
+    }
+}
+
 // Corner-anchored score readout (see Rex_makeScoreTexture) — centerX/centerY
 // is the texture's own center, so callers place it flush into a screen
 // corner by offsetting from _halfW/_halfH by half the texture size + margin.
@@ -1648,6 +1822,8 @@ static id<MTLTexture> Rex_makeScoreTexture(id<MTLDevice> device, NSString *score
             break;
         }
     }
+
+    [self _drawBossMajorAttackPopup:world encoder:encoder];
 
     // Score popups: drain this frame's events, age the live set, draw.
     {

@@ -177,7 +177,9 @@ enum class DinoScoreEvent : uint8_t {
     WeakPointHit,
     InterruptSuccess,
     InterruptFail,
-    TellMissed
+    TellMissed,
+    MajorAttackPointHit,
+    MajorAttackPerfect
 };
 
 struct DinoBehaviorComponent {
@@ -231,6 +233,46 @@ struct DinoBehaviorComponent {
     // lands unopposed (DinoInterruptOutcome::Failed) — see PlayerHealthSystem.
     int attackDamage = 15;
 };
+
+// Boss "major attack" QTE: a whole-game slow-motion popup triggered by rage-
+// phase escalation (see DinoBehaviorSystem.mm) showing 4 hittable points on
+// the boss. Lives on World as a single instance, not an ECS component —
+// nothing else attaches to an entity here, and every system that needs to
+// read/write it (ReticleSystem, BossMajorAttackSystem, RexRenderer) wants a
+// clean World::major_attack() accessor rather than hunting for "whichever
+// entity isBoss."
+struct BossMajorAttackState {
+    bool active = false;
+    // uint32_t, not EntityID: Components.h is included by World.h before
+    // EntityID is declared there, so this stays in EntityID's own underlying
+    // type rather than introducing an include-order dependency the other way.
+    uint32_t bossEntity = UINT32_MAX;
+    DinoSpecies species = DinoSpecies::Trex;
+    uint8_t ragePhaseTrigger = 0;      // 1 or 2 — which escalation armed this
+    float countdownDuration = 6.0f;
+    float timeRemaining = 0.f;
+    uint8_t hitMask = 0;               // bit i = point i hit
+    uint8_t hitCount = 0;
+    bool resolved = false;             // 4/4 hit, or countdown expired
+    float resultHoldRemaining = 0.f;   // hold after resolve before resuming
+};
+
+// Camera/boss/animation run at this fraction of normal gameDt while a major
+// attack is active (aiming and the countdown itself stay unscaled — see
+// World::tick). Small enough that no in-flight Attack clip (~0.5-1.6s in this
+// project) can reach clipDone within even the longest countdown: at this
+// scale a 6s real-time countdown only advances ~0.48s of "boss time."
+static constexpr float kMajorAttackSlowMoScale = 0.08f;
+
+// Per-boss-species table of the 4 major-attack hit points, in image-
+// normalized (u right, v down) coordinates matching the portrait art's own
+// space — see BossMajorAttackPoints.h for the conversion to viewport space.
+struct BossMajorAttackPoint {
+    float u = 0.5f;
+    float v = 0.5f;
+    float hitRadius = 0.05f;
+};
+static constexpr int kBossMajorAttackPointCount = 4;
 
 // Per-player health/life state. Lives in World as slot-indexed storage,
 // matching the reticle array, rather than as per-entity ECS state.

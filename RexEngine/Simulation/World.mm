@@ -7,6 +7,7 @@
 #include "Systems/ScoringSystem.h"
 #include "Systems/AnimationSystem.h"
 #include "Systems/ScreenShakeSystem.h"
+#include "Systems/BossMajorAttackSystem.h"
 #import <Foundation/Foundation.h>
 #include <algorithm>
 #include <cassert>
@@ -246,6 +247,15 @@ void World::damage_player(int playerIndex, int amount) {
     }
 }
 
+void World::begin_boss_major_attack(uint32_t bossEntity, DinoSpecies species, uint8_t ragePhase) {
+    _majorAttack = BossMajorAttackState{};
+    _majorAttack.active = true;
+    _majorAttack.bossEntity = bossEntity;
+    _majorAttack.species = species;
+    _majorAttack.ragePhaseTrigger = ragePhase;
+    _majorAttack.timeRemaining = _majorAttack.countdownDuration;
+}
+
 void World::replace_chart_for_tests(LevelChart chart) {
     _chart = chart;
     reset_m1_scene();
@@ -354,11 +364,22 @@ void World::tick(float gameDt) {
     // all-out state freezes rail/dinos/reticles/animation until someone
     // continues.
     if (!_levelComplete && any_player_active_and_not_sitting_out()) {
-        RailCameraSystem_update(*this, gameDt);
+        // Boss major attack: camera/boss/animation drop into slow motion for
+        // the "bullet time" feel (see Components.h's kMajorAttackSlowMoScale
+        // for why the scale has to stay small); aiming, the countdown, and
+        // scoring all stay real-time so "a few seconds" means what it says
+        // and the player's aim never feels sluggish. Ordering is otherwise
+        // unchanged from before this feature (Reticle before DinoBehavior,
+        // Scoring before Animation) — a shot fired this tick must still be
+        // visible to DinoBehaviorSystem/BossMajorAttackSystem the same tick,
+        // not the next one.
+        float worldDt = _majorAttack.active ? gameDt * kMajorAttackSlowMoScale : gameDt;
+        RailCameraSystem_update(*this, worldDt);
         ReticleSystem_update(*this, gameDt);
-        DinoBehaviorSystem_update(*this, gameDt);
+        BossMajorAttackSystem_update(*this, gameDt);
+        DinoBehaviorSystem_update(*this, worldDt);
         ScoringSystem_update(*this, gameDt);
-        AnimationSystem_update(*this, gameDt);
+        AnimationSystem_update(*this, worldDt);
     }
     flush();
     ++_tickCount;

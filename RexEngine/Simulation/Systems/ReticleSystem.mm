@@ -1,5 +1,6 @@
 #include "ReticleSystem.h"
 #include "Simulation/World.h"
+#include "Simulation/BossMajorAttackPoints.h"
 #include <algorithm>
 #include <math.h>
 
@@ -29,6 +30,19 @@ static bool point_inside_weak_point(const ReticleComponent& reticle, const Targe
     float weakHalfH = target.screenHalfH * 0.35f;
     return fabsf(reticle.x - target.screenX) <= target.weakPointHalfW
         && fabsf(reticle.y - weakCenterY) <= weakHalfH;
+}
+
+// A boss major-attack point is a flat circle in viewport space, unrelated to
+// the live 3D rail-camera projection kM1MaxTargets targets use — the popup
+// is a static 2D portrait, not a proxy for a world position. See
+// BossMajorAttackPoints.h for the (u,v)->(x,y) conversion.
+static bool point_inside_major_attack_point(const ReticleComponent& reticle,
+                                            const BossMajorAttackPoint& point) {
+    float px, py;
+    BossMajorAttackPoint_toViewport(point, &px, &py);
+    float dx = reticle.x - px;
+    float dy = reticle.y - py;
+    return (dx * dx + dy * dy) <= (point.hitRadius * point.hitRadius);
 }
 
 ReticleTuning ReticleSystem_tuning() {
@@ -176,31 +190,53 @@ void ReticleSystem_update(World& world, float gameDt) {
             reticle.fireFlashTime = kFireFlashDuration;
             reticle.shotCount += 1;
             world.audio_cues().shotsFired += 1;
-            // One bullet hits ONE dino: of every target whose screen box
-            // contains the reticle, only the front-most (nearest the
-            // camera, i.e. largest railDistance — pursuers trail behind
-            // the jeep) takes the hit. Marking every containing box, as
-            // this used to, meant a raptor standing inside the T-Rex's
-            // much larger screen box shielded nothing — one trigger pull
-            // silently damaged both.
-            int hitIndex = -1;
-            bool hitWasWeakPoint = false;
-            float hitRailDistance = 0.f;
-            for (int i = 0; i < kM1MaxTargets; ++i) {
-                TargetComponent& target = world.target(i);
-                bool weakPointHit = point_inside_weak_point(reticle, target);
-                if (!weakPointHit && !point_inside(reticle, target)) continue;
-                if (hitIndex < 0 || target.railDistance > hitRailDistance) {
-                    hitIndex = i;
-                    hitRailDistance = target.railDistance;
-                    hitWasWeakPoint = weakPointHit;
+            if (world.major_attack_active()) {
+                // A flat 2D popup, not the live 3D scene — its 4 points get
+                // their own hit-test entirely separate from the kM1MaxTargets
+                // loop below (that loop stays untouched, but it's simply
+                // never reached this branch, so the boss's own — now stale,
+                // slow-motion — TargetComponent box can't be hit by mistake
+                // while the popup covers it).
+                BossMajorAttackState& attack = world.major_attack_mutable();
+                const BossMajorAttackPoint* points = BossMajorAttackPoints_for(attack.species);
+                for (int i = 0; i < kBossMajorAttackPointCount; ++i) {
+                    if (attack.hitMask & (1 << i)) continue; // already claimed
+                    if (!point_inside_major_attack_point(reticle, points[i])) continue;
+                    attack.hitMask |= (uint8_t)(1 << i);
+                    attack.hitCount += 1;
+                    float px, py;
+                    BossMajorAttackPoint_toViewport(points[i], &px, &py);
+                    world.events().push_dino_score((uint8_t)player, DinoScoreEvent::MajorAttackPointHit,
+                                                   attack.species, px, py);
+                    break; // one shot claims at most one point
                 }
-            }
-            if (hitIndex >= 0) {
-                TargetComponent& target = world.target(hitIndex);
-                target.wasHit = true;
-                target.lastHitWasWeakPoint = hitWasWeakPoint;
-                target.lastHitByPlayer = (uint8_t)player;
+            } else {
+                // One bullet hits ONE dino: of every target whose screen box
+                // contains the reticle, only the front-most (nearest the
+                // camera, i.e. largest railDistance — pursuers trail behind
+                // the jeep) takes the hit. Marking every containing box, as
+                // this used to, meant a raptor standing inside the T-Rex's
+                // much larger screen box shielded nothing — one trigger pull
+                // silently damaged both.
+                int hitIndex = -1;
+                bool hitWasWeakPoint = false;
+                float hitRailDistance = 0.f;
+                for (int i = 0; i < kM1MaxTargets; ++i) {
+                    TargetComponent& target = world.target(i);
+                    bool weakPointHit = point_inside_weak_point(reticle, target);
+                    if (!weakPointHit && !point_inside(reticle, target)) continue;
+                    if (hitIndex < 0 || target.railDistance > hitRailDistance) {
+                        hitIndex = i;
+                        hitRailDistance = target.railDistance;
+                        hitWasWeakPoint = weakPointHit;
+                    }
+                }
+                if (hitIndex >= 0) {
+                    TargetComponent& target = world.target(hitIndex);
+                    target.wasHit = true;
+                    target.lastHitWasWeakPoint = hitWasWeakPoint;
+                    target.lastHitByPlayer = (uint8_t)player;
+                }
             }
         }
     }
