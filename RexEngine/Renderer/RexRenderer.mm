@@ -46,6 +46,7 @@ struct RexUniforms {
 
 struct RexTextureUniformsCPU {
     simd_float4x4 mvp; // must match RexTextureUniforms in Rex.metal field-for-field
+    float alpha = 1.f;
 };
 
 struct SkinnedUniformsCPU {
@@ -235,6 +236,20 @@ static id<MTLTexture> Rex_makeSkyGradientTexture(id<MTLDevice> device) {
     id<MTLTexture> _titleArtTexture; // full-screen title art (assets/ui)
     CGSize _titleArtSize;
     BOOL _titleArtLoadAttempted;
+
+    // Score popups ("+10" floaters rising from hit positions) — renderer
+    // cosmetics fed by World's per-frame ScorePopupEvent buffer. Textures
+    // are cached per (player, points-tier): the content never changes.
+    struct ScoreFloater {
+        float x, y;   // overlay px at spawn
+        float age;    // seconds
+        int player;
+        int tier;     // 0=+10, 1=+25, 2=+50
+    };
+    std::vector<ScoreFloater> _scoreFloaters;
+    CFTimeInterval _lastFloaterTime;
+    id<MTLTexture> _popupTextures[kRexMaxPlayers][3];
+    CGSize _popupTextureSizes[kRexMaxPlayers][3];
     id<MTLTexture> _pressFireTexture;
     CGSize _pressFireTextureSize;
     id<MTLTexture> _scoreTextures[kRexMaxPlayers];
@@ -888,6 +903,44 @@ static id<MTLTexture> Rex_makeTitleTexture(id<MTLDevice> device, CGSize *outSize
     return tex;
 }
 
+// "+N" score floater in the scoring player's color over a soft dark
+// shadow, on a transparent background.
+static id<MTLTexture> Rex_makeScorePopupTexture(id<MTLDevice> device, int points,
+                                                simd_float4 tint, CGSize *outSize) {
+    NSUInteger w = 150, h = 46;
+    NSUInteger bpr = w * 4;
+    NSMutableData *pixels = [NSMutableData dataWithLength:bpr * h];
+
+    CGColorSpaceRef cs = CGColorSpaceCreateDeviceRGB();
+    CGBitmapInfo bitmapInfo = (CGBitmapInfo)kCGImageAlphaPremultipliedLast | kCGBitmapByteOrder32Big;
+    CGContextRef ctx = CGBitmapContextCreate(pixels.mutableBytes, w, h, 8, bpr, cs, bitmapInfo);
+    if (!ctx) {
+        CGColorSpaceRelease(cs);
+        return nil;
+    }
+
+    NSString *text = [NSString stringWithFormat:@"+%d", points];
+    CGColorRef shadow = CGColorCreateGenericRGB(0.02, 0.02, 0.03, 0.9);
+    CGColorRef color = CGColorCreateGenericRGB(tint.x, tint.y, tint.z, 1);
+    Rex_drawCenteredLine(ctx, text, w * 0.5 + 2.0, h * 0.24 - 2.0, w - 8.f, 30.f, 16.f, shadow);
+    Rex_drawCenteredLine(ctx, text, w * 0.5, h * 0.24, w - 8.f, 30.f, 16.f, color);
+    CGColorRelease(shadow);
+    CGColorRelease(color);
+    CGContextRelease(ctx);
+    CGColorSpaceRelease(cs);
+
+    MTLTextureDescriptor *td = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatRGBA8Unorm
+                                                                                  width:w
+                                                                                 height:h
+                                                                              mipmapped:NO];
+    td.usage = MTLTextureUsageShaderRead;
+    id<MTLTexture> tex = [device newTextureWithDescriptor:td];
+    [tex replaceRegion:MTLRegionMake2D(0, 0, w, h) mipmapLevel:0
+             withBytes:pixels.bytes bytesPerRow:bpr];
+    if (outSize) *outSize = CGSizeMake(w, h);
+    return tex;
+}
+
 // End-of-act grade screen (M5a): per-player letter grade + the stats that
 // earned it, one column per active player. Built once per completion from
 // the frozen final scores (the caller resets the cache when a new run
@@ -1520,6 +1573,56 @@ static id<MTLTexture> Rex_makeScoreTexture(id<MTLDevice> device, NSString *score
         [self _drawScoreForPlayer:player score:world->score(player)
                           centerX:scoreCenterX centerY:scoreCenterY encoder:encoder];
         maxHitFlash = std::max(maxHitFlash, health.hitFlashTime);
+    }
+
+    // Score popups: drain this frame's events, age the live set, draw.
+    {
+        ScorePopupEvent incoming[kMaxScorePopupsPerFrame];
+        int count = world->consume_score_popups(incoming);
+        for (int i = 0; i < count; ++i) {
+            const ScorePopupEvent& e = incoming[i];
+            int tier = e.points >= 50 ? 2 : (e.points >= 25 ? 1 : 0);
+            _scoreFloaters.push_back({(e.screenX - 0.5f) * _halfW * 2.f,
+                                      (e.screenY - 0.5f) * _halfH * 2.f,
+                                      0.f, (int)e.player, tier});
+        }
+        CFTimeInterval now = CACurrentMediaTime();
+        float dt = (_lastFloaterTime > 0.0) ? (float)(now - _lastFloaterTime) : (1.f / 60.f);
+        dt = std::min(dt, 0.05f);
+        _lastFloaterTime = now;
+
+        const float kFloaterLife = 0.8f;
+        const int kTierPoints[3] = {10, 25, 50};
+        for (ScoreFloater& f : _scoreFloaters) {
+            f.age += dt;
+            if (f.age >= kFloaterLife) continue;
+            int player = std::clamp(f.player, 0, kRexMaxPlayers - 1);
+            if (!_popupTextures[player][f.tier]) {
+                _popupTextures[player][f.tier] =
+                    Rex_makeScorePopupTexture(_device, kTierPoints[f.tier],
+                                              kReticleColors[player],
+                                              &_popupTextureSizes[player][f.tier]);
+            }
+            id<MTLTexture> tex = _popupTextures[player][f.tier];
+            if (!tex || !_texturePipeline) continue;
+            float t = f.age / kFloaterLife;
+            RexTextureUniformsCPU uniforms;
+            uniforms.alpha = 1.f - t * t; // ease-out fade
+            uniforms.mvp = Rex_make_model_rect(_overlayProjection,
+                                               f.x, f.y + 55.f * t, 0.09f,
+                                               (float)_popupTextureSizes[player][f.tier].width,
+                                               (float)_popupTextureSizes[player][f.tier].height);
+            [encoder setRenderPipelineState:_texturePipeline];
+            [encoder setVertexBuffer:_texQuadVB offset:0 atIndex:0];
+            [encoder setVertexBytes:&uniforms length:sizeof(uniforms) atIndex:1];
+            [encoder setFragmentTexture:tex atIndex:0];
+            [encoder setFragmentSamplerState:_sampler atIndex:0];
+            [encoder drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:6];
+        }
+        [encoder setRenderPipelineState:_pipeline];
+        _scoreFloaters.erase(std::remove_if(_scoreFloaters.begin(), _scoreFloaters.end(),
+                                            [kFloaterLife](const ScoreFloater& f) { return f.age >= kFloaterLife; }),
+                             _scoreFloaters.end());
     }
 
     if (maxHitFlash > 0.f) {

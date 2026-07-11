@@ -13,6 +13,10 @@ struct Event {
     uint8_t playerIndex = UINT8_MAX;
     DinoScoreEvent scoreEvent = DinoScoreEvent::Hit;
     DinoSpecies dinoSpecies = DinoSpecies::Velociraptor;
+    // Screen position of the target at the moment of the event — consumed
+    // by the score-popup VFX (0.5/0.5 when no target position applies).
+    float screenX = 0.5f;
+    float screenY = 0.5f;
 };
 
 struct EventBus {
@@ -36,12 +40,15 @@ struct EventBus {
         slots[count++] = e;
     }
 
-    void push_dino_score(uint8_t playerIndex, DinoScoreEvent scoreEvent, DinoSpecies species) {
+    void push_dino_score(uint8_t playerIndex, DinoScoreEvent scoreEvent, DinoSpecies species,
+                         float screenX = 0.5f, float screenY = 0.5f) {
         Event e;
         e.type = EventType::DinoScore;
         e.playerIndex = playerIndex;
         e.scoreEvent = scoreEvent;
         e.dinoSpecies = species;
+        e.screenX = screenX;
+        e.screenY = screenY;
         push(e);
     }
 };

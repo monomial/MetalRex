@@ -99,11 +99,12 @@ static void complete_boss_death(World& world, DinoBehaviorComponent& dino) {
     world.complete_level();
 }
 
-static void emit_hit_score(World& world, uint8_t playerIndex, DinoSpecies species, bool weakPoint) {
+static void emit_hit_score(World& world, uint8_t playerIndex, DinoSpecies species, bool weakPoint,
+                           const TargetComponent& target) {
     if (playerIndex >= kRexMaxPlayers) return;
     world.events().push_dino_score(playerIndex,
                                    weakPoint ? DinoScoreEvent::WeakPointHit : DinoScoreEvent::Hit,
-                                   species);
+                                   species, target.screenX, target.screenY);
 }
 
 static int nearest_damage_target_player(World& world, const TargetComponent& target) {
@@ -246,7 +247,8 @@ void DinoBehaviorSystem_update(World& world, float gameDt) {
                 }
             }
             if (dino.health <= 0) {
-                emit_hit_score(world, shotPlayer, dino.species, shotWasWeakPoint);
+                emit_hit_score(world, shotPlayer, dino.species, shotWasWeakPoint,
+                               world.target(dino.targetIndex));
                 dino.state = DinoBehaviorState::Dying;
                 dino.stateTime = 0.f;
                 // Force: death must cut through whatever is playing,
@@ -262,7 +264,8 @@ void DinoBehaviorSystem_update(World& world, float gameDt) {
 
             case DinoBehaviorState::Approach: {
                 if (wasShot) {
-                    emit_hit_score(world, shotPlayer, dino.species, shotWasWeakPoint);
+                    emit_hit_score(world, shotPlayer, dino.species, shotWasWeakPoint,
+                               world.target(dino.targetIndex));
                 }
                 if (dino.targetIndex < kM1MaxTargets) {
                     TargetComponent& target = world.target(dino.targetIndex);
@@ -284,7 +287,8 @@ void DinoBehaviorSystem_update(World& world, float gameDt) {
 
             case DinoBehaviorState::Hold: {
                 if (wasShot) {
-                    emit_hit_score(world, shotPlayer, dino.species, shotWasWeakPoint);
+                    emit_hit_score(world, shotPlayer, dino.species, shotWasWeakPoint,
+                               world.target(dino.targetIndex));
                 }
                 if (dino.targetIndex < kM1MaxTargets) {
                     TargetComponent& target = world.target(dino.targetIndex);
@@ -336,7 +340,9 @@ void DinoBehaviorSystem_update(World& world, float gameDt) {
                     dino.outcomeThisCycle = true;
                     world.events().push_dino_score(shotPlayer,
                                                    DinoScoreEvent::InterruptSuccess,
-                                                   dino.species);
+                                                   dino.species,
+                                                   world.target(dino.targetIndex).screenX,
+                                                   world.target(dino.targetIndex).screenY);
                     dino.state = DinoBehaviorState::Interrupted;
                     dino.stateTime = 0.f;
                     // Force, not request: Attack hasn't finished (that's the
@@ -348,7 +354,8 @@ void DinoBehaviorSystem_update(World& world, float gameDt) {
                     break;
                 }
                 if (wasShot) {
-                    emit_hit_score(world, shotPlayer, dino.species, shotWasWeakPoint);
+                    emit_hit_score(world, shotPlayer, dino.species, shotWasWeakPoint,
+                               world.target(dino.targetIndex));
                 }
 
                 if (anim->clipDone && anim->currentClip == CharacterClipSlot::Attack) {

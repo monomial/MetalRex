@@ -22,6 +22,18 @@ struct AudioCueCounts {
     int shotsFired = 0;
 };
 
+// Cosmetic score-popup feed for the renderer ("+10" floaters at the hit
+// position) — same frame-buffered contract as AudioCueCounts: ScoringSystem
+// appends alongside the scoring switch, the renderer drains once per
+// rendered frame. Bounded so a pathological frame can't grow unbounded.
+struct ScorePopupEvent {
+    uint8_t player = 0;
+    int points = 0;
+    float screenX = 0.5f;
+    float screenY = 0.5f;
+};
+static constexpr int kMaxScorePopupsPerFrame = 16;
+
 template<typename T>
 struct ComponentStorage {
     std::vector<T> data;
@@ -89,6 +101,17 @@ public:
 
     // Adds to this frame's tally (called by ScoringSystem_update).
     AudioCueCounts& audio_cues() { return _audioCues; }
+    void push_score_popup(const ScorePopupEvent& popup) {
+        if (_scorePopupCount < kMaxScorePopupsPerFrame) _scorePopups[_scorePopupCount++] = popup;
+    }
+    // Drains this frame's popups into `out` (up to kMaxScorePopupsPerFrame);
+    // returns the count and resets the buffer.
+    int consume_score_popups(ScorePopupEvent out[kMaxScorePopupsPerFrame]) {
+        int count = _scorePopupCount;
+        for (int i = 0; i < count; ++i) out[i] = _scorePopups[i];
+        _scorePopupCount = 0;
+        return count;
+    }
     // Returns the tally accumulated since the last call and resets it.
     AudioCueCounts consume_audio_cues() {
         AudioCueCounts cues = _audioCues;
@@ -174,6 +197,8 @@ private:
     EntityID _deferredDestroy[256];
     EventBus _events;
     AudioCueCounts _audioCues;
+    ScorePopupEvent _scorePopups[kMaxScorePopupsPerFrame];
+    int _scorePopupCount = 0;
     float _accumulator;
     InputState _inputs[kRexMaxPlayers];
     uint64_t _tickCount;

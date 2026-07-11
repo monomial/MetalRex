@@ -6,6 +6,17 @@ static void continue_streak(PlayerScoreState& score) {
     score.bestStreak = std::max(score.bestStreak, score.currentStreak);
 }
 
+static int points_for_event(DinoScoreEvent event) {
+    switch (event) {
+        case DinoScoreEvent::Hit: return 10;
+        case DinoScoreEvent::WeakPointHit: return 25;
+        case DinoScoreEvent::InterruptSuccess: return 50;
+        case DinoScoreEvent::InterruptFail:
+        case DinoScoreEvent::TellMissed: return 0;
+    }
+    return 0;
+}
+
 static void apply_score_event(PlayerScoreState& score, DinoScoreEvent event) {
     switch (event) {
         case DinoScoreEvent::Hit:
@@ -39,6 +50,12 @@ void ScoringSystem_update(World& world, float /*gameDt*/) {
         if (event.type != EventType::DinoScore) continue;
         if (event.playerIndex >= kRexMaxPlayers) continue;
         apply_score_event(world.score(event.playerIndex), event.scoreEvent);
+        // Cosmetic feed: a "+points" floater at the hit position for every
+        // point-scoring event (the renderer owns lifetime/animation).
+        int points = points_for_event(event.scoreEvent);
+        if (points > 0) {
+            world.push_score_popup({event.playerIndex, points, event.screenX, event.screenY});
+        }
     }
     events.clear();
 

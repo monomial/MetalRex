@@ -50,11 +50,13 @@ fragment float4 rex_fragment(RexVertexOut in [[stage_in]]) {
 
 struct RexTextureUniforms {
     float4x4 mvp;
+    float alpha; // whole-quad fade (score popups); 1.0 for opaque HUD panels
 };
 
 struct RexTextureOut {
     float4 position [[position]];
     float2 uv;
+    float alpha;
 };
 
 vertex RexTextureOut rex_texture_vertex(uint vertexID [[vertex_id]],
@@ -70,11 +72,14 @@ vertex RexTextureOut rex_texture_vertex(uint vertexID [[vertex_id]],
     // mapping (its HUD ortho already bakes in a -Y scale that this one
     // doesn't share).
     out.uv = float2(p.x + 0.5, 0.5 - p.y);
+    out.alpha = uniforms.alpha;
     return out;
 }
 
 fragment float4 rex_texture_fragment(RexTextureOut in [[stage_in]],
                                      texture2d<float> tex [[texture(0)]],
                                      sampler s [[sampler(0)]]) {
-    return tex.sample(s, in.uv);
+    // Premultiplied content: scaling the whole sample by alpha fades both
+    // color and coverage together.
+    return tex.sample(s, in.uv) * in.alpha;
 }

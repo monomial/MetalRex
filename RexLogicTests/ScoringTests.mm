@@ -104,6 +104,26 @@ static EntityID findDino(World& world) {
 }
 
 
+- (void)test_hitPushesScorePopupAtTargetPositionThenClears {
+    World world;
+    world.events().push_dino_score(1, DinoScoreEvent::WeakPointHit, DinoSpecies::Trex, 0.65f, 0.30f);
+    ScoringSystem_update(world, 1.f / 120.f);
+
+    ScorePopupEvent popups[kMaxScorePopupsPerFrame];
+    int count = world.consume_score_popups(popups);
+    XCTAssertEqual(count, 1);
+    XCTAssertEqual(popups[0].player, 1);
+    XCTAssertEqual(popups[0].points, 25);
+    XCTAssertEqualWithAccuracy(popups[0].screenX, 0.65f, 0.0001f);
+    XCTAssertEqualWithAccuracy(popups[0].screenY, 0.30f, 0.0001f);
+
+    // Consuming drains the buffer; a missed shot pushes nothing new.
+    XCTAssertEqual(world.consume_score_popups(popups), 0);
+    world.events().push_dino_score(1, DinoScoreEvent::TellMissed, DinoSpecies::Trex);
+    ScoringSystem_update(world, 1.f / 120.f);
+    XCTAssertEqual(world.consume_score_popups(popups), 0);
+}
+
 - (void)test_letterGradeBoundaries {
     PlayerScoreState score = {};
     score.shotsFired = 100;
