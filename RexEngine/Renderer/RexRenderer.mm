@@ -1365,6 +1365,55 @@ static id<MTLTexture> Rex_makeScoreTexture(id<MTLDevice> device, NSString *score
     [self _drawVertices:tick color:playerColor primitive:MTLPrimitiveTypeTriangle mvp:_overlayProjection encoder:encoder];
 }
 
+// Top-center boss health bar — the boss otherwise gives no explicit "how
+// close am I" signal besides the rage tint, which only tells the player
+// their phase, not their progress within it. Segmented into three bands (one
+// per rage phase) so a phase transition reads as "one segment just went
+// empty," not just a color shift on a single shrinking bar.
+- (void)_drawBossHealthBar:(const DinoBehaviorComponent&)dino
+                    encoder:(id<MTLRenderCommandEncoder>)encoder {
+    if (dino.maxHealth <= 0) return;
+    float barWidth = 420.f;
+    float barHeight = 16.f;
+    float centerX = 0.f;
+    float centerY = _halfH - 26.f - barHeight * 0.5f;
+
+    std::vector<RexVertex> bg;
+    [self _appendQuad:bg center:(simd_float3){centerX, centerY, 0.05f}
+                halfW:barWidth * 0.5f + 3.f halfH:barHeight * 0.5f + 3.f];
+    [self _drawVertices:bg color:(simd_float4){0.05f, 0.05f, 0.06f, 0.85f}
+              primitive:MTLPrimitiveTypeTriangle mvp:_overlayProjection encoder:encoder];
+
+    float fraction = std::clamp((float)dino.health / (float)dino.maxHealth, 0.f, 1.f);
+    if (fraction > 0.f) {
+        // Green at full health, redder each rage phase — same escalation
+        // language as the boss's own hit-flash/rage tint in _drawDinos.
+        static const simd_float4 kPhaseColors[3] = {
+            {0.30f, 0.85f, 0.35f, 1.f},
+            {0.95f, 0.75f, 0.20f, 1.f},
+            {0.90f, 0.25f, 0.20f, 1.f},
+        };
+        simd_float4 fillColor = kPhaseColors[std::min((int)dino.ragePhase, 2)];
+        float fillWidth = barWidth * fraction;
+        std::vector<RexVertex> fill;
+        [self _appendQuad:fill center:(simd_float3){centerX - barWidth * 0.5f + fillWidth * 0.5f, centerY, 0.06f}
+                    halfW:fillWidth * 0.5f halfH:barHeight * 0.5f];
+        [self _drawVertices:fill color:fillColor primitive:MTLPrimitiveTypeTriangle mvp:_overlayProjection encoder:encoder];
+    }
+
+    // Two thin dividers at the phase thresholds (1/3, 2/3) — fixed
+    // reference marks so the player can see how much of the current phase's
+    // band remains, not just an undifferentiated shrinking bar.
+    for (int i = 1; i <= 2; ++i) {
+        float t = (float)i / 3.f;
+        float dividerX = centerX - barWidth * 0.5f + barWidth * t;
+        std::vector<RexVertex> divider;
+        [self _appendQuad:divider center:(simd_float3){dividerX, centerY, 0.07f} halfW:1.5f halfH:barHeight * 0.5f];
+        [self _drawVertices:divider color:(simd_float4){0.f, 0.f, 0.f, 0.5f}
+                  primitive:MTLPrimitiveTypeTriangle mvp:_overlayProjection encoder:encoder];
+    }
+}
+
 // Corner-anchored score readout (see Rex_makeScoreTexture) — centerX/centerY
 // is the texture's own center, so callers place it flush into a screen
 // corner by offsetting from _halfW/_halfH by half the texture size + margin.
@@ -1589,6 +1638,15 @@ static id<MTLTexture> Rex_makeScoreTexture(id<MTLDevice> device, NSString *score
         [self _drawScoreForPlayer:player score:world->score(player)
                           centerX:scoreCenterX centerY:scoreCenterY encoder:encoder];
         maxHitFlash = std::max(maxHitFlash, health.hitFlashTime);
+    }
+
+    for (EntityID id = 0; id < world->entity_count(); ++id) {
+        if (!world->has_component<DinoBehaviorComponent>(id)) continue;
+        const DinoBehaviorComponent& dino = world->get_component<DinoBehaviorComponent>(id);
+        if (dino.isBoss && dino.activeInEncounter && dino.state != DinoBehaviorState::Dying) {
+            [self _drawBossHealthBar:dino encoder:encoder];
+            break;
+        }
     }
 
     // Score popups: drain this frame's events, age the live set, draw.
