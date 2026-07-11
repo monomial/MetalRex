@@ -230,6 +230,8 @@ static id<MTLTexture> Rex_makeSkyGradientTexture(id<MTLDevice> device) {
     CGSize _gameOverTextureSize;
     id<MTLTexture> _gradeTexture;   // end-of-act grade screen, built once per completion
     CGSize _gradeTextureSize;
+    id<MTLTexture> _titleTexture;   // title screen panel, static content
+    CGSize _titleTextureSize;
     id<MTLTexture> _pressFireTexture;
     CGSize _pressFireTextureSize;
     id<MTLTexture> _scoreTextures[kRexMaxPlayers];
@@ -785,6 +787,55 @@ static id<MTLTexture> Rex_makeGameOverTexture(id<MTLDevice> device, CGSize *outS
     return tex;
 }
 
+// Title screen panel. The environment renders live behind it (the camera
+// parked at the rail start makes a decent attract backdrop), so the panel
+// is a translucent card, not a full-screen fill.
+static id<MTLTexture> Rex_makeTitleTexture(id<MTLDevice> device, CGSize *outSize) {
+    NSUInteger w = 900, h = 420;
+    NSUInteger bpr = w * 4;
+    NSMutableData *pixels = [NSMutableData dataWithLength:bpr * h];
+
+    CGColorSpaceRef cs = CGColorSpaceCreateDeviceRGB();
+    CGBitmapInfo bitmapInfo = (CGBitmapInfo)kCGImageAlphaPremultipliedLast | kCGBitmapByteOrder32Big;
+    CGContextRef ctx = CGBitmapContextCreate(pixels.mutableBytes, w, h, 8, bpr, cs, bitmapInfo);
+    if (!ctx) {
+        CGColorSpaceRelease(cs);
+        return nil;
+    }
+
+    CGContextSetRGBFillColor(ctx, 0.02, 0.03, 0.06, 0.72);
+    CGContextFillRect(ctx, CGRectMake(0, 0, w, h));
+    CGContextSetRGBStrokeColor(ctx, 0.55, 0.78, 0.95, 0.9);
+    CGContextSetLineWidth(ctx, 3.0);
+    CGContextStrokeRect(ctx, CGRectMake(1.5, 1.5, w - 3, h - 3));
+
+    CGColorRef ice = CGColorCreateGenericRGB(0.72, 0.86, 0.98, 1);
+    CGColorRef white = CGColorCreateGenericRGB(1, 1, 1, 1);
+    CGColorRef dim = CGColorCreateGenericRGB(0.70, 0.74, 0.78, 1);
+    Rex_drawCenteredLine(ctx, @"METAL REX", w * 0.5, h * 0.62, w - 60.f, 110.f, 48.f, ice);
+    Rex_drawCenteredLine(ctx, @"PRESS FIRE TO START", w * 0.5, h * 0.32, w - 60.f, 34.f, 16.f, white);
+    Rex_drawCenteredLine(ctx, @"SECOND PLAYER CAN PRESS FIRE TO JOIN ANYTIME",
+                         w * 0.5, h * 0.14, w - 60.f, 18.f, 10.f, dim);
+    CGColorRelease(ice);
+    CGColorRelease(white);
+    CGColorRelease(dim);
+    CGContextRelease(ctx);
+    CGColorSpaceRelease(cs);
+
+    MTLTextureDescriptor *td = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatRGBA8Unorm
+                                                                                  width:w
+                                                                                 height:h
+                                                                              mipmapped:NO];
+    td.usage = MTLTextureUsageShaderRead;
+    id<MTLTexture> tex = [device newTextureWithDescriptor:td];
+    [tex replaceRegion:MTLRegionMake2D(0, 0, w, h)
+           mipmapLevel:0
+             withBytes:pixels.bytes
+           bytesPerRow:bpr];
+    if (outSize) *outSize = CGSizeMake(w, h);
+    return tex;
+}
+
 // End-of-act grade screen (M5a): per-player letter grade + the stats that
 // earned it, one column per active player. Built once per completion from
 // the frozen final scores (the caller resets the cache when a new run
@@ -1297,6 +1348,14 @@ static id<MTLTexture> Rex_makeScoreTexture(id<MTLDevice> device, NSString *score
 // hit, and — only once every active player is simultaneously sitting out —
 // the shared GAME OVER / continue panel.
 - (void)_drawHUD:(World *)world encoder:(id<MTLRenderCommandEncoder>)encoder {
+    if (world->phase() == GamePhase::Title) {
+        if (!_titleTexture) {
+            _titleTexture = Rex_makeTitleTexture(_device, &_titleTextureSize);
+        }
+        [self _drawPanelTexture:_titleTexture size:_titleTextureSize encoder:encoder];
+        return;
+    }
+
     int activePlayers[kRexMaxPlayers];
     int activeCount = 0;
     for (int i = 0; i < kRexMaxPlayers; ++i) {

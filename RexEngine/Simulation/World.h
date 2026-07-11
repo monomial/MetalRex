@@ -145,6 +145,12 @@ public:
     bool any_player_active_and_not_sitting_out() const;
     bool level_complete() const { return _levelComplete; }
     void complete_level() { _levelComplete = true; }
+    GamePhase phase() const { return _phase; }
+    // Puts the world on the title screen: no joined players, gameplay
+    // frozen (no active reticles means no system ticks), waiting for a
+    // release-then-press fire edge to join and start. Called by the render
+    // host at launch — tests and headless runs stay in Playing.
+    void enter_title();
     // Applies dino attack damage, honoring the post-hit invulnerability
     // window and no-op'ing while that player is already sitting out. Setting
     // sittingOut here (rather than in PlayerHealthSystem) keeps the health<=0
@@ -169,6 +175,11 @@ private:
     uint64_t _tickCount;
     size_t _nextChartEventIndex;
     bool _levelComplete;
+    GamePhase _phase;
+    // Per-player fire release tracking for join edges (title and mid-game):
+    // a press only joins after fire has been seen UP at least once, so held
+    // triggers and launch presses never join anyone accidentally.
+    bool _fireSeenReleased[kRexMaxPlayers];
     // Play-again gate (see World::tick): panel minimum display time, and
     // fire must be seen released once post-completion before a press counts.
     float _levelCompleteElapsed;

@@ -30,11 +30,18 @@ World::World()
     , _tickCount(0)
     , _nextChartEventIndex(0)
     , _levelComplete(false)
+    , _phase(GamePhase::Playing)
+    , _fireSeenReleased{}
     , _levelCompleteElapsed(0.f)
     , _levelCompleteFireReleased(false)
 {
     _chart = ChartLoader_load_default();
     reset_m1_scene();
+    // Default to a running 2P world — the sim tests drive gameplay directly
+    // and predate the title flow. The real render host calls enter_title()
+    // at launch, which deactivates these until players actually join.
+    _reticles[0].active = true;
+    _reticles[1].active = true;
 }
 
 World::~World() {}
@@ -76,12 +83,14 @@ void World::reset_m1_scene() {
     for (int i = 0; i < kRexMaxPlayers; ++i) {
         _playerHealth[i] = {};
         _playerScore[i] = {};
+        // Preserve who's joined across resets: play-again restarts the run
+        // for the same players, and the title flow (enter_title/join_player)
+        // owns activation. P1 starts centered; P2 offset right so two
+        // reticles don't stack before anyone moves them.
+        bool wasActive = _reticles[i].active;
         _reticles[i] = {};
         _reticles[i].playerIndex = (uint8_t)i;
-        // P1 and P2 both active (2P is a day-one design goal; a real join
-        // flow lands in M5b). P1 starts centered; P2 starts offset right so
-        // the two reticles don't stack before anyone moves them.
-        _reticles[i].active = (i <= 1);
+        _reticles[i].active = wasActive;
         _reticles[i].x = (i == 1) ? 0.62f : 0.5f;
         _reticles[i].y = 0.5f;
     }
@@ -236,7 +245,48 @@ void World::replace_chart_for_tests(LevelChart chart) {
     reset_m1_scene();
 }
 
+void World::enter_title() {
+    for (int i = 0; i < kRexMaxPlayers; ++i) {
+        _reticles[i].active = false;
+        _fireSeenReleased[i] = false;
+    }
+    reset_m1_scene();
+    _phase = GamePhase::Title;
+}
+
+// Fresh slot for a player joining at the title or mid-run: full health,
+// zero score, centered reticle. Mid-run joiners share the run in progress —
+// the scene itself is only reset when the FIRST player starts from the
+// title.
+static void join_player(World& world, int player) {
+    world.reticle(player).active = true;
+    world.player_health(player) = {};
+    world.score(player) = {};
+}
+
 void World::tick(float gameDt) {
+    // Join edges — title and mid-run. A press counts only after that
+    // player's fire has been seen released once (held triggers and launch
+    // presses can't join anyone).
+    for (int p = 0; p < kRexMaxPlayers; ++p) {
+        if (_reticles[p].active) continue;
+        if (!_inputs[p].fire) {
+            _fireSeenReleased[p] = true;
+        } else if (_fireSeenReleased[p]) {
+            bool firstJoin = (_phase == GamePhase::Title);
+            join_player(*this, p);
+            if (firstJoin) {
+                // First player in starts the run: fresh scene, off the title.
+                reset_m1_scene();
+                _phase = GamePhase::Playing;
+            }
+        }
+    }
+    if (_phase == GamePhase::Title) {
+        flush();
+        ++_tickCount;
+        return;
+    }
     InputSystem_update(*this);
     // Always ticks: it owns the hit-flash/invulnerability timers and is the
     // only thing watching for the "insert coin" fire press while frozen.

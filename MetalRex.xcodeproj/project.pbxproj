@@ -20,6 +20,7 @@
 		1CE0020179C85A64AB34029E /* AnimationSystem.mm in Sources */ = {isa = PBXBuildFile; fileRef = DDE8330981F4B3171E516CDD /* AnimationSystem.mm */; };
 		1DCF0E2D00C57D754E3466C4 /* AnimationSystem.mm in Sources */ = {isa = PBXBuildFile; fileRef = DDE8330981F4B3171E516CDD /* AnimationSystem.mm */; };
 		1E59162514DAC6ECA1B8D7D8 /* ImageIO.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = EBCCBADB86BCC3BC079D9397 /* ImageIO.framework */; };
+		1ECC4E8CE30938F8ADCF87EA /* TitleFlowTests.mm in Sources */ = {isa = PBXBuildFile; fileRef = 1D7B034B00A4E0F74AED4A97 /* TitleFlowTests.mm */; };
 		1EFB714F3B9ECB85EF721C9B /* WorldSmokeTests.mm in Sources */ = {isa = PBXBuildFile; fileRef = 62B42ED1E2636BF79323DFDA /* WorldSmokeTests.mm */; };
 		2746852A475BCA27D42DF89B /* CharacterLoader.mm in Sources */ = {isa = PBXBuildFile; fileRef = 87D7247D05FC2A57F6DAEB29 /* CharacterLoader.mm */; };
 		2A15B1C8242BCC5FD967AB39 /* ReticleSystem.mm in Sources */ = {isa = PBXBuildFile; fileRef = 8F6E7A678A2B416F70E70AF5 /* ReticleSystem.mm */; };
@@ -128,6 +129,7 @@
 		15F5E5BB6F9B426318D2F765 /* ParticleSim.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ParticleSim.h; sourceTree = "<group>"; };
 		19CFD438813570373EF78E93 /* PhysicsSystem.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = PhysicsSystem.mm; sourceTree = "<group>"; };
 		1D4170C632E74E0BC0DCAC6E /* GameController.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = GameController.framework; path = System/Library/Frameworks/GameController.framework; sourceTree = SDKROOT; };
+		1D7B034B00A4E0F74AED4A97 /* TitleFlowTests.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = TitleFlowTests.mm; sourceTree = "<group>"; };
 		215B35A2BB13635BCE5C9BFD /* RexLogicTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = RexLogicTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		215B80C5038893DB52B737C0 /* HealthTests.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = HealthTests.mm; sourceTree = "<group>"; };
 		2726887279D805614D70EAC1 /* CharacterLoader.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = CharacterLoader.h; sourceTree = "<group>"; };
@@ -303,6 +305,7 @@
 				AF70F53A5C81D63A0A3CAE5F /* RailCameraTests.mm */,
 				B83DE11BFAEAC7DDE1053DA3 /* ReticleInputTests.mm */,
 				C27B5C79F033DA1E66F335BB /* ScoringTests.mm */,
+				1D7B034B00A4E0F74AED4A97 /* TitleFlowTests.mm */,
 				62B42ED1E2636BF79323DFDA /* WorldSmokeTests.mm */,
 			);
 			path = RexLogicTests;
@@ -664,6 +667,7 @@
 				E717B43F92C91A9C3D0C7F60 /* ScoringSystem.mm in Sources */,
 				FED4874AB6C5D989FCC91F5F /* ScoringTests.mm in Sources */,
 				DA5A71C41D646251B75EB44F /* ScreenShakeSystem.mm in Sources */,
+				1ECC4E8CE30938F8ADCF87EA /* TitleFlowTests.mm in Sources */,
 				E5C334F603C17707D610E205 /* World.mm in Sources */,
 				1EFB714F3B9ECB85EF721C9B /* WorldSmokeTests.mm in Sources */,
 			);

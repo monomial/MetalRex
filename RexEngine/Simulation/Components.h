@@ -156,6 +156,16 @@ enum class DinoInterruptOutcome : uint8_t {
     Failed
 };
 
+// Title -> Playing is host-driven: World constructs in Playing with P1+P2
+// active (test compatibility — the sim tests drive gameplay directly);
+// the real render path calls World::enter_title() at launch, and players
+// join by pressing fire (release-then-press edged, so a held trigger or
+// the tvOS launch press can never skip the title).
+enum class GamePhase : uint8_t {
+    Title = 0,
+    Playing,
+};
+
 enum class DinoSpecies : uint8_t {
     Velociraptor = 0,
     Trex,
