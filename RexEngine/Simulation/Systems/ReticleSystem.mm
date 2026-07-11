@@ -176,14 +176,31 @@ void ReticleSystem_update(World& world, float gameDt) {
             reticle.fireFlashTime = kFireFlashDuration;
             reticle.shotCount += 1;
             world.audio_cues().shotsFired += 1;
+            // One bullet hits ONE dino: of every target whose screen box
+            // contains the reticle, only the front-most (nearest the
+            // camera, i.e. largest railDistance — pursuers trail behind
+            // the jeep) takes the hit. Marking every containing box, as
+            // this used to, meant a raptor standing inside the T-Rex's
+            // much larger screen box shielded nothing — one trigger pull
+            // silently damaged both.
+            int hitIndex = -1;
+            bool hitWasWeakPoint = false;
+            float hitRailDistance = 0.f;
             for (int i = 0; i < kM1MaxTargets; ++i) {
                 TargetComponent& target = world.target(i);
                 bool weakPointHit = point_inside_weak_point(reticle, target);
-                if (weakPointHit || point_inside(reticle, target)) {
-                    target.wasHit = true;
-                    target.lastHitWasWeakPoint = weakPointHit;
-                    target.lastHitByPlayer = (uint8_t)player;
+                if (!weakPointHit && !point_inside(reticle, target)) continue;
+                if (hitIndex < 0 || target.railDistance > hitRailDistance) {
+                    hitIndex = i;
+                    hitRailDistance = target.railDistance;
+                    hitWasWeakPoint = weakPointHit;
                 }
+            }
+            if (hitIndex >= 0) {
+                TargetComponent& target = world.target(hitIndex);
+                target.wasHit = true;
+                target.lastHitWasWeakPoint = hitWasWeakPoint;
+                target.lastHitByPlayer = (uint8_t)player;
             }
         }
     }

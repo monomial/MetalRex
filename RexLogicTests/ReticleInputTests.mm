@@ -212,14 +212,65 @@ static void activateDinoForTarget(World& world, int targetIndex) {
     // runs later in this same tick, consumes and clears it to apply
     // damage/score before this assertion ever gets to see it — so it always
     // reads false here regardless of whether the hit registered. Assert the
-    // durable side effect (score) instead of the transient flag. Not exactly
-    // 10/1: the fire loop checks every target against the reticle position
-    // in one pass, and at tick 1 the other freshly-spawned raptors can still
-    // overlap target(0)'s screen box, so this one shot can also register
-    // against them (separately observed — see chat) — assert "at least one
-    // hit landed" rather than an exact count.
-    XCTAssertGreaterThan(world.score(0).score, 0);
-    XCTAssertGreaterThanOrEqual(world.score(0).shotsHit, 1);
+    // durable side effect (score) instead of the transient flag. Exactly
+    // 10/1 now: a bullet hits only the single front-most target whose box
+    // contains the reticle, so overlapping boxes (the always-active T-Rex's
+    // large box can contain this raptor's center) no longer double-count.
+    XCTAssertEqual(world.score(0).score, 10);
+    XCTAssertEqual(world.score(0).shotsHit, 1);
+}
+
+- (void)test_oneShotHitsOnlyTheFrontMostOverlappingTarget {
+    // A raptor standing inside the T-Rex's much larger screen box must
+    // shield it: one bullet, one dino. The old fire loop marked EVERY
+    // containing box hit, so shooting the raptor also chipped the boss.
+    World world;
+    activateDinoForTarget(world, 0);
+    // Park the raptor directly in front of the T-Rex: same lane, same weave
+    // phase (raptor slot 0 spawns at lane -1.9 by default, nowhere near the
+    // boss's centered box).
+    world.target(0).baseLateralOffset = world.target(6).baseLateralOffset;
+    world.target(0).lateralOffset = world.target(6).lateralOffset;
+    world.target(0).timerOffset = world.target(6).timerOffset;
+    world.update(1.f / 120.f, 1.f / 120.f);
+
+    const TargetComponent& raptorTarget = world.target(0);
+    const TargetComponent& trexTarget = world.target(6);
+    world.reticle(0).x = raptorTarget.screenX;
+    world.reticle(0).y = raptorTarget.screenY;
+
+    // Premise check — the raptor's center must actually sit inside the
+    // T-Rex's box, or this test passes without exercising the overlap.
+    XCTAssertTrue(trexTarget.active);
+    XCTAssertLessThanOrEqual(fabsf(raptorTarget.screenX - trexTarget.screenX),
+                             trexTarget.screenHalfW);
+    XCTAssertLessThanOrEqual(fabsf(raptorTarget.screenY - trexTarget.screenY),
+                             trexTarget.screenHalfH);
+    // And the raptor must be the front-most of the two (nearer the camera).
+    XCTAssertGreaterThan(raptorTarget.railDistance, trexTarget.railDistance);
+
+    EntityID raptorId = kInvalidEntity;
+    EntityID trexId = kInvalidEntity;
+    for (EntityID id = 0; id < world.entity_count(); ++id) {
+        if (!world.has_component<DinoBehaviorComponent>(id)) continue;
+        const DinoBehaviorComponent& dino = world.get_component<DinoBehaviorComponent>(id);
+        if (dino.targetIndex == 0) raptorId = id;
+        if (dino.targetIndex == 6) trexId = id;
+    }
+    XCTAssertNotEqual(raptorId, kInvalidEntity);
+    XCTAssertNotEqual(trexId, kInvalidEntity);
+    int raptorHealthBefore = world.get_component<DinoBehaviorComponent>(raptorId).health;
+    int trexHealthBefore = world.get_component<DinoBehaviorComponent>(trexId).health;
+
+    InputState input = {};
+    input.fire = true;
+    world.set_input(input, 0);
+    world.update(1.f / 120.f, 1.f / 120.f);
+
+    XCTAssertEqual(world.get_component<DinoBehaviorComponent>(raptorId).health,
+                   raptorHealthBefore - 1);
+    XCTAssertEqual(world.get_component<DinoBehaviorComponent>(trexId).health,
+                   trexHealthBefore);
 }
 
 - (void)test_movingTargetUpdatesWhileRailCameraMovesForward {
