@@ -79,6 +79,17 @@ void World::reset_m1_scene() {
     _levelComplete = false;
     _levelCompleteElapsed = 0.f;
     _levelCompleteFireReleased = false;
+    // Boss fight bookkeeping: bosses take damage only through chart-scripted
+    // major-attack QTEs and flee once all of them resolve (no death-by-fire).
+    _majorAttack = BossMajorAttackState{};
+    _bossEntity = kInvalidEntity;
+    _scriptedMajorAttacksDone = 0;
+    _bossPortraitShown = false;
+    _bossFleeRemaining = 0.f;
+    _scriptedMajorAttacksTotal = 0;
+    for (const ChartEvent& event : _chart.events) {
+        if (event.type == "major_attack") ++_scriptedMajorAttacksTotal;
+    }
     for (EntityID id = 0; id < _nextID; ++id) {
         _animations.remove(id);
         _factions.remove(id);
@@ -195,6 +206,7 @@ void World::reset_m1_scene() {
     _targets[6].halfHeight = bossIsTrex ? 1.81f : 0.65f;
 
     EntityID boss = defer_create();
+    _bossEntity = boss;
     AnimationComponent& bossAnim = add_component<AnimationComponent>(boss);
     bossAnim.currentClip = CharacterClipSlot::Idle;
     bossAnim.requestedClip = CharacterClipSlot::Idle;
@@ -247,13 +259,26 @@ void World::damage_player(int playerIndex, int amount) {
     }
 }
 
-void World::begin_boss_major_attack(uint32_t bossEntity, DinoSpecies species, uint8_t ragePhase) {
+void World::begin_boss_major_attack(uint32_t bossEntity, DinoSpecies species,
+                                    bool showPortrait, bool isFinal) {
     _majorAttack = BossMajorAttackState{};
-    _majorAttack.active = true;
     _majorAttack.bossEntity = bossEntity;
     _majorAttack.species = species;
-    _majorAttack.ragePhaseTrigger = ragePhase;
-    _majorAttack.timeRemaining = _majorAttack.countdownDuration;
+    _majorAttack.isFinal = isFinal;
+    // The Preview portrait telegraphs the points ONCE per fight (the arcade
+    // shows it the first time only); later QTEs cut straight to live targets.
+    _majorAttack.showPortrait = showPortrait && !_bossPortraitShown;
+    if (_majorAttack.showPortrait) {
+        _bossPortraitShown = true;
+        _majorAttack.phase = MajorAttackPhase::Preview;
+    } else {
+        _majorAttack.phase = MajorAttackPhase::Live;
+        _majorAttack.timeRemaining = _majorAttack.countdownDuration;
+    }
+}
+
+void World::begin_boss_flee() {
+    _bossFleeRemaining = kMajorAttackFleeDuration;
 }
 
 void World::replace_chart_for_tests(LevelChart chart) {
@@ -359,6 +384,15 @@ void World::tick(float gameDt) {
             reset_m1_scene();
         }
     }
+    // Boss flee window: once the final scripted major attack resolves the boss
+    // runs off for a beat (full-speed gameplay, its Retreat state carrying it
+    // away) before the level completes — bosses flee, they don't die.
+    if (_bossFleeRemaining > 0.f && !_levelComplete) {
+        _bossFleeRemaining = std::max(0.f, _bossFleeRemaining - gameDt);
+        if (_bossFleeRemaining <= 0.f) {
+            complete_level();
+        }
+    }
     // Gameplay runs while at least one active player is still in. Sitting-out
     // players are skipped by ReticleSystem and damage targeting, while an
     // all-out state freezes rail/dinos/reticles/animation until someone
@@ -373,7 +407,7 @@ void World::tick(float gameDt) {
         // Scoring before Animation) — a shot fired this tick must still be
         // visible to DinoBehaviorSystem/BossMajorAttackSystem the same tick,
         // not the next one.
-        float worldDt = _majorAttack.active ? gameDt * kMajorAttackSlowMoScale : gameDt;
+        float worldDt = _majorAttack.active() ? gameDt * kMajorAttackSlowMoScale : gameDt;
         RailCameraSystem_update(*this, worldDt);
         ReticleSystem_update(*this, gameDt);
         BossMajorAttackSystem_update(*this, gameDt);

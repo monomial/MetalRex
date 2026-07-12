@@ -79,6 +79,26 @@ static void placeWithinAttackRange(World& world, DinoBehaviorComponent& dino) {
     world.target(dino.targetIndex).moving = true;
 }
 
+// Bosses take damage only through chart-scripted major-attack QTEs now, so
+// tests drive the camera to a major_attack event distance and let the real
+// trigger fire (the m2-test chart scripts QTEs at 27.5 / 29.5 / 31.5). Returns
+// true once the QTE went active.
+static bool runToMajorAttack(World& world, float chartDistance) {
+    world.rail_camera().distance = chartDistance - 0.3f;
+    for (int i = 0; i < 200; ++i) {
+        world.update(1.f / 120.f, 1.f / 120.f);
+        if (world.major_attack_active()) return true;
+    }
+    return false;
+}
+
+// Test shortcut: force the current QTE to end so the next scripted one can be
+// reached without simulating a full 6s countdown. (Skips the resolve/flee
+// bookkeeping — tests that care about those simulate the countdown for real.)
+static void endMajorAttack(World& world) {
+    world.major_attack_mutable().phase = MajorAttackPhase::Inactive;
+}
+
 - (void)test_interruptWithinWindowCancelsAttackAndTransitionsToJumpReaction {
     World world;
     EntityID dinoId = findDino(world);
@@ -208,36 +228,51 @@ static void placeWithinAttackRange(World& world, DinoBehaviorComponent& dino) {
     XCTAssertLessThanOrEqual(gap, 10.f);
 }
 
-- (void)test_trexHasBossHealthAndDeathCompletesLevelWithoutRespawn {
+- (void)test_bossIsImmuneToNormalFire {
+    // Jurassic Park model: normal fire can't damage a boss — only the QTE can.
+    // Body-shooting the boss must never drain health or push it toward death.
     World world;
     EntityID trexId = findTrex(world);
     XCTAssertNotEqual(trexId, kInvalidEntity);
-
     DinoBehaviorComponent& trex = world.get_component<DinoBehaviorComponent>(trexId);
-    XCTAssertEqual(trex.maxHealth, 40);
-    XCTAssertEqual(trex.health, 40);
-    // Arrival staging: the chart's boss arrives at distance 26, so it's
-    // dormant at the start of the act. Force it in for this test.
-    XCTAssertFalse(trex.activeInEncounter);
     activateDino(world, trexId, DinoBehaviorState::Approach);
+    trex.holdDuration = 100.f; // don't let it wander into an attack cycle
+    int startHealth = trex.health;
 
-    trex.health = 1;
-    world.target(trex.targetIndex).wasHit = true;
-    tick(world, 1);
+    for (int i = 0; i < 60; ++i) {
+        world.target(trex.targetIndex).wasHit = true;
+        world.target(trex.targetIndex).lastHitWasWeakPoint = (i % 2 == 0);
+        tick(world, 1);
+    }
 
-    XCTAssertEqual(trex.state, DinoBehaviorState::Dying);
+    XCTAssertEqual(trex.health, startHealth); // untouched by fire
+    XCTAssertNotEqual(trex.state, DinoBehaviorState::Dying);
+    XCTAssertFalse(world.level_complete());
+    // The hit still flashes (it reads as a hit, just deals no damage).
+    XCTAssertGreaterThan(trex.hitFlashTime, 0.f);
+}
+
+- (void)test_finalScriptedQTEMakesBossFleeAndCompletesLevel {
+    // The boss flees (never dies) once the LAST scripted QTE resolves. Drive to
+    // the final chart QTE (31.5), let it time out, then the flee window elapses
+    // and the level completes.
+    World world;
+    XCTAssertTrue(runToMajorAttack(world, 31.5f));
+    // Advance to the Live phase (a first-QTE-of-fight Preview may run first).
+    for (int i = 0; i < 400 && world.major_attack().phase != MajorAttackPhase::Live; ++i) {
+        tick(world, 1);
+    }
+    XCTAssertEqual((int)world.major_attack().phase, (int)MajorAttackPhase::Live);
+    XCTAssertTrue(world.major_attack().isFinal);
     XCTAssertFalse(world.level_complete());
 
-    tick(world, 450);
+    // Let the countdown expire, the result hold pass, and the flee window run
+    // out — real-time systems keep ticking, so ~9s of ticks covers it.
+    for (int i = 0; i < 1200 && !world.level_complete(); ++i) {
+        tick(world, 1);
+    }
     XCTAssertTrue(world.level_complete());
-    XCTAssertFalse(trex.active);
-    XCTAssertFalse(trex.activeInEncounter);
-    XCTAssertFalse(world.target(trex.targetIndex).active);
-
-    float distanceAfterComplete = world.rail_camera().distance;
-    tick(world, 60);
-    XCTAssertEqualWithAccuracy(world.rail_camera().distance, distanceAfterComplete, 0.0001f);
-    XCTAssertEqual(trex.health, 0);
+    XCTAssertFalse(world.major_attack_active());
 }
 
 - (void)test_firePressAfterLevelCompleteRestartsTheLevel {
@@ -245,15 +280,14 @@ static void placeWithinAttackRange(World& world, DinoBehaviorComponent& dino) {
     EntityID trexId = findTrex(world);
     XCTAssertNotEqual(trexId, kInvalidEntity);
 
-    // Kill the boss with fire HELD — the exact input state a player is in
-    // at the moment the T-Rex drops. (Force it into the encounter first —
-    // the chart stages its arrival at distance 26.)
-    activateDino(world, trexId, DinoBehaviorState::Approach);
-    world.get_component<DinoBehaviorComponent>(trexId).health = 1;
-    world.target(world.get_component<DinoBehaviorComponent>(trexId).targetIndex).wasHit = true;
+    // Reach LEVEL COMPLETE the way the boss fight now ends (it flees once the
+    // fight is won). How we got here isn't what's under test — the play-again
+    // gate is — so complete the level directly, with fire HELD (the input a
+    // player is in at the winning moment).
     InputState heldFire = {};
     heldFire.fire = true;
     world.set_input(heldFire, 0);
+    world.complete_level();
     tick(world, 500);
     XCTAssertTrue(world.level_complete());
 
@@ -427,6 +461,10 @@ static void placeWithinAttackRange(World& world, DinoBehaviorComponent& dino) {
     float railLength = world.chart().rail.total_length();
     world.rail_camera().distance = railLength - 0.5f;
     world.target(trex.targetIndex).railDistance = world.rail_camera().distance - 5.f;
+    // Consume past all chart events so jumping the camera near the rail's end
+    // doesn't arm a scripted major-attack QTE (which would slow-mo the camera
+    // and prevent the wrap this test is about).
+    world.set_next_chart_event_index(world.chart().events.size());
 
     // One second of travel at the default 1.2 u/s crosses the wrap.
     float before = world.rail_camera().distance;
@@ -461,54 +499,40 @@ static void placeWithinAttackRange(World& world, DinoBehaviorComponent& dino) {
     XCTAssertEqual(dino.health, startHealth - 3);
 }
 
-// Both rage-phase tests below also incidentally arm world.major_attack() in
-// the background (phase escalation triggers it — see DinoBehaviorSystem.mm).
-// That's harmless to these tests' own assertions: major attack is slow
-// motion, not a freeze, so the health-decrement/phase-escalation logic they
-// drive via direct target.wasHit pokes keeps working at any tick count
-// (see BossMajorAttackTests.mm for coverage of the popup itself, and the
-// death-vs-major-attack interaction in DinoBehaviorSystem.mm where a
-// killing blow always cancels an in-progress major attack).
-- (void)test_bossRagePhasesEscalateAtHealthThresholds {
+// Rage escalation is now driven by each chart-scripted major attack (the boss
+// takes no fire damage, so the old damage-taken thresholds can't fire): each
+// QTE shortens the hold, quickens the chase, and bumps the tint phase.
+- (void)test_bossRagePhaseEscalatesEachScriptedMajorAttack {
     World world;
     EntityID trexId = findTrex(world);
     XCTAssertNotEqual(trexId, kInvalidEntity);
     DinoBehaviorComponent& trex = world.get_component<DinoBehaviorComponent>(trexId);
-    activateDino(world, trexId, DinoBehaviorState::Approach);
     float baseHold = trex.holdDuration;
     float baseChase = trex.chaseSpeed;
     XCTAssertEqual(trex.ragePhase, 0);
 
-    TargetComponent& target = world.target(trex.targetIndex);
-    // Body-shoot down to just past 1/3 damage taken (40 -> 26).
-    for (int i = 0; i < 14; ++i) {
-        target.wasHit = true;
-        target.lastHitWasWeakPoint = false;
-        tick(world, 1);
-    }
+    // First scripted QTE (chart distance 27.5) -> phase 1.
+    XCTAssertTrue(runToMajorAttack(world, 27.5f));
     XCTAssertEqual(trex.ragePhase, 1);
     XCTAssertLessThan(trex.holdDuration, baseHold);
     XCTAssertGreaterThan(trex.chaseSpeed, baseChase);
-
-    // Past 2/3 damage taken (26 -> 13).
     float phase1Hold = trex.holdDuration;
-    for (int i = 0; i < 13; ++i) {
-        target.wasHit = true;
-        target.lastHitWasWeakPoint = false;
-        tick(world, 1);
-    }
+
+    // Second scripted QTE (29.5) -> phase 2.
+    endMajorAttack(world);
+    XCTAssertTrue(runToMajorAttack(world, 29.5f));
     XCTAssertEqual(trex.ragePhase, 2);
     XCTAssertLessThan(trex.holdDuration, phase1Hold);
-    // One-way: healing never exists, but the phase must never regress
-    // and never re-apply multipliers on later hits within the phase.
+
+    // Phase is capped at 2 — a third QTE must not escalate stats further.
     float phase2Hold = trex.holdDuration;
-    target.wasHit = true;
-    tick(world, 1);
+    endMajorAttack(world);
+    XCTAssertTrue(runToMajorAttack(world, 31.5f));
     XCTAssertEqual(trex.ragePhase, 2);
     XCTAssertEqualWithAccuracy(trex.holdDuration, phase2Hold, 0.0001f);
 }
 
-- (void)test_bossRagePhaseEscalationTriggersScreenShake {
+- (void)test_scriptedMajorAttackTriggersScreenShake {
     World world;
     // ScreenShakeSystem is deliberately global module state ("one camera,
     // one shake" — see its header), so a prior test in this same xctest
@@ -518,25 +542,9 @@ static void placeWithinAttackRange(World& world, DinoBehaviorComponent& dino) {
     ScreenShakeSystem_update(world, 10.f);
     XCTAssertEqual(simd_length(ScreenShakeSystem_offset(world)), 0.f);
 
-    EntityID trexId = findTrex(world);
-    XCTAssertNotEqual(trexId, kInvalidEntity);
-    DinoBehaviorComponent& trex = world.get_component<DinoBehaviorComponent>(trexId);
-    activateDino(world, trexId, DinoBehaviorState::Approach);
-
-    TargetComponent& target = world.target(trex.targetIndex);
-    // Same body-shot count as test_bossRagePhasesEscalateAtHealthThresholds
-    // to land exactly on the phase-1 threshold.
-    for (int i = 0; i < 14; ++i) {
-        target.wasHit = true;
-        target.lastHitWasWeakPoint = false;
-        tick(world, 1);
-    }
-    XCTAssertEqual(trex.ragePhase, 1);
-    // The trigger call lands inside this same tick's DinoBehaviorSystem_update,
-    // which runs AFTER ScreenShakeSystem_update in World::tick — so the
-    // freshly triggered magnitude doesn't reach _offset until the next tick
-    // decays it into an angle/offset pair.
-    tick(world, 1);
+    // Reaching the first scripted QTE triggers a shake as it arms.
+    XCTAssertTrue(runToMajorAttack(world, 27.5f));
+    tick(world, 1); // let the freshly triggered magnitude decay into an offset
     XCTAssertGreaterThan(simd_length(ScreenShakeSystem_offset(world)), 0.f);
 }
 

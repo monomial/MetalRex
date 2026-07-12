@@ -26,7 +26,8 @@
     XCTAssertEqualWithAccuracy(chart.lookAtBeats[1].distance, 5.5f, 0.001f);
     XCTAssertEqualWithAccuracy(chart.lookAtBeats[1].target.x, 2.0f, 0.001f);
 
-    XCTAssertEqual(chart.events.size(), 9ul);
+    // 9 wave/target/camera beats + 3 scripted boss major_attack QTEs.
+    XCTAssertEqual(chart.events.size(), 12ul);
     XCTAssertEqualWithAccuracy(chart.events[1].distance, 8.5f, 0.001f);
     XCTAssertEqual(std::string("moving_target"), chart.events[1].type);
     XCTAssertTrue(chart.events[1].payloadJSON.find("\"slot\":3") != std::string::npos);
@@ -37,10 +38,19 @@
     XCTAssertEqualWithAccuracy(chart.events[2].raptorWave.lanes[0], 0.f, 0.001f);
     XCTAssertEqualWithAccuracy(chart.events[2].raptorWave.spawnGap, 8.f, 0.001f);
 
-    XCTAssertEqual(std::string("raptor_wave"), chart.events[8].type);
-    XCTAssertTrue(chart.events[8].raptorWave.valid);
-    XCTAssertEqual(chart.events[8].raptorWave.groupSize, 3);
-    XCTAssertEqualWithAccuracy(chart.events[8].distance, 31.0f, 0.001f);
+    // Events are distance-sorted, so the final-pack raptor wave now sits at
+    // index 10 (two major_attack QTEs at 27.5 and 29.5 precede it).
+    XCTAssertEqual(std::string("raptor_wave"), chart.events[10].type);
+    XCTAssertTrue(chart.events[10].raptorWave.valid);
+    XCTAssertEqual(chart.events[10].raptorWave.groupSize, 3);
+    XCTAssertEqualWithAccuracy(chart.events[10].distance, 31.0f, 0.001f);
+
+    // Boss major-attack QTEs parse as plain typed events (no special payload),
+    // scripted at 27.5 / 29.5 / 31.5.
+    XCTAssertEqual(std::string("major_attack"), chart.events[7].type);
+    XCTAssertEqualWithAccuracy(chart.events[7].distance, 27.5f, 0.001f);
+    XCTAssertEqual(std::string("major_attack"), chart.events[11].type);
+    XCTAssertEqualWithAccuracy(chart.events[11].distance, 31.5f, 0.001f);
 }
 
 - (void)test_missingChartThrowsInsteadOfReturningEmptyLevel {

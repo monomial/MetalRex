@@ -234,27 +234,77 @@ struct DinoBehaviorComponent {
     int attackDamage = 15;
 };
 
-// Boss "major attack" QTE: a whole-game slow-motion popup triggered by rage-
-// phase escalation (see DinoBehaviorSystem.mm) showing 4 hittable points on
-// the boss. Lives on World as a single instance, not an ECS component —
-// nothing else attaches to an entity here, and every system that needs to
-// read/write it (ReticleSystem, BossMajorAttackSystem, RexRenderer) wants a
-// clean World::major_attack() accessor rather than hunting for "whichever
+static constexpr int kBossMajorAttackPointCount = 4;
+
+// Per-boss-species table of the 4 major-attack hit points. Authored in the
+// boss's OWN normalized body box (u right 0..1, v down 0..1; 0.5,0.5 = box
+// center), NOT screen space: at runtime each point is placed inside the boss's
+// live projected screen box (BossMajorAttackSystem), so the points ride the
+// moving/animating dino. The same table drives the Preview portrait's marker
+// reveal (portrait art must share the boss box's framing for the markers to
+// line up). See BossMajorAttackPoints.h.
+struct BossMajorAttackPoint {
+    float u = 0.5f;
+    float v = 0.5f;
+    float hitRadius = 0.06f; // viewport-space hit radius once placed on the boss
+};
+
+// Boss "major attack" QTE — the ONLY way to damage a boss. Bosses are immune
+// to normal fire (shooting them still scores/streaks); a boss flees once every
+// chart-scripted major attack has resolved. Two-phase, copying the Jurassic
+// Park arcade reference: an optional one-time PREVIEW portrait telegraphs where
+// the 4 points sit, then the scene drops into slow motion and the 4 targets
+// appear one-by-one ON THE LIVE BOSS (tracked to its projected screen box),
+// each with a big->small closing ring, to be shot before the countdown
+// expires. Lives on World as a single instance, not an ECS component — every
+// system that reads it (ReticleSystem, BossMajorAttackSystem, RexRenderer)
+// wants a clean World::major_attack() accessor, not a hunt for "whichever
 // entity isBoss."
+enum class MajorAttackPhase : uint8_t {
+    Inactive = 0,
+    Preview,  // static portrait, points reveal one-by-one (first QTE of a fight only)
+    Live,     // slow-mo live view: staggered closing-ring targets, shootable, countdown runs
+    Result,   // brief hold showing Perfect / damage before resuming (or fleeing)
+};
+
+// Per-point runtime for the Live phase. screenX/screenY are recomputed every
+// tick from the boss's live projected screen box, so the points track the
+// moving dino with no separate 3D projection. appear ramps 0->1 as the ring
+// closes onto the spot; a point is shootable once it has begun appearing.
+struct BossMajorAttackPointState {
+    bool hit = false;
+    float appear = 0.f;       // 0 = not yet spawned, ramps to 1 as the ring closes
+    float screenX = 0.5f;     // viewport, y-up (matches ReticleComponent.x/y)
+    float screenY = 0.5f;
+    float hitRadius = 0.06f;
+};
+
 struct BossMajorAttackState {
-    bool active = false;
+    MajorAttackPhase phase = MajorAttackPhase::Inactive;
     // uint32_t, not EntityID: Components.h is included by World.h before
     // EntityID is declared there, so this stays in EntityID's own underlying
     // type rather than introducing an include-order dependency the other way.
     uint32_t bossEntity = UINT32_MAX;
     DinoSpecies species = DinoSpecies::Trex;
-    uint8_t ragePhaseTrigger = 0;      // 1 or 2 — which escalation armed this
+    bool showPortrait = false; // this instance runs the one-time Preview phase
+    bool isFinal = false;      // last scripted QTE of the fight: boss flees when it resolves
+
+    float previewDuration = 2.4f;
+    float previewElapsed = 0.f;
+
     float countdownDuration = 6.0f;
     float timeRemaining = 0.f;
-    uint8_t hitMask = 0;               // bit i = point i hit
+    float liveElapsed = 0.f;   // drives the staggered per-point appearance
+
+    BossMajorAttackPointState points[kBossMajorAttackPointCount];
+    uint8_t hitMask = 0;       // bit i = point i hit
     uint8_t hitCount = 0;
-    bool resolved = false;             // 4/4 hit, or countdown expired
-    float resultHoldRemaining = 0.f;   // hold after resolve before resuming
+
+    bool resolved = false;     // 4/4 hit, or countdown expired
+    bool wasPerfect = false;
+    float resultHoldRemaining = 0.f;
+
+    bool active() const { return phase != MajorAttackPhase::Inactive; }
 };
 
 // Camera/boss/animation run at this fraction of normal gameDt while a major
@@ -263,16 +313,15 @@ struct BossMajorAttackState {
 // project) can reach clipDone within even the longest countdown: at this
 // scale a 6s real-time countdown only advances ~0.48s of "boss time."
 static constexpr float kMajorAttackSlowMoScale = 0.08f;
-
-// Per-boss-species table of the 4 major-attack hit points, in image-
-// normalized (u right, v down) coordinates matching the portrait art's own
-// space — see BossMajorAttackPoints.h for the conversion to viewport space.
-struct BossMajorAttackPoint {
-    float u = 0.5f;
-    float v = 0.5f;
-    float hitRadius = 0.05f;
-};
-static constexpr int kBossMajorAttackPointCount = 4;
+// Live-phase pacing: gap between each of the 4 targets appearing, and how long
+// each target's ring takes to close. countdownDuration comfortably outlasts
+// all four appearing (3 * stagger + appear).
+static constexpr float kMajorAttackPointStagger = 0.55f;
+static constexpr float kMajorAttackPointAppear = 0.5f;
+static constexpr float kMajorAttackResultHold = 1.2f;
+// After the FINAL scripted QTE resolves, the boss visibly flees for this long
+// (full speed, still ticking) before the level completes.
+static constexpr float kMajorAttackFleeDuration = 1.6f;
 
 // Per-player health/life state. Lives in World as slot-indexed storage,
 // matching the reticle array, rather than as per-entity ECS state.

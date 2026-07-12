@@ -190,8 +190,22 @@ public:
     // real-time.
     const BossMajorAttackState& major_attack() const { return _majorAttack; }
     BossMajorAttackState& major_attack_mutable() { return _majorAttack; }
-    bool major_attack_active() const { return _majorAttack.active; }
-    void begin_boss_major_attack(uint32_t bossEntity, DinoSpecies species, uint8_t ragePhase);
+    bool major_attack_active() const { return _majorAttack.active(); }
+    void begin_boss_major_attack(uint32_t bossEntity, DinoSpecies species,
+                                 bool showPortrait, bool isFinal);
+
+    // Boss fight completion: bosses never die from fire — they flee once every
+    // chart-scripted major attack has resolved (see BossMajorAttackSystem). The
+    // boss entity + scripted-QTE bookkeeping live here so DinoBehaviorSystem's
+    // chart-event consumer and the QTE system can both reach them.
+    uint32_t boss_entity() const { return _bossEntity; }
+    int scripted_major_attacks_total() const { return _scriptedMajorAttacksTotal; }
+    int scripted_major_attacks_done() const { return _scriptedMajorAttacksDone; }
+    void note_major_attack_resolved() {
+        if (_scriptedMajorAttacksDone < _scriptedMajorAttacksTotal) ++_scriptedMajorAttacksDone;
+    }
+    void begin_boss_flee();
+    bool boss_fleeing() const { return _bossFleeRemaining > 0.f; }
 
 private:
     void flush();
@@ -239,6 +253,12 @@ private:
     PlayerHealthState _playerHealth[kRexMaxPlayers];
     PlayerScoreState _playerScore[kRexMaxPlayers];
     BossMajorAttackState _majorAttack;
+    // Boss fight bookkeeping (see begin_boss_major_attack / begin_boss_flee).
+    uint32_t _bossEntity = kInvalidEntity;
+    int _scriptedMajorAttacksTotal = 0;  // count of major_attack events in the chart
+    int _scriptedMajorAttacksDone = 0;   // resolved so far this fight
+    bool _bossPortraitShown = false;     // the one-time Preview has run this fight
+    float _bossFleeRemaining = 0.f;      // >0 while the boss visibly flees before completion
 };
 
 template<typename T>

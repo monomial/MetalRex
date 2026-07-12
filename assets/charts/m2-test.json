@@ -193,6 +193,27 @@
         "attackStaggerSeconds": 0.35,
         "label": "final-pack"
       }
+    },
+    {
+      "distance": 27.5,
+      "type": "major_attack",
+      "payload": {
+        "label": "trex-qte-1"
+      }
+    },
+    {
+      "distance": 29.5,
+      "type": "major_attack",
+      "payload": {
+        "label": "trex-qte-2"
+      }
+    },
+    {
+      "distance": 31.5,
+      "type": "major_attack",
+      "payload": {
+        "label": "trex-qte-3-final"
+      }
     }
   ],
   "boss": {

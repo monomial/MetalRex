@@ -1,6 +1,5 @@
 #include "ReticleSystem.h"
 #include "Simulation/World.h"
-#include "Simulation/BossMajorAttackPoints.h"
 #include <algorithm>
 #include <math.h>
 
@@ -30,19 +29,6 @@ static bool point_inside_weak_point(const ReticleComponent& reticle, const Targe
     float weakHalfH = target.screenHalfH * 0.35f;
     return fabsf(reticle.x - target.screenX) <= target.weakPointHalfW
         && fabsf(reticle.y - weakCenterY) <= weakHalfH;
-}
-
-// A boss major-attack point is a flat circle in viewport space, unrelated to
-// the live 3D rail-camera projection kM1MaxTargets targets use — the popup
-// is a static 2D portrait, not a proxy for a world position. See
-// BossMajorAttackPoints.h for the (u,v)->(x,y) conversion.
-static bool point_inside_major_attack_point(const ReticleComponent& reticle,
-                                            const BossMajorAttackPoint& point) {
-    float px, py;
-    BossMajorAttackPoint_toViewport(point, &px, &py);
-    float dx = reticle.x - px;
-    float dy = reticle.y - py;
-    return (dx * dx + dy * dy) <= (point.hitRadius * point.hitRadius);
 }
 
 ReticleTuning ReticleSystem_tuning() {
@@ -191,24 +177,28 @@ void ReticleSystem_update(World& world, float gameDt) {
             reticle.shotCount += 1;
             world.audio_cues().shotsFired += 1;
             if (world.major_attack_active()) {
-                // A flat 2D popup, not the live 3D scene — its 4 points get
-                // their own hit-test entirely separate from the kM1MaxTargets
-                // loop below (that loop stays untouched, but it's simply
-                // never reached this branch, so the boss's own — now stale,
-                // slow-motion — TargetComponent box can't be hit by mistake
-                // while the popup covers it).
+                // During a major attack, fire is routed to the 4 QTE points on
+                // the LIVE boss (positions tracked to its projected screen box
+                // by BossMajorAttackSystem), never to the kM1MaxTargets loop
+                // below — so the boss's own now-slow-motion body box can't be
+                // hit by mistake. Only the Live phase is shootable; Preview and
+                // Result swallow fire.
                 BossMajorAttackState& attack = world.major_attack_mutable();
-                const BossMajorAttackPoint* points = BossMajorAttackPoints_for(attack.species);
-                for (int i = 0; i < kBossMajorAttackPointCount; ++i) {
-                    if (attack.hitMask & (1 << i)) continue; // already claimed
-                    if (!point_inside_major_attack_point(reticle, points[i])) continue;
-                    attack.hitMask |= (uint8_t)(1 << i);
-                    attack.hitCount += 1;
-                    float px, py;
-                    BossMajorAttackPoint_toViewport(points[i], &px, &py);
-                    world.events().push_dino_score((uint8_t)player, DinoScoreEvent::MajorAttackPointHit,
-                                                   attack.species, px, py);
-                    break; // one shot claims at most one point
+                if (attack.phase == MajorAttackPhase::Live) {
+                    for (int i = 0; i < kBossMajorAttackPointCount; ++i) {
+                        BossMajorAttackPointState& point = attack.points[i];
+                        if (point.hit || point.appear <= 0.f) continue; // claimed / not yet spawned
+                        float dx = reticle.x - point.screenX;
+                        float dy = reticle.y - point.screenY;
+                        if (dx * dx + dy * dy > point.hitRadius * point.hitRadius) continue;
+                        point.hit = true;
+                        attack.hitMask |= (uint8_t)(1 << i);
+                        attack.hitCount += 1;
+                        world.events().push_dino_score((uint8_t)player,
+                                                       DinoScoreEvent::MajorAttackPointHit,
+                                                       attack.species, point.screenX, point.screenY);
+                        break; // one shot claims at most one point
+                    }
                 }
             } else {
                 // One bullet hits ONE dino: of every target whose screen box

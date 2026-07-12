@@ -1,7 +1,11 @@
 #import <XCTest/XCTest.h>
-#include "Simulation/Systems/DinoBehaviorSystem.h"
-#include "Simulation/BossMajorAttackPoints.h"
 #include "Simulation/World.h"
+
+// The boss major attack is now a two-phase, chart-scripted QTE and the ONLY
+// way to damage a boss (bosses are immune to normal fire and flee once every
+// scripted QTE resolves). Tests drive the camera to the m2-test chart's
+// major_attack event distances (27.5 / 29.5 / 31.5) and let the real trigger
+// fire, rather than poking health like the old damage-based version did.
 
 @interface BossMajorAttackTests : XCTestCase
 @end
@@ -11,94 +15,123 @@
 static EntityID findTrex(World& world) {
     for (EntityID id = 0; id < world.entity_count(); ++id) {
         if (!world.has_component<DinoBehaviorComponent>(id)) continue;
-        if (world.get_component<DinoBehaviorComponent>(id).species == DinoSpecies::Trex) {
-            return id;
-        }
+        if (world.get_component<DinoBehaviorComponent>(id).species == DinoSpecies::Trex) return id;
     }
     return kInvalidEntity;
 }
 
 static void tick(World& world, int count) {
-    for (int i = 0; i < count; ++i) {
-        world.update(1.f / 120.f, 1.f / 120.f);
+    for (int i = 0; i < count; ++i) world.update(1.f / 120.f, 1.f / 120.f);
+}
+
+// Positions the camera just before a scripted major_attack distance and ticks
+// until that QTE arms. Boss auto-arrives (chart arrival is distance 26).
+static bool runToMajorAttack(World& world, float chartDistance) {
+    world.rail_camera().distance = chartDistance - 0.3f;
+    for (int i = 0; i < 200; ++i) {
+        tick(world, 1);
+        if (world.major_attack_active()) return true;
     }
+    return false;
 }
 
-static void activateDino(World& world, EntityID id, DinoBehaviorState state) {
-    DinoBehaviorComponent& dino = world.get_component<DinoBehaviorComponent>(id);
-    dino.activeInEncounter = true;
-    dino.state = state;
-    dino.stateTime = 0.f;
-    TargetComponent& target = world.target(dino.targetIndex);
-    target.active = true;
-    target.moving = true;
-}
-
-// Body-shoots the T-Rex up to (but not through) the phase-1 rage threshold,
-// arming a major attack — same technique DinoBehaviorTests.mm's rage-phase
-// tests use.
-static void triggerPhaseOneMajorAttack(World& world, EntityID trexId) {
-    DinoBehaviorComponent& trex = world.get_component<DinoBehaviorComponent>(trexId);
-    activateDino(world, trexId, DinoBehaviorState::Approach);
-    TargetComponent& target = world.target(trex.targetIndex);
-    for (int i = 0; i < 14; ++i) {
-        target.wasHit = true;
-        target.lastHitWasWeakPoint = false;
+// Arms a QTE and advances past any one-time Preview to the shootable Live phase.
+static bool runToLiveQTE(World& world, float chartDistance) {
+    if (!runToMajorAttack(world, chartDistance)) return false;
+    for (int i = 0; i < 400 && world.major_attack().phase != MajorAttackPhase::Live; ++i) {
         tick(world, 1);
     }
+    return world.major_attack().phase == MajorAttackPhase::Live;
 }
 
-static void fireAtPoint(World& world, int player, const BossMajorAttackPoint& point) {
-    float x, y;
-    BossMajorAttackPoint_toViewport(point, &x, &y);
-    world.reticle(player).x = x;
-    world.reticle(player).y = y;
+static void endMajorAttack(World& world) {
+    world.major_attack_mutable().phase = MajorAttackPhase::Inactive;
+}
+
+// Waits for point i to appear, aims player at its live position, fires once,
+// then waits out the fire cooldown so the next shot is its own press.
+static void fireAtLivePoint(World& world, int player, int i) {
+    for (int t = 0; t < 400 && world.major_attack().points[i].appear <= 0.f; ++t) tick(world, 1);
+    const BossMajorAttackPointState& p = world.major_attack().points[i];
+    world.reticle(player).x = p.screenX;
+    world.reticle(player).y = p.screenY;
     InputState fire = {};
     fire.fire = true;
     world.set_input(fire, player);
     tick(world, 1);
-    // Clear input and wait out the fire cooldown so the next call registers
-    // as its own press rather than being cooldown-gated away.
     world.set_input(InputState{}, player);
     tick(world, 30);
 }
 
-- (void)test_ragePhaseEscalationArmsMajorAttack {
+- (void)test_firstScriptedQTEArmsPreviewThenLive {
     World world;
     EntityID trexId = findTrex(world);
     XCTAssertNotEqual(trexId, kInvalidEntity);
-    DinoBehaviorComponent& trex = world.get_component<DinoBehaviorComponent>(trexId);
 
-    triggerPhaseOneMajorAttack(world, trexId);
-    XCTAssertEqual(trex.ragePhase, 1);
-
+    XCTAssertTrue(runToMajorAttack(world, 27.5f));
     const BossMajorAttackState& attack = world.major_attack();
-    XCTAssertTrue(attack.active);
+    // First QTE of the fight opens with the one-time Preview portrait.
+    XCTAssertEqual((int)attack.phase, (int)MajorAttackPhase::Preview);
+    XCTAssertTrue(attack.showPortrait);
     XCTAssertEqual(attack.bossEntity, trexId);
     XCTAssertEqual((int)attack.species, (int)DinoSpecies::Trex);
-    XCTAssertEqual(attack.ragePhaseTrigger, 1);
-    XCTAssertEqualWithAccuracy(attack.timeRemaining, attack.countdownDuration, 0.0001f);
-    XCTAssertEqual(attack.hitMask, 0);
+    XCTAssertFalse(attack.isFinal); // two more scripted QTEs remain
     XCTAssertEqual(attack.hitCount, 0);
-    XCTAssertFalse(attack.resolved);
+
+    // Preview runs its course, then the shootable Live phase begins with a
+    // fresh countdown.
+    for (int i = 0; i < 400 && world.major_attack().phase != MajorAttackPhase::Live; ++i) {
+        tick(world, 1);
+    }
+    XCTAssertEqual((int)world.major_attack().phase, (int)MajorAttackPhase::Live);
+    XCTAssertEqualWithAccuracy(world.major_attack().timeRemaining,
+                               world.major_attack().countdownDuration, 0.2f);
+}
+
+- (void)test_secondScriptedQTESkipsPreview {
+    World world;
+    XCTAssertTrue(runToMajorAttack(world, 27.5f));
+    XCTAssertEqual((int)world.major_attack().phase, (int)MajorAttackPhase::Preview);
+
+    // Later QTEs in the same fight cut straight to the live targets.
+    endMajorAttack(world);
+    XCTAssertTrue(runToMajorAttack(world, 29.5f));
+    XCTAssertEqual((int)world.major_attack().phase, (int)MajorAttackPhase::Live);
+    XCTAssertFalse(world.major_attack().showPortrait);
+}
+
+- (void)test_liveTargetsAppearStaggeredAndAreDistinct {
+    World world;
+    XCTAssertTrue(runToLiveQTE(world, 27.5f));
+
+    // The first target is up immediately; later ones are still closed at t~0.
+    XCTAssertGreaterThan(world.major_attack().points[0].appear, 0.f);
+    XCTAssertLessThanOrEqual(world.major_attack().points[3].appear, 0.f);
+
+    // Let them all spawn in, then confirm they occupy distinct, on-screen spots.
+    tick(world, 240);
+    for (int i = 0; i < kBossMajorAttackPointCount; ++i) {
+        const BossMajorAttackPointState& p = world.major_attack().points[i];
+        XCTAssertGreaterThan(p.appear, 0.f);
+        XCTAssertGreaterThanOrEqual(p.screenX, 0.f);
+        XCTAssertLessThanOrEqual(p.screenX, 1.f);
+    }
+    XCTAssertNotEqualWithAccuracy(world.major_attack().points[0].screenX,
+                                  world.major_attack().points[1].screenX, 0.0001f);
 }
 
 - (void)test_majorAttackSlowsCameraButNotAiming {
     World world;
-    EntityID trexId = findTrex(world);
-    triggerPhaseOneMajorAttack(world, trexId);
-    XCTAssertTrue(world.major_attack_active());
+    XCTAssertTrue(runToLiveQTE(world, 27.5f));
 
-    float normalDistancePerTick = world.rail_camera().speed * (1.f / 120.f);
+    float normalPerTick = world.rail_camera().speed * (1.f / 120.f);
     float distanceBefore = world.rail_camera().distance;
     tick(world, 60);
     float slowDelta = world.rail_camera().distance - distanceBefore;
-    // Slow motion: nowhere near what 60 normal-speed ticks would cover, but
-    // still moving (not a hard freeze).
-    XCTAssertLessThan(slowDelta, normalDistancePerTick * 60.f * 0.5f);
-    XCTAssertGreaterThan(slowDelta, 0.f);
+    XCTAssertLessThan(slowDelta, normalPerTick * 60.f * 0.5f); // clearly slowed
+    XCTAssertGreaterThan(slowDelta, 0.f);                      // but not frozen
 
-    // Aiming stays at full, unscaled responsiveness regardless.
+    // Aiming stays full speed regardless of the slow-mo scene.
     world.reticle(0).x = 0.5f;
     InputState move = {};
     move.stickX = 1.f;
@@ -107,17 +140,13 @@ static void fireAtPoint(World& world, int player, const BossMajorAttackPoint& po
     XCTAssertGreaterThan(world.reticle(0).x, 0.5f);
 }
 
-- (void)test_firingAtPointSetsHitMaskAndScores {
+- (void)test_firingAtLivePointSetsHitAndScores {
     World world;
-    EntityID trexId = findTrex(world);
-    triggerPhaseOneMajorAttack(world, trexId);
-    XCTAssertTrue(world.major_attack_active());
+    XCTAssertTrue(runToLiveQTE(world, 27.5f));
 
-    const BossMajorAttackPoint* points = BossMajorAttackPoints_for(DinoSpecies::Trex);
-    float px, py;
-    BossMajorAttackPoint_toViewport(points[0], &px, &py);
-    fireAtPoint(world, 0, points[0]);
+    fireAtLivePoint(world, 0, 0);
 
+    XCTAssertTrue(world.major_attack().points[0].hit);
     XCTAssertTrue(world.major_attack().hitMask & 0x1);
     XCTAssertEqual(world.major_attack().hitCount, 1);
     XCTAssertEqual(world.score(0).score, 40);
@@ -126,32 +155,30 @@ static void fireAtPoint(World& world, int player, const BossMajorAttackPoint& po
     int count = world.consume_score_popups(popups);
     XCTAssertEqual(count, 1);
     XCTAssertEqual(popups[0].points, 40);
-    XCTAssertEqualWithAccuracy(popups[0].screenX, px, 0.0001f);
-    XCTAssertEqualWithAccuracy(popups[0].screenY, py, 0.0001f);
 }
 
-- (void)test_perfectClearResolvesWithNoDamageAndBonusThenResumes {
+- (void)test_perfectClearNoDamageBonusThenResumes {
     World world;
-    EntityID trexId = findTrex(world);
-    triggerPhaseOneMajorAttack(world, trexId);
-    XCTAssertTrue(world.major_attack_active());
+    XCTAssertTrue(runToLiveQTE(world, 27.5f));
     int healthBefore = world.player_health(0).health;
 
-    const BossMajorAttackPoint* points = BossMajorAttackPoints_for(DinoSpecies::Trex);
-    for (int i = 0; i < kBossMajorAttackPointCount; ++i) {
-        fireAtPoint(world, 0, points[i]);
-    }
+    for (int i = 0; i < kBossMajorAttackPointCount; ++i) fireAtLivePoint(world, 0, i);
 
-    XCTAssertEqual(world.major_attack().hitCount, 4);
-    XCTAssertTrue(world.major_attack().resolved);
-    XCTAssertEqual(world.player_health(0).health, healthBefore);
-    XCTAssertGreaterThanOrEqual(world.score(0).score, 250);
+    const BossMajorAttackState& attack = world.major_attack();
+    XCTAssertEqual(attack.hitCount, 4);
+    XCTAssertEqual((int)attack.phase, (int)MajorAttackPhase::Result);
+    XCTAssertTrue(attack.wasPerfect);
+    XCTAssertEqual(world.player_health(0).health, healthBefore); // no retaliation
+    XCTAssertGreaterThanOrEqual(world.score(0).score, 250);      // 4x40 + 250 bonus
 
-    // Still active through the result-hold window.
-    XCTAssertTrue(world.major_attack_active());
-    tick(world, 200); // > resultHoldRemaining (~1.2s)
+    // Prevent the NEXT scripted QTE (29.5) from re-arming as the camera
+    // resumes — this test is only about this QTE resolving and timing snapping
+    // back, not the next beat.
+    world.set_next_chart_event_index(world.chart().events.size());
+
+    // Result holds, then (this isn't the final QTE) normal timing resumes.
+    tick(world, 300);
     XCTAssertFalse(world.major_attack_active());
-
     float distanceBefore = world.rail_camera().distance;
     tick(world, 1);
     XCTAssertGreaterThan(world.rail_camera().distance, distanceBefore);
@@ -162,62 +189,36 @@ static void fireAtPoint(World& world, int player, const BossMajorAttackPoint& po
     for (int misses = 1; misses <= 4; ++misses) {
         World world;
         EntityID trexId = findTrex(world);
-        DinoBehaviorComponent& trex = world.get_component<DinoBehaviorComponent>(trexId);
-        triggerPhaseOneMajorAttack(world, trexId);
-        XCTAssertTrue(world.major_attack_active());
+        XCTAssertTrue(runToLiveQTE(world, 27.5f));
+        int attackDamage = world.get_component<DinoBehaviorComponent>(trexId).attackDamage;
 
-        int hits = 4 - misses;
-        const BossMajorAttackPoint* points = BossMajorAttackPoints_for(DinoSpecies::Trex);
-        for (int i = 0; i < hits; ++i) {
-            fireAtPoint(world, 0, points[i]);
-        }
+        int hits = kBossMajorAttackPointCount - misses;
+        for (int i = 0; i < hits; ++i) fireAtLivePoint(world, 0, i);
 
         int healthBefore = world.player_health(0).health;
-        world.major_attack_mutable().timeRemaining = 0.f;
+        world.major_attack_mutable().timeRemaining = 0.f; // force timeout
         tick(world, 1);
 
-        XCTAssertTrue(world.major_attack().resolved);
-        int expectedDamage = (int)((float)trex.attackDamage * kMultiplier[misses - 1]);
-        XCTAssertEqual(healthBefore - world.player_health(0).health, expectedDamage,
+        XCTAssertEqual((int)world.major_attack().phase, (int)MajorAttackPhase::Result);
+        int expected = (int)((float)attackDamage * kMultiplier[misses - 1]);
+        XCTAssertEqual(healthBefore - world.player_health(0).health, expected,
                        @"miss count %d", misses);
     }
 }
 
 - (void)test_totalFailureDamagesBothActivePlayers {
     World world;
-    EntityID trexId = findTrex(world);
-    triggerPhaseOneMajorAttack(world, trexId);
-    XCTAssertTrue(world.major_attack_active());
+    XCTAssertTrue(runToLiveQTE(world, 27.5f));
     XCTAssertTrue(world.reticle(0).active);
     XCTAssertTrue(world.reticle(1).active);
 
-    int health0Before = world.player_health(0).health;
-    int health1Before = world.player_health(1).health;
-    world.major_attack_mutable().timeRemaining = 0.f;
+    int h0 = world.player_health(0).health;
+    int h1 = world.player_health(1).health;
+    world.major_attack_mutable().timeRemaining = 0.f; // 0/4, total failure
     tick(world, 1);
 
-    XCTAssertLessThan(world.player_health(0).health, health0Before);
-    XCTAssertLessThan(world.player_health(1).health, health1Before);
-}
-
-- (void)test_firingAtBossBodyDuringPopupDoesNotRegisterNormalHit {
-    World world;
-    EntityID trexId = findTrex(world);
-    DinoBehaviorComponent& trex = world.get_component<DinoBehaviorComponent>(trexId);
-    triggerPhaseOneMajorAttack(world, trexId);
-    XCTAssertTrue(world.major_attack_active());
-    int healthBefore = trex.health;
-
-    TargetComponent& target = world.target(trex.targetIndex);
-    world.reticle(0).x = target.screenX;
-    world.reticle(0).y = target.screenY;
-    InputState fire = {};
-    fire.fire = true;
-    world.set_input(fire, 0);
-    tick(world, 1);
-
-    XCTAssertFalse(target.wasHit);
-    XCTAssertEqual(trex.health, healthBefore);
+    XCTAssertLessThan(world.player_health(0).health, h0);
+    XCTAssertLessThan(world.player_health(1).health, h1);
 }
 
 @end

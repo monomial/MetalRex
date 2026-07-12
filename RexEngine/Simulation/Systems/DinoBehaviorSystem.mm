@@ -162,7 +162,36 @@ static int activate_raptor_wave(World& world,
     return activated;
 }
 
-static void consume_raptor_wave_events(World& world) {
+// True if no major_attack event sits at a LATER chart index than `index` — i.e.
+// the QTE about to fire is the fight's last, after which the boss flees.
+static bool is_last_major_attack(const std::vector<ChartEvent>& events, size_t index) {
+    for (size_t i = index + 1; i < events.size(); ++i) {
+        if (events[i].type == "major_attack") return false;
+    }
+    return true;
+}
+
+static void trigger_major_attack(World& world, bool isFinal) {
+    uint32_t bossId = world.boss_entity();
+    if (bossId == kInvalidEntity || !world.has_component<DinoBehaviorComponent>(bossId)) return;
+    DinoBehaviorComponent& boss = world.get_component<DinoBehaviorComponent>(bossId);
+    // The boss must actually be in the fight — a QTE authored before the boss
+    // has arrived is silently dropped (author error) rather than popping over
+    // an empty road.
+    if (!boss.isBoss || !boss.activeInEncounter) return;
+    // Ambient escalation each QTE (replaces the old damage-taken thresholds,
+    // which can't fire now that the boss takes no fire damage): shorter holds,
+    // a quicker chase, and a redder tint (renderer reads ragePhase).
+    if (boss.ragePhase < 2) {
+        ++boss.ragePhase;
+        boss.holdDuration *= 0.7f;
+        boss.chaseSpeed *= 1.15f;
+    }
+    ScreenShakeSystem_trigger(world, 0.12f * (float)(boss.ragePhase + 1));
+    world.begin_boss_major_attack(bossId, boss.species, /*showPortrait=*/true, isFinal);
+}
+
+static void consume_chart_events(World& world) {
     const std::vector<ChartEvent>& events = world.chart().events;
     size_t index = world.next_chart_event_index();
     float distance = world.rail_camera().distance;
@@ -170,6 +199,8 @@ static void consume_raptor_wave_events(World& world) {
         const ChartEvent& event = events[index];
         if (event.type == "raptor_wave" && event.raptorWave.valid) {
             activate_raptor_wave(world, event.raptorWave, (uint32_t)index + 1u);
+        } else if (event.type == "major_attack") {
+            trigger_major_attack(world, is_last_major_attack(events, index));
         }
         ++index;
     }
@@ -178,7 +209,7 @@ static void consume_raptor_wave_events(World& world) {
 
 void DinoBehaviorSystem_update(World& world, float gameDt) {
     if (gameDt == 0.f) return;
-    consume_raptor_wave_events(world);
+    consume_chart_events(world);
 
     uint32_t count = world.entity_count();
     for (EntityID id = 0; id < count; ++id) {
@@ -229,55 +260,29 @@ void DinoBehaviorSystem_update(World& world, float gameDt) {
             dino.hitFlashTime = std::max(0.f, dino.hitFlashTime - gameDt);
         }
         if (wasShot && dino.state != DinoBehaviorState::Dying) {
-            // Weak-point hits (the head region) deal double damage — aim
-            // skill shortens every fight, and it's what makes the boss's
-            // health pool feel like a puzzle instead of a grind.
-            dino.health -= shotWasWeakPoint ? 2 : 1;
-            dino.hitFlashTime = 0.2f;
             if (dino.isBoss) {
-                // Escalation phases at 1/3 and 2/3 damage taken: shorter
-                // holds and a quicker chase each phase. One-way per run.
-                float taken = 1.f - (float)std::max(0, dino.health) / (float)dino.maxHealth;
-                uint8_t phase = taken >= (2.f / 3.f) ? 2 : (taken >= (1.f / 3.f) ? 1 : 0);
-                if (phase > dino.ragePhase) {
-                    for (uint8_t step = dino.ragePhase; step < phase; ++step) {
-                        dino.holdDuration *= 0.6f;
-                        dino.chaseSpeed *= 1.2f;
-                    }
-                    dino.ragePhase = phase;
-                    // A stat change alone reads as "the boss quietly got
-                    // harder" — a shake makes the escalation an actual
-                    // moment the player feels, not just a hidden number.
-                    ScreenShakeSystem_trigger(world, 0.12f * (float)phase);
-                    // The boss's own "big spectacle moment": a timed QTE
-                    // popup asking the player to hit 4 marked points before
-                    // it retaliates. See World::begin_boss_major_attack.
-                    world.begin_boss_major_attack(id, dino.species, phase);
+                // Bosses are IMMUNE to normal fire (Jurassic Park model): a
+                // hit still flashes and scores/streaks (the per-state
+                // emit_hit_score below), but never drains a health pool. The
+                // only way to damage a boss is the chart-scripted major-attack
+                // QTE, and it flees once every scripted QTE resolves — it never
+                // dies here. See BossMajorAttackSystem / World::begin_boss_flee.
+                dino.hitFlashTime = 0.2f;
+            } else {
+                // Weak-point hits (the head region) deal double damage — aim
+                // skill shortens every raptor pass.
+                dino.health -= shotWasWeakPoint ? 2 : 1;
+                dino.hitFlashTime = 0.2f;
+                if (dino.health <= 0) {
+                    emit_hit_score(world, shotPlayer, dino.species, shotWasWeakPoint,
+                                   world.target(dino.targetIndex));
+                    dino.state = DinoBehaviorState::Dying;
+                    dino.stateTime = 0.f;
+                    // Force: death must cut through whatever is playing,
+                    // including a mid-flight Attack.
+                    AnimationSystem_force_clip(world, id, CharacterClipSlot::Death);
+                    continue;
                 }
-            }
-            if (dino.health <= 0) {
-                emit_hit_score(world, shotPlayer, dino.species, shotWasWeakPoint,
-                               world.target(dino.targetIndex));
-                dino.state = DinoBehaviorState::Dying;
-                dino.stateTime = 0.f;
-                if (dino.isBoss) {
-                    // The kill lands harder than a phase escalation — this
-                    // is the fight's one moment, not a repeatable beat.
-                    ScreenShakeSystem_trigger(world, 0.32f);
-                    // The killing blow can itself cross a rage-phase
-                    // threshold and arm a major attack the same tick (a big
-                    // enough hit jumps straight past 2/3 taken). A dead boss
-                    // has nothing left to retaliate with, and leaving the
-                    // popup active would keep AnimationSystem/DinoBehavior
-                    // running in slow motion (see World::tick) — including
-                    // the Death clip that's about to play — so the fight
-                    // would never actually end. Death always wins.
-                    world.major_attack_mutable() = BossMajorAttackState{};
-                }
-                // Force: death must cut through whatever is playing,
-                // including a mid-flight Attack.
-                AnimationSystem_force_clip(world, id, CharacterClipSlot::Death);
-                continue;
             }
         }
 

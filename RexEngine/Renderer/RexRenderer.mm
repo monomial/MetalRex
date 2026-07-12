@@ -210,6 +210,9 @@ static id<MTLTexture> Rex_makeSkyGradientTexture(id<MTLDevice> device) {
     float _halfH;
     float _aspect;
     NSString *_pendingCapturePath; // --capture-out=: next frame -> PNG
+    int _portraitSpecies;          // --capture-portrait=<species>: render the
+                                   // boss alone on black for a portrait grab
+                                   // (-1 = normal rendering). See drawWorld.
 
     // Shot tracer effects (renderer-local cosmetics; the sim only exposes
     // ReticleComponent::shotCount, which is diffed per frame to spawn these).
@@ -246,6 +249,8 @@ static id<MTLTexture> Rex_makeSkyGradientTexture(id<MTLDevice> device) {
     BOOL _bossPortraitLoadAttempted;
     id<MTLTexture> _bossPortraitFallbackTexture;
     CGSize _bossPortraitFallbackSize;
+    id<MTLTexture> _shootTargetsTexture; // "SHOOT TARGETS" banner, built once
+    CGSize _shootTargetsSize;
 
     // Score popups ("+10" floaters rising from hit positions) — renderer
     // cosmetics fed by World's per-frame ScorePopupEvent buffer. Textures
@@ -445,6 +450,18 @@ static id<MTLTexture> Rex_makeSkyGradientTexture(id<MTLDevice> device) {
     _halfW = 640.f;
     _halfH = 420.f;
     _aspect = 16.f / 9.f;
+
+    // --capture-portrait=<species>: a tool mode that renders just the boss on
+    // black (no scene/HUD) so we can grab a lit portrait PNG for the major-
+    // attack Preview — see drawWorld / _drawPortraitBoss. Pair it with the
+    // normal --capture-out= / --capture-after= flags to save the frame.
+    _portraitSpecies = -1;
+    for (NSString *arg in [NSProcessInfo processInfo].arguments) {
+        if (![arg hasPrefix:@"--capture-portrait="]) continue;
+        NSString *name = [arg substringFromIndex:[@"--capture-portrait=" length]];
+        if ([name isEqualToString:@"trex"]) _portraitSpecies = (int)DinoSpecies::Trex;
+        else if ([name isEqualToString:@"velociraptor"]) _portraitSpecies = (int)DinoSpecies::Velociraptor;
+    }
 
     // One LoadedCharacter per DinoSpecies, indexed by the enum. Directory
     // names must line up with the species order in Components.h.
@@ -702,6 +719,93 @@ static id<MTLTexture> Rex_makeSkyGradientTexture(id<MTLDevice> device) {
     [encoder setRenderPipelineState:_pipeline];
 }
 
+// Renders one boss species centered on black in a 3/4 hero framing with a
+// dramatic key light, in bind pose (identity bones). Tool path only
+// (--capture-portrait): grabs the colored portrait art the major-attack
+// Preview overlays on the desaturated live scene. Kept deliberately simple —
+// a static lit pose, no animation — since the capture just needs one good frame.
+- (void)_drawPortraitBoss:(int)speciesIndex encoder:(id<MTLRenderCommandEncoder>)encoder {
+    if (speciesIndex < 0 || speciesIndex >= (int)DinoSpecies::Count) return;
+    LoadedCharacter *character = _dinoChars[speciesIndex];
+    if (!character || !character->vertexBuffer || !character->indexBuffer) return;
+
+    [encoder setRenderPipelineState:_skinnedPipeline];
+    [encoder setFragmentSamplerState:_sampler atIndex:0];
+    [encoder setFragmentTexture:character->diffuseTexture atIndex:0];
+
+    // Z-up mesh -> Y-up world pitch (same as _drawDinos), plus a yaw so the
+    // model presents a 3/4 angle instead of dead-on.
+    simd_float4x4 pitch = matrix_identity_float4x4;
+    pitch.columns[1] = (simd_float4){ 0.f, 0.f, -1.f, 0.f }; // mesh +Y (tail) -> world -Z
+    pitch.columns[2] = (simd_float4){ 0.f, 1.f, 0.f, 0.f };  // mesh +Z (up)   -> world +Y
+    float yaw = -0.6f;
+    float cy = cosf(yaw), sy = sinf(yaw);
+    simd_float4x4 yawRot = matrix_identity_float4x4;
+    yawRot.columns[0] = (simd_float4){ cy, 0.f, -sy, 0.f };
+    yawRot.columns[2] = (simd_float4){ sy, 0.f, cy, 0.f };
+    simd_float4x4 modelRotation = simd_mul(yawRot, pitch);
+
+    // Center the model at the origin: after the pitch a vertex's world height
+    // is its mesh Z, so shift down by the mesh-Z midpoint.
+    float upExtent = std::max(0.1f, character->meshZMax - character->meshZMin);
+    float centerZ = (character->meshZMin + character->meshZMax) * 0.5f;
+    simd_float4x4 model = modelRotation;
+    model.columns[3] = (simd_float4){ 0.f, -centerZ, 0.f, 1.f };
+
+    // Frame a camera that fits the model (roughly), from the front-right and a
+    // little above.
+    float length = std::max(0.1f, character->meshHeight);
+    float radius = std::max(upExtent, length) * 0.62f;
+    float fov = 1.04719758f;
+    float dist = radius / tanf(fov * 0.5f) * 0.66f;
+    simd_float3 dir = simd_normalize((simd_float3){0.85f, 0.35f, 0.75f});
+    simd_float3 eye = dir * dist;
+    simd_float4x4 view = Rex_make_look_at(eye, (simd_float3){0.f, 0.f, 0.f}, (simd_float3){0.f, 1.f, 0.f});
+    simd_float4x4 proj = Rex_make_perspective(fov, _aspect, 0.1f, 200.f);
+    simd_float4x4 viewProjection = simd_mul(proj, view);
+
+    SkinnedUniformsCPU uniforms;
+    uniforms.mvp = simd_mul(viewProjection, model);
+    uniforms.modelRotation = modelRotation;
+    uniforms.color = (simd_float4){1.f, 1.f, 1.f, 1.f}; // no tint, fully opaque
+    uniforms.tintStrength = 0.f;
+    simd_float3 lightDir = simd_normalize((simd_float3){0.5f, 0.7f, 0.8f}); // upper front-right key
+    uniforms.lightDir = (simd_float4){lightDir.x, lightDir.y, lightDir.z, 0.f};
+
+    // Pose from a real baked clip (identity bones alone misplace jointed parts
+    // like the jaw). Prefer a dramatic Attack frame; fall back to Idle/Run, or
+    // identity if nothing is loaded.
+    float boneMatrices[kMaxBones][16];
+    int poseSlot = -1;
+    float poseTime = 0.f;
+    if (character->clipLoaded[(int)CharacterClipSlot::Attack]) {
+        poseSlot = (int)CharacterClipSlot::Attack;
+        poseTime = character->clips[poseSlot].duration() * 0.35f;
+    } else if (character->clipLoaded[(int)CharacterClipSlot::Idle]) {
+        poseSlot = (int)CharacterClipSlot::Idle;
+    } else if (character->clipLoaded[(int)CharacterClipSlot::Run]) {
+        poseSlot = (int)CharacterClipSlot::Run;
+    }
+    if (poseSlot >= 0) {
+        character->clips[poseSlot].sample(poseTime, boneMatrices);
+    } else {
+        for (int i = 0; i < kMaxBones; ++i) {
+            for (int j = 0; j < 16; ++j) boneMatrices[i][j] = (j % 5 == 0) ? 1.f : 0.f;
+        }
+    }
+
+    [encoder setVertexBuffer:character->vertexBuffer offset:0 atIndex:0];
+    [encoder setVertexBytes:boneMatrices length:sizeof(boneMatrices) atIndex:1];
+    [encoder setVertexBytes:&uniforms length:sizeof(uniforms) atIndex:2];
+    [encoder drawIndexedPrimitives:MTLPrimitiveTypeTriangle
+                        indexCount:character->indexCount
+                         indexType:character->indexType
+                       indexBuffer:character->indexBuffer
+                 indexBufferOffset:0];
+
+    [encoder setRenderPipelineState:_pipeline];
+}
+
 // Appends a solid quad along the segment (x0,y0)->(x1,y1) with the given
 // half-width, as two triangles, into `out` (overlay pixel space).
 static void appendSegmentQuad(std::vector<RexVertex>& out,
@@ -835,6 +939,70 @@ static id<MTLTexture> Rex_makeGameOverTexture(id<MTLDevice> device, CGSize *outS
            bytesPerRow:bpr];
     if (outSize) *outSize = CGSizeMake(w, h);
     return tex;
+}
+
+// The major-attack "SHOOT TARGETS" banner (Preview + Live). A slanted dark
+// bar with red edges and bold white text — a simple stand-in for the arcade's
+// torn-decal graphic. Cached once (see _drawShootTargetsBanner).
+static id<MTLTexture> Rex_makeShootTargetsBanner(id<MTLDevice> device, CGSize *outSize) {
+    NSUInteger w = 760, h = 150;
+    NSUInteger bpr = w * 4;
+    NSMutableData *pixels = [NSMutableData dataWithLength:bpr * h];
+    CGColorSpaceRef cs = CGColorSpaceCreateDeviceRGB();
+    CGBitmapInfo bitmapInfo = (CGBitmapInfo)kCGImageAlphaPremultipliedLast | kCGBitmapByteOrder32Big;
+    CGContextRef ctx = CGBitmapContextCreate(pixels.mutableBytes, w, h, 8, bpr, cs, bitmapInfo);
+    if (!ctx) { CGColorSpaceRelease(cs); return nil; }
+
+    CGContextClearRect(ctx, CGRectMake(0, 0, w, h));
+    // Slanted banner body.
+    CGContextBeginPath(ctx);
+    CGContextMoveToPoint(ctx, 34, 34);
+    CGContextAddLineToPoint(ctx, w - 18, 52);
+    CGContextAddLineToPoint(ctx, w - 34, h - 34);
+    CGContextAddLineToPoint(ctx, 18, h - 52);
+    CGContextClosePath(ctx);
+    CGContextSetRGBFillColor(ctx, 0.06, 0.02, 0.02, 0.92);
+    CGContextFillPath(ctx);
+    // Red top/bottom accent edges.
+    CGContextSetRGBStrokeColor(ctx, 0.86, 0.13, 0.11, 1.0);
+    CGContextSetLineWidth(ctx, 5.0);
+    CGContextBeginPath(ctx);
+    CGContextMoveToPoint(ctx, 34, 34);
+    CGContextAddLineToPoint(ctx, w - 18, 52);
+    CGContextMoveToPoint(ctx, 18, h - 52);
+    CGContextAddLineToPoint(ctx, w - 34, h - 34);
+    CGContextStrokePath(ctx);
+
+    CGColorRef white = CGColorCreateGenericRGB(1, 1, 1, 1);
+    Rex_drawCenteredLine(ctx, @"SHOOT TARGETS", w * 0.5, h * 0.44, w - 90.f, 64.f, 44.f, white);
+    CGColorRelease(white);
+    CGContextRelease(ctx);
+    CGColorSpaceRelease(cs);
+
+    MTLTextureDescriptor *td = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatRGBA8Unorm
+                                                                                  width:w
+                                                                                 height:h
+                                                                              mipmapped:NO];
+    td.usage = MTLTextureUsageShaderRead;
+    id<MTLTexture> tex = [device newTextureWithDescriptor:td];
+    [tex replaceRegion:MTLRegionMake2D(0, 0, w, h) mipmapLevel:0 withBytes:pixels.bytes bytesPerRow:bpr];
+    if (outSize) *outSize = CGSizeMake(w, h);
+    return tex;
+}
+
+// Preview target-ring positions in the PORTRAIT image's own space (u right,
+// v down), clustered on the boss's head in the portrait art. Deliberately
+// separate from the live gameplay points (which sit in the boss's projected
+// screen box): the portrait is a differently-framed hero shot, so its preview
+// rings are authored to land on the art. Tune alongside the portrait PNG.
+static void Rex_portraitTargetUV(DinoSpecies species, int i, float *u, float *v) {
+    (void)species; // only the T-Rex portrait exists so far; others reuse it
+    static const float kTrex[kBossMajorAttackPointCount][2] = {
+        {0.80f, 0.25f}, {0.90f, 0.33f}, {0.84f, 0.45f}, {0.71f, 0.40f},
+    };
+    int idx = std::clamp(i, 0, kBossMajorAttackPointCount - 1);
+    *u = kTrex[idx][0];
+    *v = kTrex[idx][1];
 }
 
 static NSString *Rex_bossSpeciesDisplayName(DinoSpecies species) {
@@ -1454,9 +1622,16 @@ static id<MTLTexture> Rex_makeScoreTexture(id<MTLDevice> device, NSString *score
 // their phase, not their progress within it. Segmented into three bands (one
 // per rage phase) so a phase transition reads as "one segment just went
 // empty," not just a color shift on a single shrinking bar.
+// Boss "endurance" bar: bosses take no fire damage, so this tracks the fight's
+// real progress — the chart-scripted major attacks. It drains one segment each
+// time a QTE resolves; at empty the boss flees. Colored by rage phase, same
+// escalation language as the boss's own hit-flash/rage tint in _drawDinos.
 - (void)_drawBossHealthBar:(const DinoBehaviorComponent&)dino
+                     world:(World *)world
                     encoder:(id<MTLRenderCommandEncoder>)encoder {
-    if (dino.maxHealth <= 0) return;
+    int total = world->scripted_major_attacks_total();
+    if (total <= 0) return; // chart authored no QTEs — nothing to depict
+    int done = std::min(world->scripted_major_attacks_done(), total);
     float barWidth = 420.f;
     float barHeight = 16.f;
     float centerX = 0.f;
@@ -1468,10 +1643,8 @@ static id<MTLTexture> Rex_makeScoreTexture(id<MTLDevice> device, NSString *score
     [self _drawVertices:bg color:(simd_float4){0.05f, 0.05f, 0.06f, 0.85f}
               primitive:MTLPrimitiveTypeTriangle mvp:_overlayProjection encoder:encoder];
 
-    float fraction = std::clamp((float)dino.health / (float)dino.maxHealth, 0.f, 1.f);
+    float fraction = std::clamp((float)(total - done) / (float)total, 0.f, 1.f);
     if (fraction > 0.f) {
-        // Green at full health, redder each rage phase — same escalation
-        // language as the boss's own hit-flash/rage tint in _drawDinos.
         static const simd_float4 kPhaseColors[3] = {
             {0.30f, 0.85f, 0.35f, 1.f},
             {0.95f, 0.75f, 0.20f, 1.f},
@@ -1485,11 +1658,10 @@ static id<MTLTexture> Rex_makeScoreTexture(id<MTLDevice> device, NSString *score
         [self _drawVertices:fill color:fillColor primitive:MTLPrimitiveTypeTriangle mvp:_overlayProjection encoder:encoder];
     }
 
-    // Two thin dividers at the phase thresholds (1/3, 2/3) — fixed
-    // reference marks so the player can see how much of the current phase's
-    // band remains, not just an undifferentiated shrinking bar.
-    for (int i = 1; i <= 2; ++i) {
-        float t = (float)i / 3.f;
+    // One divider per scripted QTE boundary, so the bar reads as N discrete
+    // segments (QTEs remaining) rather than a continuous drain.
+    for (int i = 1; i < total; ++i) {
+        float t = (float)i / (float)total;
         float dividerX = centerX - barWidth * 0.5f + barWidth * t;
         std::vector<RexVertex> divider;
         [self _appendQuad:divider center:(simd_float3){dividerX, centerY, 0.07f} halfW:1.5f halfH:barHeight * 0.5f];
@@ -1498,17 +1670,73 @@ static id<MTLTexture> Rex_makeScoreTexture(id<MTLDevice> device, NSString *score
     }
 }
 
-// Boss major-attack QTE popup: full-bleed portrait (real art if supplied,
-// else the CoreGraphics-drawn fallback), 4 point markers (bright = unhit,
-// dim = claimed), and a countdown bar. Reuses the title screen's aspect-fill
-// art-quad technique and the boss health bar's quad primitives. Called
-// between the boss health bar and the score-popup floaters in _drawHUD so a
-// point's "+40" floater still renders on top of the portrait, not hidden
-// underneath it.
+// Shared closing-ring reticle (double line-loop that starts big and closes to
+// a small ring as appear runs 0->1), used by both the Preview portrait rings
+// and the Live boss targets so they read as the same mechanic. `c` is an
+// overlay-pixel-space center.
+- (void)_drawClosingRing:(simd_float3)c appear:(float)appear color:(simd_float4)color
+                 encoder:(id<MTLRenderCommandEncoder>)encoder {
+    const float kBig = 96.f, kSmall = 24.f;
+    float a = std::clamp(appear, 0.f, 1.f);
+    float radius = kSmall + (1.f - a) * (kBig - kSmall);
+    for (float rr : {radius, radius * 0.66f}) {
+        const int kSeg = 28;
+        std::vector<RexVertex> ring;
+        for (int s = 0; s < kSeg; ++s) {
+            float a0 = (float)s / kSeg * 2.f * (float)M_PI;
+            float a1 = (float)(s + 1) / kSeg * 2.f * (float)M_PI;
+            ring.push_back({{c.x + cosf(a0) * rr, c.y + sinf(a0) * rr, c.z}});
+            ring.push_back({{c.x + cosf(a1) * rr, c.y + sinf(a1) * rr, c.z}});
+        }
+        [self _drawVertices:ring color:color primitive:MTLPrimitiveTypeLine
+                        mvp:_overlayProjection encoder:encoder];
+    }
+}
+
+// "SHOOT TARGETS" banner across the lower-middle — shown for the whole QTE
+// (Preview + Live), same as the arcade reference.
+- (void)_drawShootTargetsBanner:(id<MTLRenderCommandEncoder>)encoder {
+    if (!_texturePipeline) return;
+    if (!_shootTargetsTexture) {
+        _shootTargetsTexture = Rex_makeShootTargetsBanner(_device, &_shootTargetsSize);
+    }
+    if (!_shootTargetsTexture || _shootTargetsSize.width <= 0.f) return;
+    float bw = 740.f;
+    float bh = bw * (float)_shootTargetsSize.height / (float)_shootTargetsSize.width;
+    float cy = -_halfH * 0.36f;
+    RexTextureUniformsCPU u;
+    u.mvp = Rex_make_model_rect(_overlayProjection, 0.f, cy, 0.09f, bw, bh);
+    [encoder setRenderPipelineState:_texturePipeline];
+    [encoder setVertexBuffer:_texQuadVB offset:0 atIndex:0];
+    [encoder setVertexBytes:&u length:sizeof(u) atIndex:1];
+    [encoder setFragmentTexture:_shootTargetsTexture atIndex:0];
+    [encoder setFragmentSamplerState:_sampler atIndex:0];
+    [encoder drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:6];
+    [encoder setRenderPipelineState:_pipeline];
+}
+
+// Boss major-attack QTE popup. Preview: full-bleed boss portrait with the 4
+// target rings revealing one-by-one plus the SHOOT TARGETS banner (a teaching
+// beat). Live/Result: the closing-ring targets on the live boss, countdown,
+// and banner. Called between the boss endurance bar and the score-popup
+// floaters in _drawHUD so a point's "+40" floater still renders on top.
 - (void)_drawBossMajorAttackPopup:(World *)world encoder:(id<MTLRenderCommandEncoder>)encoder {
     const BossMajorAttackState& attack = world->major_attack();
-    if (!attack.active) return;
+    if (!attack.active()) return;
+    if (attack.phase == MajorAttackPhase::Preview) {
+        [self _drawMajorAttackPreview:attack encoder:encoder];
+    } else {
+        // Live + Result both draw the closing-ring targets on the live boss;
+        // Result just holds the final state briefly before gameplay resumes.
+        [self _drawMajorAttackLiveTargets:attack encoder:encoder];
+    }
+}
 
+// Preview (first QTE of a fight only): full-bleed boss portrait with the 4
+// points revealing one-by-one — a pure telegraph, no shooting. Real art if
+// supplied (assets/ui/boss-trex-portrait.png), else the CoreGraphics fallback.
+- (void)_drawMajorAttackPreview:(const BossMajorAttackState&)attack
+                        encoder:(id<MTLRenderCommandEncoder>)encoder {
     if (!_bossPortraitLoadAttempted) {
         _bossPortraitLoadAttempted = YES;
         _bossPortraitTexture = Rex_loadBundlePNGTexture(_device, @"boss-trex-portrait",
@@ -1542,30 +1770,55 @@ static id<MTLTexture> Rex_makeScoreTexture(id<MTLDevice> device, NSString *score
     [encoder drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:6];
     [encoder setRenderPipelineState:_pipeline];
 
-    // Point markers: same image-normalized-rect-through-aspect-fill mapping
-    // as the title screen's 1P/2P button quads, drawn as a thin ring (four
-    // edge strips) rather than a filled quad so the portrait stays visible
-    // underneath each marker.
-    const BossMajorAttackPoint *points = BossMajorAttackPoints_for(attack.species);
+    // Target rings preview the QTE: they appear one-by-one on the portrait
+    // with the same closing-ring animation as the live round, so the player
+    // learns the beat before it counts. Positions are authored in the
+    // portrait's own image space (Rex_portraitTargetUV) — clustered on the
+    // boss's head — not the live gameplay box, since the portrait is a
+    // differently-framed hero shot.
     for (int i = 0; i < kBossMajorAttackPointCount; ++i) {
-        float cx = (points[i].u - 0.5f) * drawW;
-        float cy = (0.5f - points[i].v) * drawH;
-        float r = points[i].hitRadius * std::min(drawW, drawH);
-        bool hit = (attack.hitMask & (1 << i)) != 0;
-        simd_float4 color = hit ? (simd_float4){0.4f, 0.4f, 0.4f, 0.5f}
-                                 : (simd_float4){0.95f, 0.65f, 0.20f, 0.95f};
-        float t = std::max(2.5f, r * 0.15f);
-        std::vector<RexVertex> ring;
-        [self _appendQuad:ring center:(simd_float3){cx, cy + r - t * 0.5f, 0.03f} halfW:r halfH:t * 0.5f];
-        [self _appendQuad:ring center:(simd_float3){cx, cy - r + t * 0.5f, 0.03f} halfW:r halfH:t * 0.5f];
-        [self _appendQuad:ring center:(simd_float3){cx - r + t * 0.5f, cy, 0.03f} halfW:t * 0.5f halfH:r];
-        [self _appendQuad:ring center:(simd_float3){cx + r - t * 0.5f, cy, 0.03f} halfW:t * 0.5f halfH:r];
-        [self _drawVertices:ring color:color
-                  primitive:MTLPrimitiveTypeTriangle mvp:_overlayProjection encoder:encoder];
+        float spawnAt = (float)i * kMajorAttackPointStagger;
+        if (attack.previewElapsed < spawnAt) continue;
+        float appear = std::clamp((attack.previewElapsed - spawnAt) / kMajorAttackPointAppear,
+                                  0.001f, 1.f);
+        float u, v;
+        Rex_portraitTargetUV(attack.species, i, &u, &v);
+        simd_float3 c = (simd_float3){(u - 0.5f) * drawW, (0.5f - v) * drawH, 0.03f};
+        [self _drawClosingRing:c appear:appear color:(simd_float4){0.30f, 0.95f, 0.35f, 0.95f}
+                       encoder:encoder];
     }
 
-    // Countdown bar (top-center) — same quad primitive as the boss health
-    // bar; runs at real time even though the scene behind it is slow motion.
+    [self _drawShootTargetsBanner:encoder];
+}
+
+// Live/Result: the 4 targets appear one-by-one ON THE LIVE BOSS (positions
+// tracked to its projected screen box by BossMajorAttackSystem), each as a
+// green ring that starts big and closes onto the exact spot as it "spawns in,"
+// plus the real-time countdown bar. No portrait here — the reference cuts back
+// to the moving dino in slow motion for this part.
+- (void)_drawMajorAttackLiveTargets:(const BossMajorAttackState&)attack
+                            encoder:(id<MTLRenderCommandEncoder>)encoder {
+    for (int i = 0; i < kBossMajorAttackPointCount; ++i) {
+        const BossMajorAttackPointState& point = attack.points[i];
+        if (point.appear <= 0.f) continue; // not spawned yet
+        simd_float3 c = [self _screenPointX:point.screenX y:point.screenY z:0.03f];
+        simd_float4 color = point.hit ? (simd_float4){0.45f, 0.45f, 0.45f, 0.55f}
+                                       : (simd_float4){0.30f, 0.95f, 0.35f, 0.95f};
+        [self _drawClosingRing:c appear:point.appear color:color encoder:encoder];
+        // Center pip marks the exact spot once the ring is mostly closed.
+        if (!point.hit && point.appear > 0.5f) {
+            std::vector<RexVertex> pip;
+            [self _appendQuad:pip center:(simd_float3){c.x, c.y, c.z} halfW:3.f halfH:3.f];
+            [self _drawVertices:pip color:color primitive:MTLPrimitiveTypeTriangle
+                            mvp:_overlayProjection encoder:encoder];
+        }
+    }
+
+    [self _drawShootTargetsBanner:encoder];
+
+    // Countdown bar (top-center) — real time even though the scene behind it
+    // is slow motion. Only meaningful during Live; hidden during Result.
+    if (attack.phase != MajorAttackPhase::Live) return;
     float barWidth = 420.f;
     float barHeight = 14.f;
     float centerX = 0.f;
@@ -1818,7 +2071,7 @@ static id<MTLTexture> Rex_makeScoreTexture(id<MTLDevice> device, NSString *score
         if (!world->has_component<DinoBehaviorComponent>(id)) continue;
         const DinoBehaviorComponent& dino = world->get_component<DinoBehaviorComponent>(id);
         if (dino.isBoss && dino.activeInEncounter && dino.state != DinoBehaviorState::Dying) {
-            [self _drawBossHealthBar:dino encoder:encoder];
+            [self _drawBossHealthBar:dino world:world encoder:encoder];
             break;
         }
     }
@@ -2182,7 +2435,9 @@ static id<MTLTexture> Rex_makeScoreTexture(id<MTLDevice> device, NSString *score
     if (world) world->rail_camera().aspect = _aspect;
     [self _buildEnvironmentIfNeeded:world];
 
-    pass.colorAttachments[0].clearColor = MTLClearColorMake(0.87, 0.86, 0.76, 1.0);
+    BOOL portrait = (_portraitSpecies >= 0);
+    pass.colorAttachments[0].clearColor = portrait ? MTLClearColorMake(0.0, 0.0, 0.0, 1.0)
+                                                    : MTLClearColorMake(0.87, 0.86, 0.76, 1.0);
     pass.colorAttachments[0].loadAction = MTLLoadActionClear;
     pass.colorAttachments[0].storeAction = MTLStoreActionStore;
     pass.depthAttachment.clearDepth = 1.0;
@@ -2190,6 +2445,14 @@ static id<MTLTexture> Rex_makeScoreTexture(id<MTLDevice> device, NSString *score
     pass.depthAttachment.storeAction = MTLStoreActionDontCare;
 
     id<MTLRenderCommandEncoder> encoder = [commandBuffer renderCommandEncoderWithDescriptor:pass];
+
+    if (portrait) {
+        // Portrait tool mode: just the boss, lit, on black — the existing
+        // capture block below saves it as the major-attack Preview art.
+        [encoder setDepthStencilState:_depthState];
+        [self _drawPortraitBoss:_portraitSpecies encoder:encoder];
+        [encoder endEncoding];
+    } else {
     [self _drawSky:encoder];
     [encoder setRenderPipelineState:_pipeline];
     [encoder setDepthStencilState:_depthState];
@@ -2216,6 +2479,7 @@ static id<MTLTexture> Rex_makeScoreTexture(id<MTLDevice> device, NSString *score
     [self _drawDebugHUD:encoder];
 #endif
     [encoder endEncoding];
+    }
 
     if (_pendingCapturePath) {
         NSString *path = _pendingCapturePath;
