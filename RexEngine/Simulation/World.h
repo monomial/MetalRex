@@ -207,6 +207,14 @@ public:
     void begin_boss_flee();
     bool boss_fleeing() const { return _bossFleeRemaining > 0.f; }
 
+    // Arena "stand your ground" section — entered when the boss flees instead
+    // of completing the level; ArenaSystem drives the wave-by-wave raptor
+    // holdout, and completes the level once the last wave clears.
+    const ArenaState& arena() const { return _arena; }
+    ArenaState& arena_mutable() { return _arena; }
+    bool arena_active() const { return _arena.active; }
+    void enter_arena();
+
 private:
     void flush();
     void reset_m1_scene();
@@ -259,6 +267,7 @@ private:
     int _scriptedMajorAttacksDone = 0;   // resolved so far this fight
     bool _bossPortraitShown = false;     // the one-time Preview has run this fight
     float _bossFleeRemaining = 0.f;      // >0 while the boss visibly flees before completion
+    ArenaState _arena;
 };
 
 template<typename T>

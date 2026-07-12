@@ -433,7 +433,10 @@ void DinoBehaviorSystem_update(World& world, float gameDt) {
                                                    target.railDistance - dino.chaseSpeed * 1.25f * gameDt);
                     float gap = world.rail_camera().distance - target.railDistance;
                     if (gap >= dino.retreatGap || dino.stateTime >= dino.retreatDuration) {
-                        if (dino.isBoss) {
+                        if (dino.isBoss || dino.arena) {
+                            // Arena raptors (like the boss) keep coming — they
+                            // re-approach instead of parking dormant, so the
+                            // holdout ends only when the player KILLS them.
                             enter_approach(world, id, dino);
                         } else {
                             enter_dormant(world, id, dino);
@@ -445,7 +448,11 @@ void DinoBehaviorSystem_update(World& world, float gameDt) {
 
             case DinoBehaviorState::Dying: {
                 if (!anim) {
-                    respawn(world, id, dino);
+                    if (dino.arena) {
+                        enter_dormant(world, id, dino);
+                    } else {
+                        respawn(world, id, dino);
+                    }
                     break;
                 }
                 // Death clip plays through, then the corpse dissolves
@@ -461,6 +468,12 @@ void DinoBehaviorSystem_update(World& world, float gameDt) {
                     if (anim->deathFade <= 0.f) {
                         if (dino.isBoss) {
                             complete_boss_death(world, dino);
+                        } else if (dino.arena) {
+                            // Arena kills are permanent: park the slot dormant
+                            // (freeing it for a later wave) rather than
+                            // recycling the raptor behind the jeep. Once every
+                            // arena raptor is dormant, ArenaSystem advances.
+                            enter_dormant(world, id, dino);
                         } else {
                             respawn(world, id, dino);
                         }
@@ -470,4 +483,38 @@ void DinoBehaviorSystem_update(World& world, float gameDt) {
             }
         }
     }
+}
+
+bool DinoBehaviorSystem_spawn_arena_raptor(World& world, uint32_t waveId,
+                                           float laneOffset, float spawnGap,
+                                           float holdSeconds, float attackDelay) {
+    const RailCameraState& camera = world.rail_camera();
+    for (EntityID id = 0; id < world.entity_count(); ++id) {
+        if (!world.has_component<DinoBehaviorComponent>(id)) continue;
+        DinoBehaviorComponent& dino = world.get_component<DinoBehaviorComponent>(id);
+        if (dino.species != DinoSpecies::Velociraptor || dino.isBoss) continue;
+        if (dino.activeInEncounter || dino.state == DinoBehaviorState::Dying) continue;
+        if (dino.targetIndex >= kM1MaxTargets) continue;
+
+        TargetComponent& target = world.target(dino.targetIndex);
+        dino.arena = true;
+        dino.waveId = waveId;
+        dino.holdDuration = holdSeconds;
+        dino.attackDelay = attackDelay;
+        dino.retreatDuration = 0.9f;
+        dino.retreatGap = std::max(5.f, spawnGap - 2.f);
+        dino.health = dino.maxHealth;
+        dino.hitFlashTime = 0.f;
+
+        target.active = true;
+        target.moving = true;
+        target.railDistance = std::max(0.f, camera.distance - spawnGap);
+        target.baseLateralOffset = laneOffset;
+        target.lateralOffset = laneOffset;
+        clear_target_hit(target);
+
+        enter_approach(world, id, dino);
+        return true;
+    }
+    return false;
 }

@@ -224,5 +224,8 @@
     "chaseSpeed": 1.4,
     "holdDuration": 2.8,
     "arrivalDistance": 26.0
+  },
+  "arena": {
+    "waves": 3
   }
 }

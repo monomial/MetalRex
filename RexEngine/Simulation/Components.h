@@ -188,6 +188,11 @@ struct DinoBehaviorComponent {
     // The level's boss (chart-driven species — see BossChartConfig): never
     // returns to the dormant pool, and its death completes the level.
     bool isBoss = false;
+    // Arena-defense raptor (post-boss holdout — see ArenaSystem): loops
+    // approach/attack/retreat until KILLED (like the boss, it re-approaches
+    // instead of going dormant after a retreat), and once dead it stays dead
+    // and frees its pool slot rather than recycling behind the jeep.
+    bool arena = false;
     // Boss stays Dormant until the camera reaches this rail distance — the
     // act's finale arrives after the waves, not alongside them. 0 = present
     // from the start.
@@ -322,6 +327,22 @@ static constexpr float kMajorAttackResultHold = 1.2f;
 // After the FINAL scripted QTE resolves, the boss visibly flees for this long
 // (full speed, still ticking) before the level completes.
 static constexpr float kMajorAttackFleeDuration = 1.6f;
+
+// Arena "stand your ground" section (post-boss): the rail camera stops and
+// raptors rush in wave-by-wave from spread lanes/depths. A wave advances only
+// once every raptor in it is dead (arena raptors loop-attack until killed);
+// when the last wave clears, the level completes. Lives on World as a single
+// instance, driven by ArenaSystem.
+struct ArenaState {
+    bool active = false;
+    int waveIndex = -1; // -1 before the first wave spawns
+    // WaitingToSpawn: counting down `timer` before the next wave.
+    // InProgress: a wave is out; watching for it to be fully cleared.
+    enum Phase : uint8_t { WaitingToSpawn = 0, InProgress } phase = WaitingToSpawn;
+    float timer = 0.f;
+};
+static constexpr float kArenaFirstWaveDelay = 1.4f; // beat after the boss flees
+static constexpr float kArenaInterWaveDelay = 2.0f; // breather between waves
 
 // Per-player health/life state. Lives in World as slot-indexed storage,
 // matching the reticle array, rather than as per-entity ECS state.

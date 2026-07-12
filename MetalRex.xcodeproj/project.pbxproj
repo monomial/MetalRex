@@ -39,6 +39,7 @@
 		4B06A94AD6DF538453690CA4 /* CoreGraphics.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 34892C62ADBBD67118CC0D23 /* CoreGraphics.framework */; };
 		4B0CBEA08D2A70E4D360AA17 /* InputSystem.mm in Sources */ = {isa = PBXBuildFile; fileRef = E24115F77C07DE877C58A1D9 /* InputSystem.mm */; };
 		4B3223B2C8BC6C8975B540CA /* PlayerHealthSystem.mm in Sources */ = {isa = PBXBuildFile; fileRef = B709D13B5703D3FFE4734D8B /* PlayerHealthSystem.mm */; };
+		4E2F65CF42C349E72FD0DC2D /* ArenaSystem.mm in Sources */ = {isa = PBXBuildFile; fileRef = F58EC8B44EC928DF61B96A74 /* ArenaSystem.mm */; };
 		4E6C5FFCC5205F0F5A49D157 /* BossMajorAttackPoints.mm in Sources */ = {isa = PBXBuildFile; fileRef = 3498AD7A47714359C377EC68 /* BossMajorAttackPoints.mm */; };
 		4E96425B90F675E9D199BFEA /* ModelIO.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FF21A3D89DFCD32DB2F372CF /* ModelIO.framework */; };
 		4F73DEAFE2E7C817EFB73766 /* GameViewController.mm in Sources */ = {isa = PBXBuildFile; fileRef = 36C9F6F43FE862FE83C07921 /* GameViewController.mm */; };
@@ -52,6 +53,7 @@
 		55A86DCEF1BA728C2F3193D2 /* World.mm in Sources */ = {isa = PBXBuildFile; fileRef = 6C3CE5C8074A8EC650F1C61B /* World.mm */; };
 		5609C0A143A8D8A92EAA4AC2 /* CoreText.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F133AD737FDF28F461217E8A /* CoreText.framework */; };
 		57CE9D78492786C208959764 /* main.mm in Sources */ = {isa = PBXBuildFile; fileRef = A76351B00D3C69B10C9A91A7 /* main.mm */; };
+		586A659CD2A32DD0DCCBEE62 /* ArenaSystem.mm in Sources */ = {isa = PBXBuildFile; fileRef = F58EC8B44EC928DF61B96A74 /* ArenaSystem.mm */; };
 		589AA2BD07EAC8474926F6C1 /* DinoBehaviorSystem.mm in Sources */ = {isa = PBXBuildFile; fileRef = DC48A4FFFCED309C5A20C805 /* DinoBehaviorSystem.mm */; };
 		5B0048B6C980D91AF25B8F31 /* World.mm in Sources */ = {isa = PBXBuildFile; fileRef = 6C3CE5C8074A8EC650F1C61B /* World.mm */; };
 		5C826A0FD6F44503E15EE165 /* InputSystem.mm in Sources */ = {isa = PBXBuildFile; fileRef = E24115F77C07DE877C58A1D9 /* InputSystem.mm */; };
@@ -60,6 +62,7 @@
 		5F94F7F9E9B3CE1353D5E11C /* ParticleSim.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 97C15A79A4F325FCF1A47F0D /* ParticleSim.cpp */; };
 		61836ADEF794B2D09BC92F59 /* QuartzCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F2E58A68AFED6E15C76E9CFA /* QuartzCore.framework */; };
 		6498F3287F59220C3B6F873A /* PlayerHealthSystem.mm in Sources */ = {isa = PBXBuildFile; fileRef = B709D13B5703D3FFE4734D8B /* PlayerHealthSystem.mm */; };
+		6805C5F9FC3D0AE7910E087F /* ArenaSystem.mm in Sources */ = {isa = PBXBuildFile; fileRef = F58EC8B44EC928DF61B96A74 /* ArenaSystem.mm */; };
 		686BD6E73FD2A46D03358540 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = EB68E680D43E6A243EE60DAE /* Cocoa.framework */; };
 		695028C01B5375FFB250E300 /* AVFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 06C96980F27DD82DD5C0F838 /* AVFoundation.framework */; };
 		6BC947887EA4EB43EF3BB5BF /* ControllerRumble.mm in Sources */ = {isa = PBXBuildFile; fileRef = 7C33B342517DC4C678297EBB /* ControllerRumble.mm */; };
@@ -78,6 +81,7 @@
 		88625F037988C89DA4E57FF3 /* CoreText.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F133AD737FDF28F461217E8A /* CoreText.framework */; };
 		8B1C6CBBFC9EE370F9D4CDBE /* ModelIO.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FF21A3D89DFCD32DB2F372CF /* ModelIO.framework */; };
 		8BAFF9F5AE214206D0F91DA0 /* ModelIO.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FF21A3D89DFCD32DB2F372CF /* ModelIO.framework */; };
+		8D16777626F018F068CD2650 /* ArenaTests.mm in Sources */ = {isa = PBXBuildFile; fileRef = F4082FFE3E009EF0C7FEAC59 /* ArenaTests.mm */; };
 		9114D48188976190A0D49A49 /* DinoBehaviorSystem.mm in Sources */ = {isa = PBXBuildFile; fileRef = DC48A4FFFCED309C5A20C805 /* DinoBehaviorSystem.mm */; };
 		913C925A55A8C249C73C344B /* ScoringSystem.mm in Sources */ = {isa = PBXBuildFile; fileRef = 97A9E9F75EB92741A532C750 /* ScoringSystem.mm */; };
 		92980B08BEDC019E4DD967FB /* RexRenderer.mm in Sources */ = {isa = PBXBuildFile; fileRef = D19215428D510F18874F5DC5 /* RexRenderer.mm */; };
@@ -160,6 +164,7 @@
 		4B41DE97DAC43FDAF06D8614 /* CameraMath.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = CameraMath.h; sourceTree = "<group>"; };
 		4FE3EA6AD3A9F146AD19CDD4 /* DESIGN.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = DESIGN.md; sourceTree = "<group>"; };
 		50CE385CDDEA3219EBC451EB /* main.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = main.mm; sourceTree = "<group>"; };
+		530DBFDD6D40908FC6B5B910 /* ArenaSystem.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ArenaSystem.h; sourceTree = "<group>"; };
 		57FBDE0173D75A5CDBDDD039 /* RailCameraSystem.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = RailCameraSystem.h; sourceTree = "<group>"; };
 		5A0AF114A95B797C661E0AB0 /* AppDelegate.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = AppDelegate.mm; sourceTree = "<group>"; };
 		5D9746D33D5825D9A0BD0235 /* SceneDelegate.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = SceneDelegate.h; sourceTree = "<group>"; };
@@ -221,6 +226,8 @@
 		EDE43DB67415951877A1E4E4 /* PLAN-M4a.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = "PLAN-M4a.md"; sourceTree = "<group>"; };
 		F133AD737FDF28F461217E8A /* CoreText.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreText.framework; path = System/Library/Frameworks/CoreText.framework; sourceTree = SDKROOT; };
 		F2E58A68AFED6E15C76E9CFA /* QuartzCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = QuartzCore.framework; path = System/Library/Frameworks/QuartzCore.framework; sourceTree = SDKROOT; };
+		F4082FFE3E009EF0C7FEAC59 /* ArenaTests.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = ArenaTests.mm; sourceTree = "<group>"; };
+		F58EC8B44EC928DF61B96A74 /* ArenaSystem.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = ArenaSystem.mm; sourceTree = "<group>"; };
 		FDC42C5E46B2B00794B44927 /* InputState.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = InputState.h; sourceTree = "<group>"; };
 		FF21A3D89DFCD32DB2F372CF /* ModelIO.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = ModelIO.framework; path = System/Library/Frameworks/ModelIO.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
@@ -311,6 +318,7 @@
 		4611987C1DE633582A1DBCCA /* RexLogicTests */ = {
 			isa = PBXGroup;
 			children = (
+				F4082FFE3E009EF0C7FEAC59 /* ArenaTests.mm */,
 				A105B2EDF7085318E71DBDC5 /* BossMajorAttackTests.mm */,
 				EC0C28A795440865E01D6BDB /* ChartLoaderTests.mm */,
 				EA80D5C012615225879CF397 /* DinoBehaviorTests.mm */,
@@ -426,6 +434,8 @@
 			children = (
 				AE2D0D4CC6CEEC753D54A8E2 /* AnimationSystem.h */,
 				DDE8330981F4B3171E516CDD /* AnimationSystem.mm */,
+				530DBFDD6D40908FC6B5B910 /* ArenaSystem.h */,
+				F58EC8B44EC928DF61B96A74 /* ArenaSystem.mm */,
 				6A724D572F1E22143A381D5C /* BossMajorAttackSystem.h */,
 				1D129F32809AC4D2196A3946 /* BossMajorAttackSystem.mm */,
 				BB3B5CBD52BAF7B79D5FFC1B /* DinoBehaviorSystem.h */,
@@ -633,6 +643,7 @@
 			files = (
 				1CE0020179C85A64AB34029E /* AnimationSystem.mm in Sources */,
 				94729FDF10BC4E37667B3F1C /* AppDelegate.mm in Sources */,
+				6805C5F9FC3D0AE7910E087F /* ArenaSystem.mm in Sources */,
 				31606CC8BF1AF50087CE8D4F /* AudioEngine.mm in Sources */,
 				1CB497BF582E38C2E7E6CBE4 /* BossMajorAttackPoints.mm in Sources */,
 				0A9B11E00BBAAA99AB2EFCC9 /* BossMajorAttackSystem.mm in Sources */,
@@ -663,6 +674,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				1DCF0E2D00C57D754E3466C4 /* AnimationSystem.mm in Sources */,
+				4E2F65CF42C349E72FD0DC2D /* ArenaSystem.mm in Sources */,
+				8D16777626F018F068CD2650 /* ArenaTests.mm in Sources */,
 				5218353F3036242B883DED5D /* AudioEngine.mm in Sources */,
 				B5CB9D3D404F27F564728D76 /* BossMajorAttackPoints.mm in Sources */,
 				D1F4D5B10FA5CF703E19A060 /* BossMajorAttackSystem.mm in Sources */,
@@ -701,6 +714,7 @@
 			files = (
 				9D7F92C0E116BA302E450479 /* AnimationSystem.mm in Sources */,
 				992A2BF914C0273D6867A7FA /* AppDelegate.mm in Sources */,
+				586A659CD2A32DD0DCCBEE62 /* ArenaSystem.mm in Sources */,
 				ACEE1ADC2FDEFDE0EA723E2C /* AudioEngine.mm in Sources */,
 				4E6C5FFCC5205F0F5A49D157 /* BossMajorAttackPoints.mm in Sources */,
 				46F31797C623229F3A8273BC /* BossMajorAttackSystem.mm in Sources */,

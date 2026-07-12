@@ -252,10 +252,11 @@ static void endMajorAttack(World& world) {
     XCTAssertGreaterThan(trex.hitFlashTime, 0.f);
 }
 
-- (void)test_finalScriptedQTEMakesBossFleeAndCompletesLevel {
-    // The boss flees (never dies) once the LAST scripted QTE resolves. Drive to
-    // the final chart QTE (31.5), let it time out, then the flee window elapses
-    // and the level completes.
+- (void)test_finalScriptedQTEMakesBossFleeThenEntersArena {
+    // The boss flees (never dies) once the LAST scripted QTE resolves. With the
+    // m2-test chart's post-boss arena, the flee hands off to the "stand your
+    // ground" holdout (camera stops, arena active) rather than completing the
+    // level — the arena completes it later (see ArenaTests).
     World world;
     XCTAssertTrue(runToMajorAttack(world, 31.5f));
     // Advance to the Live phase (a first-QTE-of-fight Preview may run first).
@@ -264,15 +265,17 @@ static void endMajorAttack(World& world) {
     }
     XCTAssertEqual((int)world.major_attack().phase, (int)MajorAttackPhase::Live);
     XCTAssertTrue(world.major_attack().isFinal);
-    XCTAssertFalse(world.level_complete());
+    XCTAssertFalse(world.arena_active());
 
     // Let the countdown expire, the result hold pass, and the flee window run
     // out — real-time systems keep ticking, so ~9s of ticks covers it.
-    for (int i = 0; i < 1200 && !world.level_complete(); ++i) {
+    for (int i = 0; i < 1200 && !world.arena_active(); ++i) {
         tick(world, 1);
     }
-    XCTAssertTrue(world.level_complete());
+    XCTAssertTrue(world.arena_active());
+    XCTAssertFalse(world.level_complete());          // holdout begins, not done
     XCTAssertFalse(world.major_attack_active());
+    XCTAssertEqualWithAccuracy(world.rail_camera().speed, 0.f, 0.0001f);
 }
 
 - (void)test_firePressAfterLevelCompleteRestartsTheLevel {

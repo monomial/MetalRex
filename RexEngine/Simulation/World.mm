@@ -8,6 +8,7 @@
 #include "Systems/AnimationSystem.h"
 #include "Systems/ScreenShakeSystem.h"
 #include "Systems/BossMajorAttackSystem.h"
+#include "Systems/ArenaSystem.h"
 #import <Foundation/Foundation.h>
 #include <algorithm>
 #include <cassert>
@@ -86,6 +87,7 @@ void World::reset_m1_scene() {
     _scriptedMajorAttacksDone = 0;
     _bossPortraitShown = false;
     _bossFleeRemaining = 0.f;
+    _arena = ArenaState{};
     _scriptedMajorAttacksTotal = 0;
     for (const ChartEvent& event : _chart.events) {
         if (event.type == "major_attack") ++_scriptedMajorAttacksTotal;
@@ -281,6 +283,29 @@ void World::begin_boss_flee() {
     _bossFleeRemaining = kMajorAttackFleeDuration;
 }
 
+void World::enter_arena() {
+    _arena = ArenaState{};
+    _arena.active = true;
+    _arena.phase = ArenaState::WaitingToSpawn;
+    _arena.timer = kArenaFirstWaveDelay;
+    // Stand your ground: the jeep stops so the fight becomes a fixed-position
+    // holdout rather than the moving rail chase.
+    _railCamera.speed = 0.f;
+    // Clear the field — the boss is gone, and any raptors left over from the
+    // approach act return to the dormant pool for ArenaSystem to draw from.
+    for (EntityID id = 0; id < _nextID; ++id) {
+        if (!_dinoBehaviors.present(id)) continue;
+        DinoBehaviorComponent& dino = _dinoBehaviors.get(id);
+        dino.activeInEncounter = false;
+        dino.state = DinoBehaviorState::Dormant;
+        dino.arena = false;
+        if (dino.isBoss) dino.active = false;
+        if (dino.targetIndex < kM1MaxTargets) {
+            _targets[dino.targetIndex].active = false;
+        }
+    }
+}
+
 void World::replace_chart_for_tests(LevelChart chart) {
     _chart = chart;
     reset_m1_scene();
@@ -390,7 +415,14 @@ void World::tick(float gameDt) {
     if (_bossFleeRemaining > 0.f && !_levelComplete) {
         _bossFleeRemaining = std::max(0.f, _bossFleeRemaining - gameDt);
         if (_bossFleeRemaining <= 0.f) {
-            complete_level();
+            // If the chart scripts a post-boss arena, the fled boss hands off to
+            // the "stand your ground" holdout instead of ending the level; the
+            // arena completes the level once its last wave clears.
+            if (_chart.arenaWaveCount > 0 && !_arena.active) {
+                enter_arena();
+            } else {
+                complete_level();
+            }
         }
     }
     // Gameplay runs while at least one active player is still in. Sitting-out
@@ -411,6 +443,7 @@ void World::tick(float gameDt) {
         RailCameraSystem_update(*this, worldDt);
         ReticleSystem_update(*this, gameDt);
         BossMajorAttackSystem_update(*this, gameDt);
+        ArenaSystem_update(*this, worldDt);
         DinoBehaviorSystem_update(*this, worldDt);
         ScoringSystem_update(*this, gameDt);
         AnimationSystem_update(*this, worldDt);

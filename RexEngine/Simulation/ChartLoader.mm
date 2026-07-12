@@ -225,6 +225,17 @@ LevelChart ChartLoader_load_file(const char *path) {
             // T-Rex defaults (chart.boss.valid stays false).
             id bossJSON = dict[@"boss"];
             if (bossJSON) chart.boss = parse_boss_config(bossJSON);
+
+            // Optional post-boss arena: { "waves": <int> }.
+            id arenaJSON = dict[@"arena"];
+            if (arenaJSON) {
+                if (![arenaJSON isKindOfClass:[NSDictionary class]]) {
+                    throw chart_error(@"arena must be an object");
+                }
+                int waves = [required_number((NSDictionary *)arenaJSON, @"waves") intValue];
+                if (waves < 0) throw chart_error(@"arena.waves must be non-negative");
+                chart.arenaWaveCount = waves;
+            }
             return chart;
         } @catch (NSException *exception) {
             throw chart_error(exception.reason ?: @"validation failed");

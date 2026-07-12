@@ -50,6 +50,10 @@ struct LevelChart {
     std::vector<LookAtBeat> lookAtBeats;
     std::vector<ChartEvent> events;
     BossChartConfig boss;
+    // Optional post-boss "stand your ground" arena: after the boss flees, the
+    // camera stops and this many raptor waves rush in (ArenaSystem drives the
+    // wave layouts). 0 = no arena, boss flee completes the level directly.
+    int arenaWaveCount = 0;
 };
 
 LevelChart ChartLoader_load_file(const char *path);
