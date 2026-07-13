@@ -132,6 +132,29 @@ static void env_append_rock(std::vector<RexVertex>& out, simd_float3 center,
     }
 }
 
+// Planar quad from 4 corners (two triangles). Backface culling is off, so
+// winding doesn't matter — used for the arena's building walls/ceiling.
+static void env_append_quad(std::vector<RexVertex>& out,
+                            simd_float3 a, simd_float3 b, simd_float3 c, simd_float3 d) {
+    out.push_back({a}); out.push_back({b}); out.push_back({c});
+    out.push_back({a}); out.push_back({c}); out.push_back({d});
+}
+
+// Axis-oriented box from a center and three half-edge vectors (columns).
+static void env_append_box(std::vector<RexVertex>& out, simd_float3 c,
+                           simd_float3 ex, simd_float3 ey, simd_float3 ez) {
+    simd_float3 p000 = c - ex - ey - ez, p100 = c + ex - ey - ez;
+    simd_float3 p010 = c - ex + ey - ez, p110 = c + ex + ey - ez;
+    simd_float3 p001 = c - ex - ey + ez, p101 = c + ex - ey + ez;
+    simd_float3 p011 = c - ex + ey + ez, p111 = c + ex + ey + ez;
+    env_append_quad(out, p000, p100, p110, p010);
+    env_append_quad(out, p001, p101, p111, p011);
+    env_append_quad(out, p000, p010, p011, p001);
+    env_append_quad(out, p100, p110, p111, p101);
+    env_append_quad(out, p010, p110, p111, p011);
+    env_append_quad(out, p000, p100, p101, p001);
+}
+
 // Rail sample that extends past both spline ends along the end tangents, so
 // the road and tree line run to the horizon instead of stopping dead where
 // the authored rail happens to end.
@@ -292,6 +315,12 @@ static id<MTLTexture> Rex_makeSkyGradientTexture(id<MTLDevice> device) {
     id<MTLBuffer> _envCanopyBVB;   NSUInteger _envCanopyBCount;
     id<MTLBuffer> _envRockVB;      NSUInteger _envRockCount;
     id<MTLBuffer> _envGrassVB;     NSUInteger _envGrassCount;
+    // Arena holdout building, built lazily from the camera's stopped transform
+    // the first frame the arena is active (see _buildArenaGeometry).
+    BOOL _arenaGeoBuilt;
+    id<MTLBuffer> _arenaWallVB;    NSUInteger _arenaWallCount;
+    id<MTLBuffer> _arenaCeilingVB; NSUInteger _arenaCeilingCount;
+    id<MTLBuffer> _arenaColumnVB;  NSUInteger _arenaColumnCount;
     id<MTLTexture> _skyTexture;    // vertical gradient, drawn full-screen behind the 3D pass
 }
 
@@ -2482,6 +2511,56 @@ static id<MTLTexture> Rex_makeScoreTexture(id<MTLDevice> device, NSString *score
                    color:(simd_float4){0.97f, 0.97f, 0.95f, 1.f} mvp:mvp encoder:encoder];
 }
 
+// Builds a blocky interior for the arena holdout — back wall, side walls,
+// ceiling, and a few columns — anchored to the camera's stopped position and
+// horizontal facing (the raptors emerge from the far end, in front of the back
+// wall). Procedural boxes/quads, same approach as the outdoor set dressing.
+- (void)_buildArenaGeometry:(World*)world {
+    const RailCameraState& cam = world->rail_camera();
+    simd_float3 P = {cam.positionX, cam.positionY, cam.positionZ};
+    simd_float3 look = {cam.lookAtX, cam.lookAtY, cam.lookAtZ};
+    simd_float3 back = simd_normalize(look - P);              // into the scene (toward pursuers)
+    simd_float3 Bh = simd_normalize((simd_float3){back.x, 0.f, back.z}); // horizontal forward
+    simd_float3 Rh = (simd_float3){Bh.z, 0.f, -Bh.x};        // horizontal right
+
+    const float floorY = kGroundWorldY;
+    const float H = 6.0f;       // wall height
+    const float halfW = 5.0f;   // side walls at ±5 (well outside the ±1.7 lanes)
+    const float nearZ = -3.5f;  // just behind the player
+    const float farZ = 16.0f;   // back wall, in front of which raptors spawn (gap 7-9)
+
+    auto pt = [&](float x, float y, float z) -> simd_float3 {
+        simd_float3 b = P + Rh * x + Bh * z;
+        return (simd_float3){b.x, floorY + y, b.z};
+    };
+
+    std::vector<RexVertex> walls, ceiling, columns;
+    // Back + side walls.
+    env_append_quad(walls, pt(-halfW, 0, farZ), pt(halfW, 0, farZ), pt(halfW, H, farZ), pt(-halfW, H, farZ));
+    env_append_quad(walls, pt(-halfW, 0, nearZ), pt(-halfW, 0, farZ), pt(-halfW, H, farZ), pt(-halfW, H, nearZ));
+    env_append_quad(walls, pt(halfW, 0, nearZ), pt(halfW, 0, farZ), pt(halfW, H, farZ), pt(halfW, H, nearZ));
+    // Ceiling.
+    env_append_quad(ceiling, pt(-halfW, H, nearZ), pt(halfW, H, nearZ), pt(halfW, H, farZ), pt(-halfW, H, farZ));
+    // Columns flanking the corridor, off the raptor lanes.
+    simd_float3 ex = Rh * 0.45f, ez = Bh * 0.45f, ey = (simd_float3){0.f, H * 0.5f, 0.f};
+    for (float cz : {5.0f, 10.5f}) {
+        for (float cx : {-3.4f, 3.4f}) {
+            env_append_box(columns, pt(cx, H * 0.5f, cz), ex, ey, ez);
+        }
+    }
+
+    auto makeVB = ^(const std::vector<RexVertex>& v, id<MTLBuffer> __strong *buf, NSUInteger *count) {
+        *count = v.size();
+        *buf = v.empty() ? nil
+             : [self->_device newBufferWithBytes:v.data()
+                                          length:v.size() * sizeof(RexVertex)
+                                         options:MTLResourceStorageModeShared];
+    };
+    makeVB(walls, &_arenaWallVB, &_arenaWallCount);
+    makeVB(ceiling, &_arenaCeilingVB, &_arenaCeilingCount);
+    makeVB(columns, &_arenaColumnVB, &_arenaColumnCount);
+}
+
 // Full-screen sky gradient, drawn first with depth writes off so all 3D
 // geometry paints over it.
 - (void)_drawSky:(id<MTLRenderCommandEncoder>)encoder {
@@ -2542,7 +2621,19 @@ static id<MTLTexture> Rex_makeScoreTexture(id<MTLDevice> device, NSString *score
                            : (simd_float4){0.36f, 0.47f, 0.28f, 1.f};  // grass green
     [encoder setVertexBytes:&uniforms length:sizeof(uniforms) atIndex:1];
     [encoder drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:6];
-    if (!arena) [self _drawEnvironment:worldMVP encoder:encoder]; // no outdoor trees indoors
+    if (!arena) {
+        [self _drawEnvironment:worldMVP encoder:encoder]; // outdoor set dressing
+        _arenaGeoBuilt = NO;                              // rebuild fresh next arena
+    } else {
+        // Indoor holdout room, built from the camera's stopped transform.
+        if (!_arenaGeoBuilt) { [self _buildArenaGeometry:world]; _arenaGeoBuilt = YES; }
+        [self _drawEnvBuffer:_arenaWallVB count:_arenaWallCount
+                       color:(simd_float4){0.20f, 0.21f, 0.25f, 1.f} mvp:worldMVP encoder:encoder];
+        [self _drawEnvBuffer:_arenaCeilingVB count:_arenaCeilingCount
+                       color:(simd_float4){0.13f, 0.13f, 0.16f, 1.f} mvp:worldMVP encoder:encoder];
+        [self _drawEnvBuffer:_arenaColumnVB count:_arenaColumnCount
+                       color:(simd_float4){0.27f, 0.27f, 0.30f, 1.f} mvp:worldMVP encoder:encoder];
+    }
     if (world) {
         [self _drawM1Targets:world mvp:worldMVP encoder:encoder];
         [self _drawDinos:world mvp:worldMVP encoder:encoder];

@@ -164,6 +164,16 @@ static void update_targets(World& world, float gameDt) {
         // Recompute gap: the recycle/pin block just above may have moved
         // railDistance, and this is what actually places the dino.
         gap = camera.distance - target.railDistance;
+        // Keep the pursuer inside the camera's horizontal frustum so it can
+        // never close in (and attack) from off-screen — a real problem in the
+        // stopped-camera arena, where wide lanes at attack range projected off
+        // the sides. Aspect-aware (tan(vfov/2) * aspect = horizontal half-angle)
+        // so it adapts to the display; a target already on-screen is unaffected.
+        if (gap > 0.01f) {
+            float visibleHalfW = gap * tanf(camera.fovYRadians * 0.5f) * camera.aspect;
+            float maxLateral = std::max(0.f, visibleHalfW - target.halfWidth - 0.15f);
+            target.lateralOffset = std::clamp(target.lateralOffset, -maxLateral, maxLateral);
+        }
         simd_float3 worldCenter = camPos + cameraBack * gap + cameraRight * target.lateralOffset;
         // Y is anchored to the ground plane, NOT the rail's own Y (which
         // varies with the camera's height along the chart) — target.worldY
