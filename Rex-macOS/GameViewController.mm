@@ -57,7 +57,10 @@
         if (!vc) return;
         NSLog(@"capture: taking screenshot -> %@", outPath);
         [vc->_host captureNextFrameToPath:outPath];
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.0 * NSEC_PER_SEC)),
+        // Give the drawable blit + async PNG write (addCompletedHandler) ample
+        // time to land before exit() tears the process down — a 1s window
+        // occasionally raced the write and produced no file.
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2.5 * NSEC_PER_SEC)),
                        dispatch_get_main_queue(), ^{
             NSLog(@"capture: done, exiting");
             exit(0);

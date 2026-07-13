@@ -251,6 +251,9 @@ static id<MTLTexture> Rex_makeSkyGradientTexture(id<MTLDevice> device) {
     CGSize _bossPortraitFallbackSize;
     id<MTLTexture> _shootTargetsTexture; // "SHOOT TARGETS" banner, built once
     CGSize _shootTargetsSize;
+    id<MTLTexture> _arenaBannerTexture;  // "HOLD OUT / WAVE x/n", rebuilt on wave change
+    CGSize _arenaBannerSize;
+    int _arenaBannerWave;
 
     // Score popups ("+10" floaters rising from hit positions) — renderer
     // cosmetics fed by World's per-frame ScorePopupEvent buffer. Textures
@@ -1005,6 +1008,47 @@ static void Rex_portraitTargetUV(DinoSpecies species, int i, float *u, float *v)
     *v = kTrex[idx][1];
 }
 
+// Arena HUD banner: "HOLD OUT" over "WAVE x / n". Rebuilt only when the wave
+// number changes (see _drawArenaHUD).
+static id<MTLTexture> Rex_makeArenaBannerTexture(id<MTLDevice> device, int wave, int total,
+                                                 CGSize *outSize) {
+    NSUInteger w = 520, h = 150;
+    NSUInteger bpr = w * 4;
+    NSMutableData *pixels = [NSMutableData dataWithLength:bpr * h];
+    CGColorSpaceRef cs = CGColorSpaceCreateDeviceRGB();
+    CGBitmapInfo bitmapInfo = (CGBitmapInfo)kCGImageAlphaPremultipliedLast | kCGBitmapByteOrder32Big;
+    CGContextRef ctx = CGBitmapContextCreate(pixels.mutableBytes, w, h, 8, bpr, cs, bitmapInfo);
+    if (!ctx) { CGColorSpaceRelease(cs); return nil; }
+
+    CGContextClearRect(ctx, CGRectMake(0, 0, w, h));
+    // Dark plate behind the text so it reads over the dim arena.
+    CGContextSetRGBFillColor(ctx, 0.05, 0.05, 0.06, 0.72);
+    CGContextFillRect(ctx, CGRectMake(20, 20, w - 40, h - 40));
+    CGContextSetRGBStrokeColor(ctx, 0.86, 0.16, 0.13, 0.95);
+    CGContextSetLineWidth(ctx, 3.0);
+    CGContextStrokeRect(ctx, CGRectMake(21.5, 21.5, w - 43, h - 43));
+
+    CGColorRef red = CGColorCreateGenericRGB(0.95, 0.24, 0.20, 1);
+    CGColorRef white = CGColorCreateGenericRGB(1, 1, 1, 1);
+    Rex_drawCenteredLine(ctx, @"HOLD OUT", w * 0.5, h * 0.60, w - 56.f, 60.f, 40.f, red);
+    NSString *waveStr = [NSString stringWithFormat:@"WAVE %d / %d", wave, total];
+    Rex_drawCenteredLine(ctx, waveStr, w * 0.5, h * 0.26, w - 56.f, 34.f, 22.f, white);
+    CGColorRelease(red);
+    CGColorRelease(white);
+    CGContextRelease(ctx);
+    CGColorSpaceRelease(cs);
+
+    MTLTextureDescriptor *td = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatRGBA8Unorm
+                                                                                  width:w
+                                                                                 height:h
+                                                                              mipmapped:NO];
+    td.usage = MTLTextureUsageShaderRead;
+    id<MTLTexture> tex = [device newTextureWithDescriptor:td];
+    [tex replaceRegion:MTLRegionMake2D(0, 0, w, h) mipmapLevel:0 withBytes:pixels.bytes bytesPerRow:bpr];
+    if (outSize) *outSize = CGSizeMake(w, h);
+    return tex;
+}
+
 static NSString *Rex_bossSpeciesDisplayName(DinoSpecies species) {
     switch (species) {
         case DinoSpecies::Trex: return @"TYRANNOSAURUS REX";
@@ -1715,6 +1759,32 @@ static id<MTLTexture> Rex_makeScoreTexture(id<MTLDevice> device, NSString *score
     [encoder setRenderPipelineState:_pipeline];
 }
 
+// Arena holdout HUD: a top-center "HOLD OUT / WAVE x / n" plate while the
+// post-boss arena is active, so the mode and progress read at a glance.
+- (void)_drawArenaHUD:(World *)world encoder:(id<MTLRenderCommandEncoder>)encoder {
+    if (!world->arena_active() || !_texturePipeline) return;
+    int total = world->chart().arenaWaveCount;
+    if (total <= 0) return;
+    int wave = std::clamp(world->arena().waveIndex + 1, 1, total);
+    if (!_arenaBannerTexture || _arenaBannerWave != wave) {
+        _arenaBannerWave = wave;
+        _arenaBannerTexture = Rex_makeArenaBannerTexture(_device, wave, total, &_arenaBannerSize);
+    }
+    if (!_arenaBannerTexture || _arenaBannerSize.width <= 0.f) return;
+    float bw = 300.f;
+    float bh = bw * (float)_arenaBannerSize.height / (float)_arenaBannerSize.width;
+    float cy = _halfH - 18.f - bh * 0.5f;
+    RexTextureUniformsCPU u;
+    u.mvp = Rex_make_model_rect(_overlayProjection, 0.f, cy, 0.08f, bw, bh);
+    [encoder setRenderPipelineState:_texturePipeline];
+    [encoder setVertexBuffer:_texQuadVB offset:0 atIndex:0];
+    [encoder setVertexBytes:&u length:sizeof(u) atIndex:1];
+    [encoder setFragmentTexture:_arenaBannerTexture atIndex:0];
+    [encoder setFragmentSamplerState:_sampler atIndex:0];
+    [encoder drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:6];
+    [encoder setRenderPipelineState:_pipeline];
+}
+
 // Boss major-attack QTE popup. Preview: full-bleed boss portrait with the 4
 // target rings revealing one-by-one plus the SHOOT TARGETS banner (a teaching
 // beat). Live/Result: the closing-ring targets on the live boss, countdown,
@@ -2077,6 +2147,7 @@ static id<MTLTexture> Rex_makeScoreTexture(id<MTLDevice> device, NSString *score
     }
 
     [self _drawBossMajorAttackPopup:world encoder:encoder];
+    [self _drawArenaHUD:world encoder:encoder];
 
     // Score popups: drain this frame's events, age the live set, draw.
     {
@@ -2436,8 +2507,14 @@ static id<MTLTexture> Rex_makeScoreTexture(id<MTLDevice> device, NSString *score
     [self _buildEnvironmentIfNeeded:world];
 
     BOOL portrait = (_portraitSpecies >= 0);
+    // Arena holdout: swap the open-road palette for a dim indoor look — dark
+    // "ceiling" clear, concrete floor, and no trees/sky — so the post-boss
+    // stand-your-ground section reads as a building rather than the road.
+    BOOL arena = (world && world->arena_active());
+    MTLClearColor skyClear = MTLClearColorMake(0.87, 0.86, 0.76, 1.0);
+    MTLClearColor arenaClear = MTLClearColorMake(0.09, 0.09, 0.12, 1.0);
     pass.colorAttachments[0].clearColor = portrait ? MTLClearColorMake(0.0, 0.0, 0.0, 1.0)
-                                                    : MTLClearColorMake(0.87, 0.86, 0.76, 1.0);
+                                                    : (arena ? arenaClear : skyClear);
     pass.colorAttachments[0].loadAction = MTLLoadActionClear;
     pass.colorAttachments[0].storeAction = MTLStoreActionStore;
     pass.depthAttachment.clearDepth = 1.0;
@@ -2453,7 +2530,7 @@ static id<MTLTexture> Rex_makeScoreTexture(id<MTLDevice> device, NSString *score
         [self _drawPortraitBoss:_portraitSpecies encoder:encoder];
         [encoder endEncoding];
     } else {
-    [self _drawSky:encoder];
+    if (!arena) [self _drawSky:encoder]; // indoors the dark clear IS the ceiling
     [encoder setRenderPipelineState:_pipeline];
     [encoder setDepthStencilState:_depthState];
     [encoder setVertexBuffer:_groundVB offset:0 atIndex:0];
@@ -2461,10 +2538,11 @@ static id<MTLTexture> Rex_makeScoreTexture(id<MTLDevice> device, NSString *score
     simd_float4x4 worldMVP = world ? [self _worldViewProjection:world->rail_camera() world:world]
                                    : Rex_make_perspective(1.04719758f, _aspect, 0.1f, 120.f);
     uniforms.mvp = worldMVP;
-    uniforms.color = (simd_float4){0.36f, 0.47f, 0.28f, 1.f}; // grass green
+    uniforms.color = arena ? (simd_float4){0.24f, 0.24f, 0.27f, 1.f}   // concrete floor
+                           : (simd_float4){0.36f, 0.47f, 0.28f, 1.f};  // grass green
     [encoder setVertexBytes:&uniforms length:sizeof(uniforms) atIndex:1];
     [encoder drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:6];
-    [self _drawEnvironment:worldMVP encoder:encoder];
+    if (!arena) [self _drawEnvironment:worldMVP encoder:encoder]; // no outdoor trees indoors
     if (world) {
         [self _drawM1Targets:world mvp:worldMVP encoder:encoder];
         [self _drawDinos:world mvp:worldMVP encoder:encoder];
