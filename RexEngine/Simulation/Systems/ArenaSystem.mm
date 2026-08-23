@@ -21,10 +21,10 @@ struct ArenaWaveLayout {
 // remaining on-screen at attack range (RailCameraSystem also clamps to the
 // frustum as a hard backstop on narrow displays).
 static const ArenaWaveLayout kLayouts[] = {
-    {2, {-1.5f,  1.5f,  0.f,   0.f,  0.f,  0.f}, 9.0f, 1.6f, 0.40f},
-    {3, {-1.7f,  0.0f,  1.7f,  0.f,  0.f,  0.f}, 8.0f, 1.4f, 0.35f},
-    {4, {-1.7f, -0.6f,  0.6f,  1.7f, 0.f,  0.f}, 7.5f, 1.2f, 0.30f},
-    {5, {-1.7f, -0.85f, 0.0f,  0.85f, 1.7f, 0.f}, 7.0f, 1.1f, 0.28f},
+    {2, {-1.5f,  1.5f,  0.f,   0.f,  0.f,  0.f}, 10.5f, 1.6f, 0.40f},
+    {3, {-1.7f,  0.0f,  1.7f,  0.f,  0.f,  0.f}, 10.0f, 1.4f, 0.35f},
+    {4, {-1.7f, -0.6f,  0.6f,  1.7f, 0.f,  0.f},  9.5f, 1.2f, 0.30f},
+    {5, {-1.7f, -0.85f, 0.0f,  0.85f, 1.7f, 0.f}, 9.0f, 1.1f, 0.28f},
 };
 static const int kLayoutCount = (int)(sizeof(kLayouts) / sizeof(kLayouts[0]));
 

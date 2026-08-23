@@ -593,11 +593,22 @@ bool DinoBehaviorSystem_spawn_arena_raptor(World& world, uint32_t waveId,
         dino.waveId = waveId;
         dino.holdDuration = holdSeconds;
         dino.attackDelay = attackDelay;
-        // Arena raptors hold a little farther back than road pursuers so their
-        // spread lanes still project inside the stopped camera's frustum (the
-        // frustum clamp in RailCameraSystem widens with depth) — otherwise the
-        // widest lanes get squeezed to center or slide off-screen.
-        dino.attackRange = 3.4f;
+        // Arena raptors hold MUCH farther back than road pursuers, for two
+        // reasons that both come from the jeep being stopped:
+        //   1. Framing. The camera rides at ~0.3 world height, so a raptor
+        //      parked 3.4 units away puts the lens at its chest and you read
+        //      neck instead of animal. At ~6 units the whole silhouette sits
+        //      in frame with room above it.
+        //   2. Frustum. The clamp in RailCameraSystem widens with depth, so
+        //      the spread lanes project as a readable left/center/right fan
+        //      rather than being squeezed toward the edges.
+        dino.attackRange = 6.0f;
+        // Nothing is fleeing them here, so the road chase speed (~3.55 against
+        // a jeep doing 1.2) becomes the FULL closing rate and they cross the
+        // approach in well under two seconds — reading as "spawned in your
+        // face" rather than "ran at you". Slow them to keep the approach
+        // legible now that it's the only thing covering the distance.
+        dino.chaseSpeed = 2.0f;
         dino.retreatDuration = 0.9f;
         dino.retreatGap = std::max(5.f, spawnGap - 2.f);
         dino.hitFlashTime = 0.f;
