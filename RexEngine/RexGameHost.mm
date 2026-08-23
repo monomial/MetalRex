@@ -30,7 +30,21 @@
     // title, and gameplay captures need --auto-fire (whose first pulse
     // joins P1 and starts a solo run). Only initHeadless below — unit
     // tests — constructs straight into a running 2P world.
-    _world->enter_title();
+    // Capture/debug scene hooks (companion to --capture-out / --auto-fire): the
+    // constructor already builds a Playing 2P world, so these env vars skip the
+    // title to drop a headless screenshot run straight into a specific scene for
+    // visual verification. Off by default — real launches still boot to title.
+    //   REX_CAPTURE_ARENA=1 : jump into the post-boss holdout (camera stopped,
+    //                         ArenaSystem spawns the first wave after its delay).
+    //   REX_CAPTURE_PLAY=1  : run the chase from the start with NO auto-fire, so
+    //                         pursuers survive across frames (A/B a swerve).
+    if (getenv("REX_CAPTURE_ARENA")) {
+        _world->enter_arena();
+    } else if (getenv("REX_CAPTURE_PLAY")) {
+        // Intentionally leave the world in its Playing 2P constructor state.
+    } else {
+        _world->enter_title();
+    }
     _lastFrameTime = CACurrentMediaTime();
     _inputs[0] = {};
     _inputs[1] = {};

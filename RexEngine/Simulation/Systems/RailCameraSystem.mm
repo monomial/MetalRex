@@ -14,6 +14,14 @@ static float clamp01_local(float value) {
 // enough that the view stays tight on the pursuers.
 static constexpr float kLookBackDistance = 4.0f;
 
+// The pursuer frustum clamp reserves this much horizontal room for the dino's
+// visible body (world units, half-width), NOT the ~0.05 hit box — a raptor's
+// silhouette is far wider than its hit target, so clamping only the tiny box
+// against the frustum edge still left most of the body off-screen (the
+// "attacked by an invisible raptor" bug). Sized generously so the whole animal
+// stays comfortably in view.
+static constexpr float kPursuerBodyHalfWidth = 0.8f;
+
 static void update_camera_basis(RailCameraState& camera, const LevelChart& chart) {
     float railLength = chart.rail.total_length();
     // Loop back to the start rather than clamping at the end: clamping left
@@ -86,6 +94,7 @@ static simd_float4x4 view_projection_for_camera(const RailCameraState& camera) {
 
 static void update_targets(World& world, float gameDt) {
     const RailCameraState& camera = world.rail_camera();
+    const LevelChart& chart = world.chart();
     simd_float4x4 viewProjection = view_projection_for_camera(camera);
     simd_float3 cameraRight = (simd_float3){camera.rightX, camera.rightY, camera.rightZ};
     simd_float3 cameraUp = (simd_float3){camera.upX, camera.upY, camera.upZ};
@@ -164,27 +173,56 @@ static void update_targets(World& world, float gameDt) {
         // Recompute gap: the recycle/pin block just above may have moved
         // railDistance, and this is what actually places the dino.
         gap = camera.distance - target.railDistance;
-        // Keep the pursuer inside the camera's horizontal frustum so it can
-        // never close in (and attack) from off-screen — a real problem in the
-        // stopped-camera arena, where wide lanes at attack range projected off
-        // the sides. Aspect-aware (tan(vfov/2) * aspect = horizontal half-angle)
-        // so it adapts to the display; a target already on-screen is unaffected.
-        if (gap > 0.01f) {
-            float visibleHalfW = gap * tanf(camera.fovYRadians * 0.5f) * camera.aspect;
-            float maxLateral = std::max(0.f, visibleHalfW - target.halfWidth - 0.15f);
-            target.lateralOffset = std::clamp(target.lateralOffset, -maxLateral, maxLateral);
-        }
-        simd_float3 worldCenter = camPos + cameraBack * gap + cameraRight * target.lateralOffset;
-        // Y is anchored to the ground plane, NOT the rail's own Y (which
-        // varies with the camera's height along the chart) — target.worldY
-        // is consumed as "box center height" by both the box-target renderer
-        // and (via CharacterLoader's meshYMin/halfHeight alignment) the
-        // skinned-dino renderer, so ground + halfHeight puts feet exactly on
-        // the ground when verticalOffset is 0. Previously this used
-        // center.y (the rail's height, 0.25-0.55 across the M2 test chart)
-        // with a large verticalOffset (0.35-0.67) on top, which floated
-        // targets roughly 1.2-1.5 world units above the actual ground.
+
+        // GROUND-ANCHORED placement: put the pursuer at the real point on the
+        // road `gap` behind the jeep (rail.position_at_distance) and offset it
+        // into its lane along the RAIL'S OWN right-vector there — it is NOT
+        // welded to the camera's current frame. This is what makes a pursuer's
+        // SCREEN position shift naturally when the jeep swerves (it's a fixed
+        // world point being chased) instead of staying glued to one spot on
+        // screen. An earlier camera-relative placement fixed a lateral-sliding
+        // artifact but overcorrected into exactly that "welded to the screen"
+        // look; anchoring the lateral to the rail's own basis at the pursuer's
+        // own point keeps a lane on its side of the road as the road bends,
+        // without the weld.
+        float railDist = std::max(0.f, target.railDistance);
+        simd_float3 basePos = rex_to_simd(chart.rail.position_at_distance(railDist));
+        simd_float3 railTan = rex_safe_normalize(rex_to_simd(chart.rail.tangent_at_distance(railDist)),
+                                                 cameraBack);
+        simd_float3 railRight = rex_safe_normalize(simd_cross((simd_float3){0.f, 1.f, 0.f}, railTan),
+                                                   cameraRight);
+        simd_float3 worldCenter = basePos + railRight * target.lateralOffset;
+        // Y is anchored to the ground plane, NOT the rail's own Y (which varies
+        // with the camera's height along the chart) — target.worldY is consumed
+        // as "box center height" by both the box-target renderer and (via
+        // CharacterLoader's meshYMin/halfHeight alignment) the skinned-dino
+        // renderer, so ground + halfHeight puts feet exactly on the ground when
+        // verticalOffset is 0.
         worldCenter.y = kGroundWorldY + target.halfHeight + target.verticalOffset;
+
+        // Keep the pursuer's whole BODY inside the camera's horizontal frustum
+        // so it can never close in and attack from off-screen (the invisible-
+        // attacker bug, worst in the stopped-camera arena where wide lanes at
+        // attack range projected off the sides). Done in the camera's view
+        // space against the real silhouette width (kPursuerBodyHalfWidth, not
+        // the tiny hit box) and aspect-aware so it tracks the actual display: a
+        // pursuer already comfortably on-screen is untouched; one that would
+        // spill off the side is slid straight in along the view's right axis.
+        {
+            simd_float3 rel = worldCenter - camPos;
+            float depth = simd_dot(rel, cameraBack);
+            float lateralView = simd_dot(rel, cameraRight);
+            if (depth > 0.05f) {
+                float visibleHalfW = depth * tanf(camera.fovYRadians * 0.5f) * camera.aspect;
+                float maxLateral = std::max(0.f, visibleHalfW - kPursuerBodyHalfWidth);
+                if (lateralView > maxLateral) {
+                    worldCenter -= cameraRight * (lateralView - maxLateral);
+                } else if (lateralView < -maxLateral) {
+                    worldCenter += cameraRight * (-maxLateral - lateralView);
+                }
+            }
+        }
+
         target.worldX = worldCenter.x;
         target.worldY = worldCenter.y;
         target.worldZ = worldCenter.z;

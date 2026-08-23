@@ -47,10 +47,18 @@ static void enter_approach(World& world, EntityID id, DinoBehaviorComponent& din
     AnimationSystem_force_clip(world, id, CharacterClipSlot::Run);
 }
 
+// A dino holding in range plays a run cycle while it PACES to keep up with a
+// moving jeep, but a STANDING idle once the jeep has stopped (the arena
+// holdout) — otherwise it looks like it's running in place a few feet away.
+static CharacterClipSlot hold_clip(World& world) {
+    return world.rail_camera().speed <= 0.001f ? CharacterClipSlot::Idle
+                                               : CharacterClipSlot::Run;
+}
+
 static void enter_hold(World& world, EntityID id, DinoBehaviorComponent& dino) {
     dino.state = DinoBehaviorState::Hold;
     dino.stateTime = 0.f;
-    AnimationSystem_request_clip(world, id, CharacterClipSlot::Run);
+    AnimationSystem_request_clip(world, id, hold_clip(world));
 }
 
 static void enter_attack(World& world, EntityID id, DinoBehaviorComponent& dino) {
@@ -191,16 +199,36 @@ static void trigger_major_attack(World& world, bool isFinal) {
     world.begin_boss_major_attack(bossId, boss.species, /*showPortrait=*/true, isFinal);
 }
 
+// Any raptor still in the fight (including one mid-death, which is still on
+// screen). A boss major attack must not pop while one of these is present.
+static bool any_active_raptor(World& world) {
+    for (EntityID id = 0; id < world.entity_count(); ++id) {
+        if (!world.has_component<DinoBehaviorComponent>(id)) continue;
+        const DinoBehaviorComponent& dino = world.get_component<DinoBehaviorComponent>(id);
+        if (dino.isBoss || dino.species != DinoSpecies::Velociraptor) continue;
+        if (dino.activeInEncounter) return true;
+    }
+    return false;
+}
+
 static void consume_chart_events(World& world) {
     const std::vector<ChartEvent>& events = world.chart().events;
     size_t index = world.next_chart_event_index();
     float distance = world.rail_camera().distance;
     while (index < events.size() && events[index].distance <= distance) {
         const ChartEvent& event = events[index];
-        if (event.type == "raptor_wave" && event.raptorWave.valid) {
-            activate_raptor_wave(world, event.raptorWave, (uint32_t)index + 1u);
-        } else if (event.type == "major_attack") {
+        if (event.type == "major_attack") {
+            // The T-Rex QTE must never overlap a raptor wave — two threats at
+            // once is confusing to read. DEFER it (leave the event index parked
+            // here, don't advance past it) until the field is clear; it fires
+            // the instant the last raptor dies. Because the index stays put,
+            // any later wave authored behind this QTE also waits, which yields
+            // the intended wave / QTE / wave / QTE cadence instead of an
+            // overlap.
+            if (any_active_raptor(world)) break;
             trigger_major_attack(world, is_last_major_attack(events, index));
+        } else if (event.type == "raptor_wave" && event.raptorWave.valid) {
+            activate_raptor_wave(world, event.raptorWave, (uint32_t)index + 1u);
         }
         ++index;
     }
@@ -322,11 +350,18 @@ void DinoBehaviorSystem_update(World& world, float gameDt) {
                     TargetComponent& target = world.target(dino.targetIndex);
                     target.railDistance += world.rail_camera().speed * gameDt;
                 }
-                if (dino.stateTime >= dino.holdDuration + dino.attackDelay) {
+                if (dino.stateTime >= dino.holdDuration + dino.attackDelay
+                    && !dino.isBoss) {
+                    // The boss NEVER melees (Jurassic Park model): it is immune
+                    // to fire AND deals no contact damage. Its only attack is
+                    // the chart-scripted slow-motion QTE, whose miss-count curve
+                    // is the sole source of boss damage (see BossMajorAttackSystem).
+                    // So the boss just looms at range in Hold; only raptors run
+                    // the Tell/Attack melee cycle.
                     enter_attack(world, id, dino);
                     break;
                 }
-                AnimationSystem_request_clip(world, id, CharacterClipSlot::Run);
+                AnimationSystem_request_clip(world, id, hold_clip(world));
                 break;
             }
 
@@ -501,6 +536,11 @@ bool DinoBehaviorSystem_spawn_arena_raptor(World& world, uint32_t waveId,
         dino.waveId = waveId;
         dino.holdDuration = holdSeconds;
         dino.attackDelay = attackDelay;
+        // Arena raptors hold a little farther back than road pursuers so their
+        // spread lanes still project inside the stopped camera's frustum (the
+        // frustum clamp in RailCameraSystem widens with depth) — otherwise the
+        // widest lanes get squeezed to center or slide off-screen.
+        dino.attackRange = 3.4f;
         dino.retreatDuration = 0.9f;
         dino.retreatGap = std::max(5.f, spawnGap - 2.f);
         dino.health = dino.maxHealth;

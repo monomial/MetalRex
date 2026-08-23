@@ -83,9 +83,35 @@ static void placeWithinAttackRange(World& world, DinoBehaviorComponent& dino) {
 // tests drive the camera to a major_attack event distance and let the real
 // trigger fire (the m2-test chart scripts QTEs at 27.5 / 29.5 / 31.5). Returns
 // true once the QTE went active.
+// A boss QTE now DEFERS while any raptor is still on-screen (consume_chart_events).
+// Jumping the camera to a QTE distance back-fills every earlier scripted wave in
+// one tick, so stand in for "the player wiped the wave" by dormanting the
+// raptors each iteration — otherwise the deferred QTE never arms.
+static void clearActiveRaptors(World& world) {
+    for (EntityID id = 0; id < world.entity_count(); ++id) {
+        if (!world.has_component<DinoBehaviorComponent>(id)) continue;
+        DinoBehaviorComponent& dino = world.get_component<DinoBehaviorComponent>(id);
+        if (dino.isBoss || dino.species != DinoSpecies::Velociraptor) continue;
+        dino.activeInEncounter = false;
+        dino.state = DinoBehaviorState::Dormant;
+    }
+}
+
 static bool runToMajorAttack(World& world, float chartDistance) {
+    // Jump the event cursor straight to the target QTE so earlier scripted
+    // QTEs/waves don't fire first (the deferral would otherwise arm the first
+    // one once its wave is cleared, not the one this test wants).
+    const std::vector<ChartEvent>& events = world.chart().events;
+    for (size_t i = 0; i < events.size(); ++i) {
+        if (events[i].type == "major_attack"
+            && fabsf(events[i].distance - chartDistance) < 0.01f) {
+            world.set_next_chart_event_index(i);
+            break;
+        }
+    }
     world.rail_camera().distance = chartDistance - 0.3f;
     for (int i = 0; i < 200; ++i) {
+        clearActiveRaptors(world);
         world.update(1.f / 120.f, 1.f / 120.f);
         if (world.major_attack_active()) return true;
     }
@@ -533,6 +559,66 @@ static void endMajorAttack(World& world) {
     XCTAssertTrue(runToMajorAttack(world, 31.5f));
     XCTAssertEqual(trex.ragePhase, 2);
     XCTAssertEqualWithAccuracy(trex.holdDuration, phase2Hold, 0.0001f);
+}
+
+// A T-Rex QTE must not pop while a raptor wave is still on-screen: the event
+// stays parked until the field is clear, then fires the instant it is.
+- (void)test_majorAttackDefersUntilRaptorsCleared {
+    World world;
+    EntityID trexId = findTrex(world);
+    XCTAssertNotEqual(trexId, kInvalidEntity);
+    activateDino(world, trexId, DinoBehaviorState::Approach); // boss in the fight
+
+    // Park the event cursor on the first scripted major_attack, camera just
+    // past its distance so it is due this tick.
+    const std::vector<ChartEvent>& events = world.chart().events;
+    size_t maIndex = events.size();
+    for (size_t i = 0; i < events.size(); ++i) {
+        if (events[i].type == "major_attack") { maIndex = i; break; }
+    }
+    XCTAssertLessThan(maIndex, events.size());
+    world.set_next_chart_event_index(maIndex);
+    world.rail_camera().distance = events[maIndex].distance + 0.05f;
+
+    // A raptor still on the field -> the QTE stays deferred, cursor parked.
+    EntityID raptorId = findDino(world); // slot-0 velociraptor (spawned first)
+    XCTAssertNotEqual(raptorId, trexId);
+    activateDino(world, raptorId, DinoBehaviorState::Approach);
+    DinoBehaviorSystem_update(world, 1.f / 120.f);
+    XCTAssertFalse(world.major_attack_active());
+    XCTAssertEqual(world.next_chart_event_index(), maIndex);
+
+    // Clear the raptor -> the deferred QTE fires and the cursor advances.
+    world.get_component<DinoBehaviorComponent>(raptorId).activeInEncounter = false;
+    DinoBehaviorSystem_update(world, 1.f / 120.f);
+    XCTAssertTrue(world.major_attack_active());
+    XCTAssertGreaterThan(world.next_chart_event_index(), maIndex);
+}
+
+// Jurassic Park model: the boss deals NO contact damage during the chase — its
+// only attack is the scripted slow-motion QTE. Even parked in range with a zero
+// hold, it must never enter the Tell/Attack melee cycle or drain player health.
+- (void)test_bossNeverMeleesDuringChase {
+    World world;
+    EntityID trexId = findTrex(world);
+    XCTAssertNotEqual(trexId, kInvalidEntity);
+    DinoBehaviorComponent& trex = world.get_component<DinoBehaviorComponent>(trexId);
+    // Isolate the boss: consume past every chart event so no raptor wave (which
+    // could damage the player) and no QTE (which could, via a miss) interferes.
+    world.set_next_chart_event_index(world.chart().events.size());
+    activateDino(world, trexId, DinoBehaviorState::Hold);
+    trex.holdDuration = 0.f;   // would attack immediately if it were allowed to
+    trex.attackDelay = 0.f;
+    placeWithinAttackRange(world, trex);
+    int startHealth = world.player_health(0).health;
+
+    for (int i = 0; i < 600; ++i) { // 5s — past many would-be attack cycles
+        tick(world, 1);
+        XCTAssertNotEqual((int)trex.state, (int)DinoBehaviorState::Tell);
+        XCTAssertNotEqual((int)trex.state, (int)DinoBehaviorState::Attack);
+    }
+    XCTAssertEqual(world.player_health(0).health, startHealth);
+    XCTAssertFalse(world.major_attack_active());
 }
 
 - (void)test_scriptedMajorAttackTriggersScreenShake {

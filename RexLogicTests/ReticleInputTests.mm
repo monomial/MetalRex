@@ -229,10 +229,14 @@ static void activateDinoForTarget(World& world, int targetIndex) {
     activateDinoForTarget(world, 6); // boss arrives late by chart; force it in
     // Park the raptor directly in front of the T-Rex: same lane, same weave
     // phase (raptor slot 0 spawns at lane -1.9 by default, nowhere near the
-    // boss's centered box).
+    // boss's centered box), and just barely nearer the camera so it is the
+    // front-most of the two. railDistance is set relative to the boss so the
+    // pair sits at effectively the same ground-anchored rail point (placement
+    // is rail-relative now), guaranteeing their screen boxes overlap.
     world.target(0).baseLateralOffset = world.target(6).baseLateralOffset;
     world.target(0).lateralOffset = world.target(6).lateralOffset;
     world.target(0).timerOffset = world.target(6).timerOffset;
+    world.target(0).railDistance = world.target(6).railDistance + 0.4f;
     world.update(1.f / 120.f, 1.f / 120.f);
 
     const TargetComponent& raptorTarget = world.target(0);

@@ -24,11 +24,38 @@ static void tick(World& world, int count) {
     for (int i = 0; i < count; ++i) world.update(1.f / 120.f, 1.f / 120.f);
 }
 
-// Positions the camera just before a scripted major_attack distance and ticks
-// until that QTE arms. Boss auto-arrives (chart arrival is distance 26).
+// A boss QTE now DEFERS while any raptor is still on-screen (see
+// DinoBehaviorSystem's consume_chart_events). Jumping the camera to a QTE
+// distance back-fills every earlier scripted raptor wave in one tick, so these
+// QTE-in-isolation tests must present the cleared field the QTE assumes —
+// stand in for "the player wiped the wave" by dormanting the raptors.
+static void clearActiveRaptors(World& world) {
+    for (EntityID id = 0; id < world.entity_count(); ++id) {
+        if (!world.has_component<DinoBehaviorComponent>(id)) continue;
+        DinoBehaviorComponent& dino = world.get_component<DinoBehaviorComponent>(id);
+        if (dino.isBoss || dino.species != DinoSpecies::Velociraptor) continue;
+        dino.activeInEncounter = false;
+        dino.state = DinoBehaviorState::Dormant;
+    }
+}
+
+// Jumps the event cursor straight to the target scripted major_attack (so
+// earlier QTEs/waves in the chart don't fire first), positions the camera just
+// before its distance, and ticks until it arms. Boss auto-arrives (chart
+// arrival is distance 26); the QTE also defers while raptors are on-screen, so
+// the field is kept clear.
 static bool runToMajorAttack(World& world, float chartDistance) {
+    const std::vector<ChartEvent>& events = world.chart().events;
+    for (size_t i = 0; i < events.size(); ++i) {
+        if (events[i].type == "major_attack"
+            && fabsf(events[i].distance - chartDistance) < 0.01f) {
+            world.set_next_chart_event_index(i);
+            break;
+        }
+    }
     world.rail_camera().distance = chartDistance - 0.3f;
     for (int i = 0; i < 200; ++i) {
+        clearActiveRaptors(world);
         tick(world, 1);
         if (world.major_attack_active()) return true;
     }
