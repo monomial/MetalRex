@@ -68,6 +68,31 @@ static EntityID raptorWithLaneRole(World& world, uint8_t laneRole) {
     return kInvalidEntity;
 }
 
+static EntityID activateSingleEntryWave(World& world, RaptorArchetype archetype,
+                                        int activePlayers, uint32_t seed) {
+    LevelChart chart = world.chart();
+    chart.events.clear();
+    ChartEvent event;
+    event.distance = 0.f;
+    event.type = "raptor_wave";
+    event.raptorWave.valid = true;
+    event.raptorWave.groupSize = 1;
+    event.raptorWave.usesEntries = true;
+    event.raptorWave.entries[0].archetype = archetype;
+    event.raptorWave.entries[0].lane = 0.f;
+    event.raptorWave.holdSeconds = 2.f;
+    event.raptorWave.attackStaggerSeconds = 0.f;
+    event.raptorWave.label = "test-wave";
+    chart.events.push_back(event);
+    world.replace_chart_for_tests(std::move(chart));
+    for (int p = 0; p < kRexMaxPlayers; ++p) {
+        world.reticle(p).active = p < activePlayers;
+    }
+    world.set_seed(seed);
+    DinoBehaviorSystem_update(world, 1.f / 120.f);
+    return raptorWithLaneRole(world, 0);
+}
+
 // Attacks are proximity-gated: the dino must be within attackRange behind
 // the jeep before enter_attack can fire. Tests that need an attack place the
 // dino at close range first.
@@ -125,7 +150,7 @@ static void endMajorAttack(World& world) {
     world.major_attack_mutable().phase = MajorAttackPhase::Inactive;
 }
 
-- (void)test_interruptWithinWindowCancelsAttackAndTransitionsToJumpReaction {
+- (void)test_interruptWithinWindowPutsDownWithoutPlayerDamage {
     World world;
     EntityID dinoId = findDino(world);
     XCTAssertNotEqual(dinoId, kInvalidEntity);
@@ -139,14 +164,19 @@ static void endMajorAttack(World& world) {
     placeWithinAttackRange(world, dino);
 
     tick(world, 8);
+    int playerHealth = world.player_health(0).health;
     world.target(dino.targetIndex).wasHit = true;
+    world.target(dino.targetIndex).lastHitByPlayer = 0;
     tick(world, 1);
 
     AnimationComponent& anim = world.get_component<AnimationComponent>(dinoId);
     XCTAssertEqual(dino.lastOutcome, DinoInterruptOutcome::Succeeded);
     XCTAssertTrue(dino.outcomeThisCycle);
-    XCTAssertEqual(dino.state, DinoBehaviorState::Interrupted);
+    XCTAssertEqual(dino.health, 0);
+    XCTAssertEqual(dino.state, DinoBehaviorState::PutDown);
     XCTAssertEqual(anim.currentClip, CharacterClipSlot::Jump);
+    XCTAssertEqual(world.player_health(0).health, playerHealth);
+    XCTAssertEqual(world.particles().count, 14);
 }
 
 - (void)test_missLetsAttackClipCompleteNormally {
@@ -158,16 +188,56 @@ static void endMajorAttack(World& world) {
     activateDino(world, dinoId, DinoBehaviorState::Hold);
     dino.holdDuration = 0.f;
     dino.attackDelay = 0.f;
-    dino.jumpReactionDuration = 0.1f;
     placeWithinAttackRange(world, dino);
+    world.reticle(1).active = false;
+    world.target(dino.targetIndex).baseLateralOffset = 0.f;
+    world.target(dino.targetIndex).lateralOffset = 0.f;
+    int playerHealth = world.player_health(0).health;
     tick(world, 5);
     tick(world, 40);
 
     AnimationComponent& anim = world.get_component<AnimationComponent>(dinoId);
     XCTAssertEqual(dino.lastOutcome, DinoInterruptOutcome::Failed);
     XCTAssertTrue(dino.outcomeThisCycle);
-    XCTAssertEqual(dino.state, DinoBehaviorState::Retreat);
+    XCTAssertEqual(dino.state, DinoBehaviorState::Departing);
     XCTAssertEqual(anim.currentClip, CharacterClipSlot::Run);
+    XCTAssertEqual(world.player_health(0).health, playerHealth - dino.attackDamage);
+}
+
+- (void)test_windowHealthScalesDefaultChaseFromThreeAtOnePlayerToSixAtTwo {
+    static constexpr uint32_t kSeed = 0x12345678u;
+    World onePlayer;
+    EntityID oneId = activateSingleEntryWave(onePlayer, RaptorArchetype::Chase, 1, kSeed);
+    XCTAssertNotEqual(oneId, kInvalidEntity);
+    XCTAssertEqual(onePlayer.get_component<DinoBehaviorComponent>(oneId).health, 3);
+
+    World twoPlayers;
+    EntityID twoId = activateSingleEntryWave(twoPlayers, RaptorArchetype::Chase, 2, kSeed);
+    XCTAssertNotEqual(twoId, kInvalidEntity);
+    XCTAssertEqual(twoPlayers.get_component<DinoBehaviorComponent>(twoId).health, 6);
+}
+
+- (void)test_closeAmbushHasOneHealthAndFairMinimumWindow {
+    World world;
+    EntityID id = activateSingleEntryWave(world, RaptorArchetype::CloseAmbush, 1, 0x12345678u);
+    XCTAssertNotEqual(id, kInvalidEntity);
+    const DinoBehaviorComponent& dino = world.get_component<DinoBehaviorComponent>(id);
+    XCTAssertEqual(dino.health, 1);
+    XCTAssertGreaterThanOrEqual(dino.shootingWindowSeconds, kMinFairWindowSeconds);
+}
+
+- (void)test_identicalSeedsProduceIdenticalGapHealthAndRateScale {
+    World a;
+    World b;
+    EntityID aId = activateSingleEntryWave(a, RaptorArchetype::Chase, 2, 0xC0FFEEu);
+    EntityID bId = activateSingleEntryWave(b, RaptorArchetype::Chase, 2, 0xC0FFEEu);
+    const DinoBehaviorComponent& da = a.get_component<DinoBehaviorComponent>(aId);
+    const DinoBehaviorComponent& db = b.get_component<DinoBehaviorComponent>(bId);
+    XCTAssertEqualWithAccuracy(da.spawnGap, db.spawnGap, 0.000001f);
+    XCTAssertEqual(da.health, db.health);
+    XCTAssertEqualWithAccuracy(a.get_component<AnimationComponent>(aId).rateScale,
+                               b.get_component<AnimationComponent>(bId).rateScale,
+                               0.000001f);
 }
 
 - (void)test_chaseClosesGapFromBehindAndStopsDuringAttack {
@@ -206,12 +276,14 @@ static void endMajorAttack(World& world) {
                                atAttackStart, 0.0001f);
 }
 
-- (void)test_shotsDrainHealthThenDeathThenRespawnBehindJeep {
+- (void)test_shotsDrainHealthThenKidFriendlyPutDownReturnsDormant {
     World world;
     EntityID dinoId = findDino(world);
     XCTAssertNotEqual(dinoId, kInvalidEntity);
 
     DinoBehaviorComponent& dino = world.get_component<DinoBehaviorComponent>(dinoId);
+    world.set_next_chart_event_index(world.chart().events.size());
+    world.rail_camera().speed = 0.f;
     activateDino(world, dinoId, DinoBehaviorState::Approach);
     dino.holdDuration = 100.f; // never attack during this test
     int startHealth = dino.health;
@@ -224,34 +296,31 @@ static void endMajorAttack(World& world) {
     XCTAssertGreaterThan(dino.hitFlashTime, 0.f);
     XCTAssertEqual(dino.state, DinoBehaviorState::Approach);
 
-    // Drain the rest: death cuts through to the Death clip.
+    // Drain the rest: put-down cuts through to the Jump recoil, never Death.
     for (int shot = 1; shot < startHealth; ++shot) {
         world.target(dino.targetIndex).wasHit = true;
         tick(world, 1);
     }
     XCTAssertEqual(dino.health, 0);
-    XCTAssertEqual(dino.state, DinoBehaviorState::Dying);
+    XCTAssertEqual(dino.state, DinoBehaviorState::PutDown);
     XCTAssertEqual(world.get_component<AnimationComponent>(dinoId).currentClip,
-                   CharacterClipSlot::Death);
+                   CharacterClipSlot::Jump);
 
     // Shots at a corpse do nothing further.
     world.target(dino.targetIndex).wasHit = true;
     tick(world, 1);
     XCTAssertEqual(dino.health, 0);
-    XCTAssertEqual(dino.state, DinoBehaviorState::Dying);
+    XCTAssertEqual(dino.state, DinoBehaviorState::PutDown);
+    XCTAssertNotEqual(world.get_component<AnimationComponent>(dinoId).currentClip,
+                      CharacterClipSlot::Death);
+    XCTAssertNotEqual(world.get_component<AnimationComponent>(dinoId).requestedClip,
+                      CharacterClipSlot::Death);
 
-    // Death clip (fallback 4.5s at the 2x death speed multiplier = 2.25s)
-    // plus the 0.8s dissolve, then the dino respawns deep behind the jeep
-    // with health restored.
-    tick(world, 450);
+    // The recoil dissolves in ~0.4s, then the fixed slot returns dormant.
+    tick(world, 60);
     XCTAssertEqual(dino.state, DinoBehaviorState::Dormant);
     XCTAssertFalse(dino.activeInEncounter);
-    XCTAssertEqual(dino.health, dino.maxHealth);
-    XCTAssertEqualWithAccuracy(world.get_component<AnimationComponent>(dinoId).deathFade,
-                               1.f, 0.0001f);
-    float gap = world.rail_camera().distance - world.target(dino.targetIndex).railDistance;
-    XCTAssertGreaterThan(gap, 4.f);
-    XCTAssertLessThanOrEqual(gap, 10.f);
+    XCTAssertEqual(dino.health, 0);
 }
 
 - (void)test_bossIsImmuneToNormalFire {
@@ -272,7 +341,7 @@ static void endMajorAttack(World& world) {
     }
 
     XCTAssertEqual(trex.health, startHealth); // untouched by fire
-    XCTAssertNotEqual(trex.state, DinoBehaviorState::Dying);
+    XCTAssertNotEqual(trex.state, DinoBehaviorState::PutDown);
     XCTAssertFalse(world.level_complete());
     // The hit still flashes (it reads as a hit, just deals no damage).
     XCTAssertGreaterThan(trex.hitFlashTime, 0.f);

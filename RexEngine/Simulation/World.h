@@ -7,6 +7,7 @@
 #include "ChartLoader.h"
 #include "Platform/InputState.h"
 #include "EventBus.h"
+#include "Renderer/ParticleSim.h"
 
 using EntityID = uint32_t;
 static constexpr EntityID kInvalidEntity = UINT32_MAX;
@@ -166,6 +167,9 @@ public:
         return _playerScore[playerIndex];
     }
     bool any_player_active_and_not_sitting_out() const;
+    int active_player_count() const;
+    ParticleSim& particles() { return _particles; }
+    const ParticleSim& particles() const { return _particles; }
     bool level_complete() const { return _levelComplete; }
     void complete_level() { _levelComplete = true; }
     GamePhase phase() const { return _phase; }
@@ -268,6 +272,7 @@ private:
     bool _bossPortraitShown = false;     // the one-time Preview has run this fight
     float _bossFleeRemaining = 0.f;      // >0 while the boss visibly flees before completion
     ArenaState _arena;
+    ParticleSim _particles;
 };
 
 template<typename T>

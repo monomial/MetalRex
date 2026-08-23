@@ -57,22 +57,71 @@ static RaptorWaveChartPayload parse_raptor_wave_payload(id payload) {
         throw chart_error(@"raptor_wave groupSize must be 1, 2, or 3");
     }
 
-    NSArray *lanes = required_array(dict, @"lanes");
-    if ((int)lanes.count != groupSize) {
-        throw chart_error(@"raptor_wave lanes count must equal groupSize");
-    }
-
     RaptorWaveChartPayload out;
     out.valid = true;
     out.groupSize = (uint8_t)groupSize;
-    for (int i = 0; i < groupSize; ++i) {
-        if (![lanes[i] isKindOfClass:[NSNumber class]]) {
-            throw chart_error(@"raptor_wave lanes must contain numbers");
+
+    id entriesValue = dict[@"entries"];
+    if (entriesValue) {
+        if (![entriesValue isKindOfClass:[NSArray class]]) {
+            throw chart_error(@"raptor_wave entries must be an array");
         }
-        out.lanes[i] = [(NSNumber *)lanes[i] floatValue];
+        NSArray *entries = (NSArray *)entriesValue;
+        if ((int)entries.count != groupSize) {
+            throw chart_error(@"raptor_wave entries count must equal groupSize");
+        }
+        out.usesEntries = true;
+        for (int i = 0; i < groupSize; ++i) {
+            if (![entries[i] isKindOfClass:[NSDictionary class]]) {
+                throw chart_error(@"raptor_wave entries must contain objects");
+            }
+            NSDictionary *entry = (NSDictionary *)entries[i];
+            id archetype = entry[@"archetype"];
+            id lane = entry[@"lane"];
+            if (![archetype isKindOfClass:[NSString class]]) {
+                throw chart_error(@"raptor_wave entry archetype must be a string");
+            }
+            if (![lane isKindOfClass:[NSNumber class]]) {
+                throw chart_error(@"raptor_wave entry lane must be a number");
+            }
+            NSString *name = (NSString *)archetype;
+            if ([name isEqualToString:@"chase"]) {
+                out.entries[i].archetype = RaptorArchetype::Chase;
+            } else if ([name isEqualToString:@"close_ambush"]) {
+                out.entries[i].archetype = RaptorArchetype::CloseAmbush;
+            } else if ([name isEqualToString:@"canopy_drop"]) {
+                out.entries[i].archetype = RaptorArchetype::CanopyDrop;
+            } else if ([name isEqualToString:@"low_crawl"]) {
+                out.entries[i].archetype = RaptorArchetype::LowCrawl;
+            } else {
+                throw chart_error([NSString stringWithFormat:
+                    @"raptor_wave archetype '%@' is unknown", name]);
+            }
+            out.entries[i].lane = [(NSNumber *)lane floatValue];
+            out.lanes[i] = out.entries[i].lane;
+        }
+    } else {
+        NSArray *lanes = required_array(dict, @"lanes");
+        if ((int)lanes.count != groupSize) {
+            throw chart_error(@"raptor_wave lanes count must equal groupSize");
+        }
+        for (int i = 0; i < groupSize; ++i) {
+            if (![lanes[i] isKindOfClass:[NSNumber class]]) {
+                throw chart_error(@"raptor_wave lanes must contain numbers");
+            }
+            out.lanes[i] = [(NSNumber *)lanes[i] floatValue];
+            out.entries[i].lane = out.lanes[i];
+        }
     }
 
-    out.spawnGap = [required_number(dict, @"spawnGap") floatValue];
+    id spawnGap = dict[@"spawnGap"];
+    if (!spawnGap && !out.usesEntries) {
+        throw chart_error(@"raptor_wave spawnGap must be a number");
+    }
+    if (spawnGap && ![spawnGap isKindOfClass:[NSNumber class]]) {
+        throw chart_error(@"raptor_wave spawnGap must be a number");
+    }
+    out.spawnGap = spawnGap ? [(NSNumber *)spawnGap floatValue] : 8.f;
     out.holdSeconds = [required_number(dict, @"holdSeconds") floatValue];
     out.attackStaggerSeconds = [required_number(dict, @"attackStaggerSeconds") floatValue];
     if (out.spawnGap <= 1.f) {

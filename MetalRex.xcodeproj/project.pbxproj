@@ -139,6 +139,7 @@
 		105B2556BDC7A289744004EC /* Shaders */ = {isa = PBXFileReference; lastKnownFileType = folder; path = Shaders; sourceTree = SOURCE_ROOT; };
 		15F5E5BB6F9B426318D2F765 /* ParticleSim.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ParticleSim.h; sourceTree = "<group>"; };
 		19CFD438813570373EF78E93 /* PhysicsSystem.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = PhysicsSystem.mm; sourceTree = "<group>"; };
+		1BB94F700F2042A7295A9FBF /* PLAN-ENCOUNTER-FEEL.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = "PLAN-ENCOUNTER-FEEL.md"; sourceTree = "<group>"; };
 		1D129F32809AC4D2196A3946 /* BossMajorAttackSystem.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = BossMajorAttackSystem.mm; sourceTree = "<group>"; };
 		1D4170C632E74E0BC0DCAC6E /* GameController.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = GameController.framework; path = System/Library/Frameworks/GameController.framework; sourceTree = SDKROOT; };
 		1D7B034B00A4E0F74AED4A97 /* TitleFlowTests.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = TitleFlowTests.mm; sourceTree = "<group>"; };
@@ -462,6 +463,7 @@
 			isa = PBXGroup;
 			children = (
 				4FE3EA6AD3A9F146AD19CDD4 /* DESIGN.md */,
+				1BB94F700F2042A7295A9FBF /* PLAN-ENCOUNTER-FEEL.md */,
 				C32528CD28DE93AE376944FF /* PLAN-M1.md */,
 				44240F80D2BF011C75CD0B47 /* PLAN-M2.md */,
 				D4512AAC63BD685BFAB6F7E4 /* PLAN-M3.md */,

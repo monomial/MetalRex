@@ -3,6 +3,7 @@
 #include "Simulation/Systems/ScreenShakeSystem.h"
 #include <algorithm>
 #include <math.h>
+#include <stdio.h>
 
 static float attack_progress(World& world, EntityID id, const AnimationComponent& anim) {
     float duration = AnimationSystem_clip_duration(world, id, CharacterClipSlot::Attack);
@@ -26,6 +27,7 @@ static void enter_dormant(World& world, EntityID id, DinoBehaviorComponent& dino
     if (dino.targetIndex < kM1MaxTargets) {
         TargetComponent& target = world.target(dino.targetIndex);
         target.active = false;
+        target.verticalOffset = 0.f;
         clear_target_hit(target);
     }
     AnimationSystem_force_clip(world, id, CharacterClipSlot::Run);
@@ -79,33 +81,27 @@ static void enter_retreat(World& world, EntityID id, DinoBehaviorComponent& dino
     AnimationSystem_force_clip(world, id, CharacterClipSlot::Run);
 }
 
-static void respawn(World& world, EntityID id, DinoBehaviorComponent& dino) {
-    dino.health = dino.maxHealth;
-    dino.hitFlashTime = 0.f;
+static void enter_put_down(World& world, EntityID id, DinoBehaviorComponent& dino) {
+    dino.health = 0;
+    dino.state = DinoBehaviorState::PutDown;
+    dino.stateTime = 0.f;
     if (world.has_component<AnimationComponent>(id)) {
         world.get_component<AnimationComponent>(id).deathFade = 1.f;
     }
+    AnimationSystem_force_clip(world, id, CharacterClipSlot::Jump);
     if (dino.targetIndex < kM1MaxTargets) {
         TargetComponent& target = world.target(dino.targetIndex);
-        target.railDistance = std::max(0.f, world.rail_camera().distance - dino.retreatGap);
-        clear_target_hit(target);
-    }
-    if (dino.isBoss) {
-        enter_approach(world, id, dino);
-    } else {
-        enter_dormant(world, id, dino);
+        world.particles().spawn_burst(target.worldX, target.worldY, target.worldZ,
+                                      14, 1.6f, 0.09f,
+                                      0.72f, 0.62f, 0.42f,
+                                      world.rand_u32());
     }
 }
 
-static void complete_boss_death(World& world, DinoBehaviorComponent& dino) {
-    dino.active = false;
-    dino.activeInEncounter = false;
-    if (dino.targetIndex < kM1MaxTargets) {
-        TargetComponent& target = world.target(dino.targetIndex);
-        target.active = false;
-        clear_target_hit(target);
-    }
-    world.complete_level();
+static void enter_departing(World& world, EntityID id, DinoBehaviorComponent& dino) {
+    dino.state = DinoBehaviorState::Departing;
+    dino.stateTime = 0.f;
+    AnimationSystem_force_clip(world, id, CharacterClipSlot::Run);
 }
 
 static void emit_hit_score(World& world, uint8_t playerIndex, DinoSpecies species, bool weakPoint,
@@ -134,6 +130,59 @@ static int nearest_damage_target_player(World& world, const TargetComponent& tar
     return bestPlayer;
 }
 
+static int configure_raptor_health(World& world, EntityID id,
+                                   DinoBehaviorComponent& dino,
+                                   const char *label) {
+    float closingRate = std::max(0.1f, dino.chaseSpeed - world.rail_camera().speed);
+    float approachTime = std::max(0.f, dino.spawnGap - dino.attackRange) / closingRate;
+    float holdTime = dino.holdDuration + dino.attackDelay;
+    float attackDuration = AnimationSystem_clip_duration(world, id, CharacterClipSlot::Attack);
+    float tellTime = dino.interruptEndNormalized * attackDuration
+                   / kAttackClipSpeedMultiplier;
+    float window = approachTime + holdTime + tellTime;
+    if (window < kMinFairWindowSeconds) {
+        fprintf(stderr,
+                "DinoBehaviorSystem: unfair raptor wave '%s' window %.3fs; clamping to %.3fs\n",
+                (label && label[0]) ? label : "<unlabeled>", window, kMinFairWindowSeconds);
+        window = kMinFairWindowSeconds;
+    }
+    dino.shootingWindowSeconds = window;
+    int players = std::max(1, world.active_player_count());
+    int health = std::clamp((int)lroundf(kHealthPerWindowSecond * window * (float)players),
+                            1, kMaxDinoHealth);
+    dino.maxHealth = health;
+    dino.health = health;
+    return health;
+}
+
+static void configure_raptor_animation(World& world, EntityID id) {
+    if (!world.has_component<AnimationComponent>(id)) return;
+    AnimationComponent& anim = world.get_component<AnimationComponent>(id);
+    anim.deathFade = 1.f;
+    anim.rateScale = 0.88f + world.rand_float01() * 0.24f;
+    AnimationSystem_force_clip(world, id, CharacterClipSlot::Run);
+    float runDuration = AnimationSystem_clip_duration(world, id, CharacterClipSlot::Run);
+    anim.clipTime = world.rand_float01() * std::max(0.f, runDuration);
+}
+
+struct RaptorArchetypePreset {
+    float minGap;
+    float maxGap;
+    float verticalOffset;
+    float holdScale;
+};
+
+static constexpr RaptorArchetypePreset kRaptorArchetypes[] = {
+    {8.0f, 11.5f,  0.00f, 1.00f}, // chase
+    {2.8f,  4.0f,  0.00f, 0.45f}, // close_ambush
+    {4.0f,  6.0f,  2.50f, 0.70f}, // canopy_drop
+    {5.0f,  8.0f, -0.25f, 1.10f}, // low_crawl
+};
+
+static const RaptorArchetypePreset& preset_for(RaptorArchetype archetype) {
+    return kRaptorArchetypes[(int)archetype];
+}
+
 static int activate_raptor_wave(World& world,
                                 const RaptorWaveChartPayload& wave,
                                 uint32_t waveId) {
@@ -143,28 +192,39 @@ static int activate_raptor_wave(World& world,
         if (!world.has_component<DinoBehaviorComponent>(id)) continue;
         DinoBehaviorComponent& dino = world.get_component<DinoBehaviorComponent>(id);
         if (dino.species != DinoSpecies::Velociraptor || dino.isBoss) continue;
-        if (dino.activeInEncounter || dino.state == DinoBehaviorState::Dying) continue;
+        if (dino.activeInEncounter || dino.state == DinoBehaviorState::PutDown) continue;
         if (dino.targetIndex >= kM1MaxTargets) continue;
 
         TargetComponent& target = world.target(dino.targetIndex);
+        RaptorArchetype archetype = wave.entries[activated].archetype;
+        const RaptorArchetypePreset& preset = preset_for(archetype);
         dino.waveId = waveId;
         dino.laneRole = (uint8_t)activated;
-        dino.spawnGap = wave.spawnGap + (float)activated * 0.6f;
-        dino.holdDuration = wave.holdSeconds;
+        dino.archetype = archetype;
+        dino.spawnGap = wave.usesEntries
+                      ? preset.minGap + world.rand_float01() * (preset.maxGap - preset.minGap)
+                      : wave.spawnGap + (float)activated * 0.6f;
+        dino.holdDuration = wave.holdSeconds * (wave.usesEntries ? preset.holdScale : 1.f);
         dino.attackDelay = wave.attackStaggerSeconds * (float)activated;
         dino.retreatDuration = 1.2f;
         dino.retreatGap = std::max(7.f, dino.spawnGap);
-        dino.health = dino.maxHealth;
         dino.hitFlashTime = 0.f;
+        configure_raptor_health(world, id, dino, wave.label.c_str());
 
         target.active = true;
         target.moving = true;
         target.railDistance = std::max(0.f, camera.distance - dino.spawnGap);
-        target.baseLateralOffset = wave.lanes[activated];
-        target.lateralOffset = wave.lanes[activated];
+        target.baseLateralOffset = wave.entries[activated].lane;
+        target.lateralOffset = wave.entries[activated].lane;
+        target.verticalOffset = wave.usesEntries ? preset.verticalOffset : 0.f;
+        dino.canopyLanded = archetype != RaptorArchetype::CanopyDrop;
         clear_target_hit(target);
 
         enter_approach(world, id, dino);
+        configure_raptor_animation(world, id);
+        if (archetype == RaptorArchetype::CanopyDrop) {
+            AnimationSystem_force_clip(world, id, CharacterClipSlot::Jump);
+        }
         ++activated;
     }
     return activated;
@@ -287,7 +347,26 @@ void DinoBehaviorSystem_update(World& world, float gameDt) {
         if (dino.hitFlashTime > 0.f) {
             dino.hitFlashTime = std::max(0.f, dino.hitFlashTime - gameDt);
         }
-        if (wasShot && dino.state != DinoBehaviorState::Dying) {
+        bool interruptPutDown = false;
+        if (wasShot && !dino.isBoss && anim
+            && (dino.state == DinoBehaviorState::Tell || dino.state == DinoBehaviorState::Attack)) {
+            float progress = attack_progress(world, id, *anim);
+            interruptPutDown = progress >= dino.interruptStartNormalized
+                            && progress <= dino.interruptEndNormalized;
+            if (interruptPutDown) {
+                dino.lastOutcome = DinoInterruptOutcome::Succeeded;
+                dino.outcomeThisCycle = true;
+                world.events().push_dino_score(shotPlayer,
+                                               DinoScoreEvent::InterruptSuccess,
+                                               dino.species,
+                                               world.target(dino.targetIndex).screenX,
+                                               world.target(dino.targetIndex).screenY);
+                enter_put_down(world, id, dino);
+                continue;
+            }
+        }
+        if (wasShot && dino.state != DinoBehaviorState::PutDown
+                    && dino.state != DinoBehaviorState::Departing) {
             if (dino.isBoss) {
                 // Bosses are IMMUNE to normal fire (Jurassic Park model): a
                 // hit still flashes and scores/streaks (the per-state
@@ -304,11 +383,7 @@ void DinoBehaviorSystem_update(World& world, float gameDt) {
                 if (dino.health <= 0) {
                     emit_hit_score(world, shotPlayer, dino.species, shotWasWeakPoint,
                                    world.target(dino.targetIndex));
-                    dino.state = DinoBehaviorState::Dying;
-                    dino.stateTime = 0.f;
-                    // Force: death must cut through whatever is playing,
-                    // including a mid-flight Attack.
-                    AnimationSystem_force_clip(world, id, CharacterClipSlot::Death);
+                    enter_put_down(world, id, dino);
                     continue;
                 }
             }
@@ -325,6 +400,18 @@ void DinoBehaviorSystem_update(World& world, float gameDt) {
                 }
                 if (dino.targetIndex < kM1MaxTargets) {
                     TargetComponent& target = world.target(dino.targetIndex);
+                    if (dino.archetype == RaptorArchetype::CanopyDrop && !dino.canopyLanded) {
+                        float t = std::clamp(dino.stateTime / 0.5f, 0.f, 1.f);
+                        float easeOut = 1.f - (1.f - t) * (1.f - t);
+                        target.verticalOffset = 2.5f * (1.f - easeOut);
+                        if (t >= 1.f) {
+                            dino.canopyLanded = true;
+                            target.verticalOffset = 0.f;
+                            AnimationSystem_force_clip(world, id, CharacterClipSlot::Run);
+                        } else {
+                            AnimationSystem_force_clip(world, id, CharacterClipSlot::Jump);
+                        }
+                    }
                     float gap = std::max(0.f, world.rail_camera().distance - target.railDistance);
                     if (gap > dino.attackRange && dino.chaseSpeed > 0.f) {
                         target.railDistance += std::min(dino.chaseSpeed * gameDt,
@@ -337,7 +424,9 @@ void DinoBehaviorSystem_update(World& world, float gameDt) {
                         break;
                     }
                 }
-                AnimationSystem_request_clip(world, id, CharacterClipSlot::Run);
+                if (dino.archetype != RaptorArchetype::CanopyDrop || dino.canopyLanded) {
+                    AnimationSystem_request_clip(world, id, CharacterClipSlot::Run);
+                }
                 break;
             }
 
@@ -380,7 +469,11 @@ void DinoBehaviorSystem_update(World& world, float gameDt) {
                     world.events().push_dino_score((uint8_t)missedPlayer,
                                                    DinoScoreEvent::InterruptFail,
                                                    dino.species);
-                    enter_retreat(world, id, dino);
+                    if (missedPlayer >= 0) {
+                        world.damage_player(missedPlayer, dino.attackDamage);
+                    }
+                    if (dino.isBoss || dino.arena) enter_retreat(world, id, dino);
+                    else enter_departing(world, id, dino);
                     break;
                 }
 
@@ -396,26 +489,6 @@ void DinoBehaviorSystem_update(World& world, float gameDt) {
                     dino.stateTime = 0.f;
                 }
 
-                bool inWindow = progress >= dino.interruptStartNormalized
-                             && progress <= dino.interruptEndNormalized;
-                if (wasShot && inWindow) {
-                    dino.lastOutcome = DinoInterruptOutcome::Succeeded;
-                    dino.outcomeThisCycle = true;
-                    world.events().push_dino_score(shotPlayer,
-                                                   DinoScoreEvent::InterruptSuccess,
-                                                   dino.species,
-                                                   world.target(dino.targetIndex).screenX,
-                                                   world.target(dino.targetIndex).screenY);
-                    dino.state = DinoBehaviorState::Interrupted;
-                    dino.stateTime = 0.f;
-                    // Force, not request: Attack hasn't finished (that's the
-                    // whole point of an interrupt), and the graceful request
-                    // path waits for a non-looping clip to finish on its own
-                    // before switching — which would silently swallow the
-                    // interrupt and let Attack play out anyway.
-                    AnimationSystem_force_clip(world, id, CharacterClipSlot::Jump);
-                    break;
-                }
                 if (wasShot) {
                     emit_hit_score(world, shotPlayer, dino.species, shotWasWeakPoint,
                                world.target(dino.targetIndex));
@@ -448,18 +521,12 @@ void DinoBehaviorSystem_update(World& world, float gameDt) {
                             world.damage_player(damagedPlayer, dino.attackDamage);
                         }
                     }
-                    enter_retreat(world, id, dino);
+                    if (dino.isBoss || dino.arena) enter_retreat(world, id, dino);
+                    else enter_departing(world, id, dino);
                     break;
                 }
                 break;
             }
-
-            case DinoBehaviorState::Interrupted:
-                if ((anim && anim->clipDone && anim->currentClip == CharacterClipSlot::Jump)
-                    || dino.stateTime >= dino.jumpReactionDuration) {
-                    enter_retreat(world, id, dino);
-                }
-                break;
 
             case DinoBehaviorState::Retreat: {
                 if (dino.targetIndex < kM1MaxTargets) {
@@ -481,37 +548,27 @@ void DinoBehaviorSystem_update(World& world, float gameDt) {
                 break;
             }
 
-            case DinoBehaviorState::Dying: {
+            case DinoBehaviorState::PutDown: {
                 if (!anim) {
-                    if (dino.arena) {
-                        enter_dormant(world, id, dino);
-                    } else {
-                        respawn(world, id, dino);
-                    }
+                    enter_dormant(world, id, dino);
                     break;
                 }
-                // Death clip plays through, then the corpse dissolves
-                // (renderer feeds deathFade to the shader's screen-door
-                // discard), then the dino respawns deep behind the jeep as
-                // a fresh pursuer. anim->dying is deliberately NOT set:
-                // that flag routes into AnimationSystem's fade-and-destroy
-                // path, and these entities are permanent — they recycle.
-                bool deathDone = anim->clipDone
-                              && anim->currentClip == CharacterClipSlot::Death;
-                if (deathDone) {
-                    anim->deathFade -= gameDt / 0.8f;
-                    if (anim->deathFade <= 0.f) {
-                        if (dino.isBoss) {
-                            complete_boss_death(world, dino);
-                        } else if (dino.arena) {
-                            // Arena kills are permanent: park the slot dormant
-                            // (freeing it for a later wave) rather than
-                            // recycling the raptor behind the jeep. Once every
-                            // arena raptor is dormant, ArenaSystem advances.
-                            enter_dormant(world, id, dino);
-                        } else {
-                            respawn(world, id, dino);
-                        }
+                anim->deathFade = std::max(0.f, 1.f - dino.stateTime / 0.4f);
+                if (anim->deathFade <= 0.f) {
+                    enter_dormant(world, id, dino);
+                }
+                break;
+            }
+
+            case DinoBehaviorState::Departing: {
+                if (anim) anim->deathFade = std::max(0.f, 1.f - dino.stateTime / 0.9f);
+                if (dino.targetIndex < kM1MaxTargets) {
+                    TargetComponent& target = world.target(dino.targetIndex);
+                    target.railDistance = std::max(0.f,
+                                                   target.railDistance - dino.chaseSpeed * 1.25f * gameDt);
+                    float gap = world.rail_camera().distance - target.railDistance;
+                    if (gap >= dino.retreatGap || dino.stateTime >= 0.9f) {
+                        enter_dormant(world, id, dino);
                     }
                 }
                 break;
@@ -528,7 +585,7 @@ bool DinoBehaviorSystem_spawn_arena_raptor(World& world, uint32_t waveId,
         if (!world.has_component<DinoBehaviorComponent>(id)) continue;
         DinoBehaviorComponent& dino = world.get_component<DinoBehaviorComponent>(id);
         if (dino.species != DinoSpecies::Velociraptor || dino.isBoss) continue;
-        if (dino.activeInEncounter || dino.state == DinoBehaviorState::Dying) continue;
+        if (dino.activeInEncounter || dino.state == DinoBehaviorState::PutDown) continue;
         if (dino.targetIndex >= kM1MaxTargets) continue;
 
         TargetComponent& target = world.target(dino.targetIndex);
@@ -543,8 +600,9 @@ bool DinoBehaviorSystem_spawn_arena_raptor(World& world, uint32_t waveId,
         dino.attackRange = 3.4f;
         dino.retreatDuration = 0.9f;
         dino.retreatGap = std::max(5.f, spawnGap - 2.f);
-        dino.health = dino.maxHealth;
         dino.hitFlashTime = 0.f;
+        dino.spawnGap = spawnGap;
+        configure_raptor_health(world, id, dino, "arena");
 
         target.active = true;
         target.moving = true;
@@ -554,6 +612,7 @@ bool DinoBehaviorSystem_spawn_arena_raptor(World& world, uint32_t waveId,
         clear_target_hit(target);
 
         enter_approach(world, id, dino);
+        configure_raptor_animation(world, id);
         return true;
     }
     return false;

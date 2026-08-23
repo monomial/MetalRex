@@ -88,6 +88,7 @@ void World::reset_m1_scene() {
     _bossPortraitShown = false;
     _bossFleeRemaining = 0.f;
     _arena = ArenaState{};
+    _particles.clear();
     _scriptedMajorAttacksTotal = 0;
     for (const ChartEvent& event : _chart.events) {
         if (event.type == "major_attack") ++_scriptedMajorAttacksTotal;
@@ -174,12 +175,9 @@ void World::reset_m1_scene() {
         dino.chaseSpeed = spawn.chaseSpeed; // jeep runs 1.2 — raptor gains ground
         dino.attackRange = 2.4f;
         dino.holdDuration = spawn.holdDuration;
-        dino.maxHealth = 3;
-        dino.health = 3;
         dino.tellEndNormalized = 0.28f;
         dino.interruptStartNormalized = 0.18f;
         dino.interruptEndNormalized = 0.46f;
-        dino.jumpReactionDuration = 0.35f;
         dino.retreatDuration = 1.2f;
         dino.retreatGap = 8.f;
     }
@@ -231,19 +229,23 @@ void World::reset_m1_scene() {
     bossDino.tellEndNormalized = 0.28f;
     bossDino.interruptStartNormalized = 0.18f;
     bossDino.interruptEndNormalized = 0.46f;
-    bossDino.jumpReactionDuration = 0.35f;
     bossDino.attackDamage = bossConfig.attackDamage; // heavier bite than a raptor's 15
     bossDino.retreatDuration = 1.8f;
     bossDino.retreatGap = 6.f;
 }
 
 bool World::any_player_active_and_not_sitting_out() const {
+    return active_player_count() > 0;
+}
+
+int World::active_player_count() const {
+    int count = 0;
     for (int i = 0; i < kRexMaxPlayers; ++i) {
         if (_reticles[i].active && !_playerHealth[i].sittingOut) {
-            return true;
+            ++count;
         }
     }
-    return false;
+    return count;
 }
 
 void World::damage_player(int playerIndex, int amount) {
@@ -454,6 +456,7 @@ void World::tick(float gameDt) {
 
 void World::update(float physicalDt, float /*gameDt*/) {
     _events.clear();
+    _particles.update(physicalDt);
     _accumulator += physicalDt;
 
     while (_accumulator >= kFixedDt) {

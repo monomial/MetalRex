@@ -50,7 +50,6 @@ static void placeWithinAttackRange(World& world, DinoBehaviorComponent& dino) {
     XCTAssertNotEqual(dinoId, kInvalidEntity);
 
     DinoBehaviorComponent& dino = world.get_component<DinoBehaviorComponent>(dinoId);
-    dino.jumpReactionDuration = 0.1f;
     placeWithinAttackRange(world, dino);
     int startHealth = world.player_health(0).health;
 
@@ -59,6 +58,7 @@ static void placeWithinAttackRange(World& world, DinoBehaviorComponent& dino) {
 
     XCTAssertEqual(dino.lastOutcome, DinoInterruptOutcome::Failed);
     XCTAssertEqual(world.player_health(0).health, startHealth - dino.attackDamage);
+    XCTAssertEqual(dino.state, DinoBehaviorState::Departing);
     XCTAssertFalse(world.player_health(0).sittingOut);
 }
 

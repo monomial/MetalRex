@@ -52,8 +52,9 @@ static void apply_score_event(PlayerScoreState& score, DinoScoreEvent event) {
             score.score += 250;
             break;
         case DinoScoreEvent::InterruptFail:
-        case DinoScoreEvent::TellMissed:
             score.currentStreak = 0;
+            break;
+        case DinoScoreEvent::TellMissed:
             break;
     }
 }

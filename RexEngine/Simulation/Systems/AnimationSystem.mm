@@ -80,13 +80,13 @@ static void begin_transition(World& world, EntityID id,
 static float clip_speed_multiplier(World& world, EntityID entity, CharacterClipSlot id) {
     float mult = 1.f;
     switch (id) {
-        case CharacterClipSlot::Attack: mult = 4.0f; break;
+        case CharacterClipSlot::Attack: mult = kAttackClipSpeedMultiplier; break;
         case CharacterClipSlot::Jump:   mult = 2.0f; break;
         case CharacterClipSlot::Death:  mult = 2.0f; break;
         case CharacterClipSlot::Run:    mult = 1.0f; break;
         default:                  mult = 1.0f; break;
     }
-    return mult;
+    return mult * world.get_component<AnimationComponent>(entity).rateScale;
 }
 
 void AnimationSystem_update(World& world, float gameDt) {

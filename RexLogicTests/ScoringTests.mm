@@ -62,7 +62,7 @@ static EntityID findDino(World& world) {
     XCTAssertEqual(score.interruptSuccesses, 0);
 }
 
-- (void)test_interruptFailAndTellMissedResetThatPlayersStreak {
+- (void)test_onlyInterruptFailResetsThatPlayersStreak {
     World world;
     world.score(0).currentStreak = 4;
     world.score(0).bestStreak = 4;
@@ -75,7 +75,7 @@ static EntityID findDino(World& world) {
     world.score(0).currentStreak = 3;
     world.events().push_dino_score(0, DinoScoreEvent::TellMissed, DinoSpecies::Velociraptor);
     ScoringSystem_update(world, 1.f / 120.f);
-    XCTAssertEqual(world.score(0).currentStreak, 0);
+    XCTAssertEqual(world.score(0).currentStreak, 3);
     XCTAssertEqual(world.score(0).bestStreak, 4);
 }
 
@@ -93,7 +93,7 @@ static EntityID findDino(World& world) {
     world.events().push_dino_score(0, DinoScoreEvent::TellMissed, DinoSpecies::Trex);
     ScoringSystem_update(world, 1.f / 120.f);
 
-    XCTAssertEqual(world.score(0).currentStreak, 0);
+    XCTAssertEqual(world.score(0).currentStreak, 2);
     XCTAssertEqual(world.score(0).shotsFired, 3);
     XCTAssertEqual(world.score(0).shotsHit, 1);
 

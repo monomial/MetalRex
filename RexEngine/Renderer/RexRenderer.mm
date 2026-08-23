@@ -644,6 +644,29 @@ static id<MTLTexture> Rex_makeSkyGradientTexture(id<MTLDevice> device) {
               primitive:MTLPrimitiveTypeTriangle mvp:mvp encoder:encoder];
 }
 
+- (void)_drawParticles:(World *)world
+                    mvp:(simd_float4x4)mvp
+                encoder:(id<MTLRenderCommandEncoder>)encoder {
+    const RailCameraState& camera = world->rail_camera();
+    simd_float3 right = simd_normalize((simd_float3){camera.rightX, camera.rightY, camera.rightZ});
+    simd_float3 up = simd_normalize((simd_float3){camera.upX, camera.upY, camera.upZ});
+    const ParticleSim& sim = world->particles();
+    for (int i = 0; i < sim.count; ++i) {
+        const ParticleSim::Particle& p = sim.particles[i];
+        float half = p.size * 0.5f;
+        simd_float3 c = (simd_float3){p.x, p.y, p.z};
+        simd_float3 l = right * -half;
+        simd_float3 r = right * half;
+        simd_float3 b = up * -half;
+        simd_float3 t = up * half;
+        std::vector<RexVertex> quad = {{{c + l + b}}, {{c + r + b}}, {{c + l + t}},
+                                       {{c + r + b}}, {{c + r + t}}, {{c + l + t}}};
+        float alpha = p.lifeMax > 0.f ? std::clamp(p.life / p.lifeMax, 0.f, 1.f) : 0.f;
+        [self _drawVertices:quad color:(simd_float4){p.r, p.g, p.b, alpha}
+                  primitive:MTLPrimitiveTypeTriangle mvp:mvp encoder:encoder];
+    }
+}
+
 - (void)_drawDinos:(World *)world
                mvp:(simd_float4x4)viewProjection
            encoder:(id<MTLRenderCommandEncoder>)encoder {
@@ -689,6 +712,15 @@ static id<MTLTexture> Rex_makeSkyGradientTexture(id<MTLDevice> device) {
         float dx = camera.positionX - target.worldX;
         float dz = camera.positionZ - target.worldZ;
         float yaw = atan2f(dx, dz);
+        const AnimationComponent& anim = world->get_component<AnimationComponent>(id);
+        float approachBob = 0.f;
+        if (dino.state == DinoBehaviorState::Approach) {
+            RexVec3 tangent = world->chart().rail.tangent_at_distance(target.railDistance);
+            RexVec3 ahead = world->chart().rail.tangent_at_distance(target.railDistance + 0.75f);
+            float signedCurve = tangent.z * ahead.x - tangent.x * ahead.z;
+            yaw += std::clamp(signedCurve * 0.22f, -0.10f, 0.10f);
+            approachBob = sinf(anim.clipTime * 9.f) * 0.035f * anim.rateScale;
+        }
         float cosYaw = cosf(yaw);
         float sinYaw = sinf(yaw);
 
@@ -707,12 +739,10 @@ static id<MTLTexture> Rex_makeSkyGradientTexture(id<MTLDevice> device) {
         // ground alignment anchors meshZMin (the feet) at ground level.
         model.columns[3] = (simd_float4){
             target.worldX,
-            target.worldY - character->meshZMin * scale - target.halfHeight,
+            target.worldY - character->meshZMin * scale - target.halfHeight + approachBob,
             target.worldZ,
             1.f
         };
-
-        const AnimationComponent& anim = world->get_component<AnimationComponent>(id);
 
         SkinnedUniformsCPU uniforms;
         uniforms.mvp = simd_mul(viewProjection, model);
@@ -2169,7 +2199,7 @@ static id<MTLTexture> Rex_makeScoreTexture(id<MTLDevice> device, NSString *score
     for (EntityID id = 0; id < world->entity_count(); ++id) {
         if (!world->has_component<DinoBehaviorComponent>(id)) continue;
         const DinoBehaviorComponent& dino = world->get_component<DinoBehaviorComponent>(id);
-        if (dino.isBoss && dino.activeInEncounter && dino.state != DinoBehaviorState::Dying) {
+        if (dino.isBoss && dino.activeInEncounter && dino.state != DinoBehaviorState::PutDown) {
             [self _drawBossHealthBar:dino world:world encoder:encoder];
             break;
         }
@@ -2637,6 +2667,8 @@ static id<MTLTexture> Rex_makeScoreTexture(id<MTLDevice> device, NSString *score
     if (world) {
         [self _drawM1Targets:world mvp:worldMVP encoder:encoder];
         [self _drawDinos:world mvp:worldMVP encoder:encoder];
+        [encoder setRenderPipelineState:_pipeline];
+        [self _drawParticles:world mvp:worldMVP encoder:encoder];
     }
 
     [encoder setDepthStencilState:_overlayDepthState];

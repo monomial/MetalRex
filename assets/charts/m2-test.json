@@ -123,11 +123,10 @@
       "type": "raptor_wave",
       "payload": {
         "groupSize": 2,
-        "lanes": [
-          -1.2,
-          1.2
+        "entries": [
+          { "archetype": "chase", "lane": -1.2 },
+          { "archetype": "close_ambush", "lane": 2.6 }
         ],
-        "spawnGap": 8.5,
         "holdSeconds": 2.25,
         "attackStaggerSeconds": 0.45,
         "label": "pair-test"
@@ -138,12 +137,11 @@
       "type": "raptor_wave",
       "payload": {
         "groupSize": 3,
-        "lanes": [
-          -1.5,
-          0.0,
-          1.5
+        "entries": [
+          { "archetype": "canopy_drop", "lane": -1.5 },
+          { "archetype": "chase", "lane": 0.0 },
+          { "archetype": "chase", "lane": 1.5 }
         ],
-        "spawnGap": 9.0,
         "holdSeconds": 2.5,
         "attackStaggerSeconds": 0.55,
         "label": "pack-test"
@@ -154,11 +152,10 @@
       "type": "raptor_wave",
       "payload": {
         "groupSize": 2,
-        "lanes": [
-          -1.4,
-          1.4
+        "entries": [
+          { "archetype": "close_ambush", "lane": -2.6 },
+          { "archetype": "chase", "lane": 1.4 }
         ],
-        "spawnGap": 8.0,
         "holdSeconds": 1.75,
         "attackStaggerSeconds": 0.4,
         "label": "late-pincer"
@@ -169,10 +166,9 @@
       "type": "raptor_wave",
       "payload": {
         "groupSize": 1,
-        "lanes": [
-          -0.6
+        "entries": [
+          { "archetype": "canopy_drop", "lane": -0.6 }
         ],
-        "spawnGap": 7.5,
         "holdSeconds": 1.65,
         "attackStaggerSeconds": 0.0,
         "label": "last-solo"
@@ -183,12 +179,11 @@
       "type": "raptor_wave",
       "payload": {
         "groupSize": 3,
-        "lanes": [
-          -1.6,
-          0.0,
-          1.6
+        "entries": [
+          { "archetype": "chase", "lane": -1.6 },
+          { "archetype": "low_crawl", "lane": 0.0 },
+          { "archetype": "close_ambush", "lane": 2.6 }
         ],
-        "spawnGap": 8.5,
         "holdSeconds": 1.8,
         "attackStaggerSeconds": 0.35,
         "label": "final-pack"

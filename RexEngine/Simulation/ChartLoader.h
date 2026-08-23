@@ -1,6 +1,7 @@
 #pragma once
 
 #include "RailSpline.h"
+#include "Components.h"
 #include <stdint.h>
 #include <string>
 #include <vector>
@@ -10,10 +11,17 @@ struct LookAtBeat {
     RexVec3 target;
 };
 
+struct RaptorWaveEntry {
+    RaptorArchetype archetype = RaptorArchetype::Chase;
+    float lane = 0.f;
+};
+
 struct RaptorWaveChartPayload {
     bool valid = false;
     uint8_t groupSize = 0;
     float lanes[3] = {0.f, 0.f, 0.f};
+    RaptorWaveEntry entries[3];
+    bool usesEntries = false;
     float spawnGap = 8.f;
     float holdSeconds = 2.25f;
     float attackStaggerSeconds = 0.55f;

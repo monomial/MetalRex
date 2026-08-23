@@ -2,6 +2,10 @@
 #include <stdint.h>
 
 static constexpr int kRexMaxPlayers = 4;
+static constexpr float kHealthPerWindowSecond = 0.6f;
+static constexpr int   kMaxDinoHealth = 6;
+static constexpr float kMinFairWindowSeconds = 0.9f;
+static constexpr float kAttackClipSpeedMultiplier = 4.0f;
 // 6 raptors + 1 T-Rex, exactly — no unused slots. An unconfigured slot
 // defaults to moving=false, which the box-target flicker path in
 // RailCameraSystem_update (update_targets) reads as "spawn a legacy popup
@@ -136,6 +140,7 @@ struct AnimationComponent {
     float      prevClipTime   = 0.f;
     float      blendRemaining = 0.f;
     float      deathFade      = 1.f;
+    float      rateScale      = 1.f;
     float      boneMatrices[kMaxBones][16];
 };
 
@@ -145,9 +150,16 @@ enum class DinoBehaviorState : uint8_t {
     Hold,
     Tell,
     Attack,
-    Interrupted,
     Retreat,
-    Dying
+    PutDown,
+    Departing
+};
+
+enum class RaptorArchetype : uint8_t {
+    Chase = 0,
+    CloseAmbush,
+    CanopyDrop,
+    LowCrawl,
 };
 
 enum class DinoInterruptOutcome : uint8_t {
@@ -218,22 +230,24 @@ struct DinoBehaviorComponent {
     float attackRange = 2.4f;
     uint32_t waveId = 0;
     uint8_t laneRole = 0;
+    RaptorArchetype archetype = RaptorArchetype::Chase;
     float spawnGap = 8.f;
     float holdDuration = 2.25f;
     float attackDelay = 0.f;
     float retreatDuration = 1.2f;
     float retreatGap = 8.f;
-    // Shots to kill. At 0 the dino enters Dying. Raptors recycle after the
-    // death fade; the T-Rex is the terminal boss and completes the level.
+    // Shots to put down. Road-raptor health is derived from its fair shooting
+    // window at activation; boss health remains chart-authored.
     int maxHealth = 3;
     int health = 3;
+    float shootingWindowSeconds = 0.f;
     // Brief tint flash on taking a hit (renderer reads this).
     float hitFlashTime = 0.f;
     float tellEndNormalized = 0.28f;
     float interruptStartNormalized = 0.18f;
     float interruptEndNormalized = 0.46f;
-    float jumpReactionDuration = 0.35f;
     bool wasHitDuringTell = false;
+    bool canopyLanded = true;
     // Damage dealt to per-player health when this dino's attack
     // lands unopposed (DinoInterruptOutcome::Failed) — see PlayerHealthSystem.
     int attackDamage = 15;

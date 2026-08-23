@@ -37,6 +37,8 @@
     XCTAssertEqual(chart.events[2].raptorWave.groupSize, 1);
     XCTAssertEqualWithAccuracy(chart.events[2].raptorWave.lanes[0], 0.f, 0.001f);
     XCTAssertEqualWithAccuracy(chart.events[2].raptorWave.spawnGap, 8.f, 0.001f);
+    XCTAssertFalse(chart.events[2].raptorWave.usesEntries);
+    XCTAssertEqual(chart.events[2].raptorWave.entries[0].archetype, RaptorArchetype::Chase);
 
     // Events are distance-sorted, so the final-pack raptor wave now sits at
     // index 10 (two major_attack QTEs at 27.5 and 29.5 precede it).
@@ -51,6 +53,29 @@
     XCTAssertEqualWithAccuracy(chart.events[7].distance, 27.5f, 0.001f);
     XCTAssertEqual(std::string("major_attack"), chart.events[11].type);
     XCTAssertEqualWithAccuracy(chart.events[11].distance, 31.5f, 0.001f);
+}
+
+- (void)test_unknownRaptorArchetypeFailsLoudly {
+    NSString *path = [NSTemporaryDirectory() stringByAppendingPathComponent:@"metalrex-bad-archetype-chart.json"];
+    NSString *json =
+        @"{"
+         "\"rail\":{\"controlPoints\":[[0,0,0],[0,0,4],[0,0,8],[0,0,12]]},"
+         "\"lookAtBeats\":[{\"distance\":0,\"target\":[0,0,4]}],"
+         "\"events\":[{\"distance\":1,\"type\":\"raptor_wave\","
+         "\"payload\":{\"groupSize\":1,"
+         "\"entries\":[{\"archetype\":\"teleporter\",\"lane\":0}],"
+         "\"holdSeconds\":2,\"attackStaggerSeconds\":0}}]"
+         "}";
+    [json writeToFile:path atomically:YES encoding:NSUTF8StringEncoding error:nil];
+
+    bool threw = false;
+    try {
+        ChartLoader_load_file([path UTF8String]);
+    } catch (const std::runtime_error& ex) {
+        threw = true;
+        XCTAssertTrue(std::string(ex.what()).find("teleporter") != std::string::npos);
+    }
+    XCTAssertTrue(threw);
 }
 
 - (void)test_missingChartThrowsInsteadOfReturningEmptyLevel {
