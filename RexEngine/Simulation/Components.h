@@ -248,7 +248,7 @@ struct DinoBehaviorComponent {
     float hitFlashTime = 0.f;
     float tellEndNormalized = 0.28f;
     float interruptStartNormalized = 0.18f;
-    float interruptEndNormalized = 0.46f;
+    float interruptEndNormalized = 0.85f;
     bool wasHitDuringTell = false;
     bool canopyLanded = true;
     // Damage dealt to per-player health when this dino's attack

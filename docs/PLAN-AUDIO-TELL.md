@@ -283,6 +283,37 @@ launch check. Use `REX_MUTE=1` for any manual run.
   which is loaded second (`RexRenderer.mm:500`) and never melees, so it never
   reaches `Tell` and does not affect any number here.
 
+## Follow-on tuning: the interrupt window (2026-09-07)
+
+Measuring the clip for Step 0 exposed a second problem the cue alone does not
+fix. At `interruptEndNormalized` 0.46 the window was **60.7ms wide and closed
+117ms before the strike** — narrower than human reaction time, and nowhere
+near the "last-instant read-the-tell save" that PLAN-ENCOUNTER-FEEL Decision 1
+describes. The final 54% of the lunge was dead space.
+
+`interruptEndNormalized` 0.46 -> **0.85** (`World.mm` raptor pool, and the
+`Components.h` struct default kept in step):
+
+| | window | opens | closes | strike | too-late zone |
+|---|---|---|---|---|---|
+| before | 60.7ms | 39.0ms | 99.7ms | 216.7ms | 117.0ms |
+| after | 145.2ms | 39.0ms | 184.2ms | 216.7ms | 32.5ms |
+
+Both dead zones are kept deliberately: the early one (0-39ms) stops pre-firing
+from earning the 50, and the late one (32.5ms) preserves a way to be too late.
+Extending to 1.0 would delete the fail state and make the bonus automatic.
+
+Derived health is unaffected — `interruptEndNormalized` feeds `tellTime`, a
+small term beside approach (2.38s) and hold (2.25s), so the shooting window
+moves 4.73s -> 4.82s and health stays 3 (1P) / 6 (2P). The existing
+assertions cover this and still pass.
+
+`bossDino.interruptEndNormalized` stays at 0.46: the boss never melees, so the
+value is inert.
+
+**Still unverified: this is arithmetic, not feel.** 145ms and the 0.45s lead
+are both first guesses that want a controller in hand.
+
 ## Explicitly out of scope
 
 - **Hit confirmation.** Deliberately absent; the reference has none.

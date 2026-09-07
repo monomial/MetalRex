@@ -177,7 +177,12 @@ void World::reset_m1_scene() {
         dino.holdDuration = spawn.holdDuration;
         dino.tellEndNormalized = 0.28f;
         dino.interruptStartNormalized = 0.18f;
-        dino.interruptEndNormalized = 0.46f;
+        // Closes near the strike, not mid-lunge: the interrupt is documented
+        // as a "last-instant read-the-tell save" (PLAN-ENCOUNTER-FEEL Decision
+        // 1), and at 4x playback 0.46 put the window 117ms BEFORE the strike,
+        // 61ms wide — unhittable by reaction. 0.85 makes it ~145ms and lands
+        // it where the design says it should be. See PLAN-AUDIO-TELL.md.
+        dino.interruptEndNormalized = 0.85f;
         dino.retreatDuration = 1.2f;
         dino.retreatGap = 8.f;
     }
