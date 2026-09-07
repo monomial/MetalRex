@@ -17,10 +17,11 @@ static constexpr EntityID kInvalidEntity = UINT32_MAX;
 // is NOT cleared per-tick, so it survives the possibly multiple fixed ticks
 // that run inside one World::update() call. Hit/weak-point/interrupt cues
 // used to live here too (see git history) but those sounds were pulled in
-// favor of visual feedback instead; shotsFired is the only one left,
-// tallied directly at ReticleSystem's fire site.
+// favor of visual feedback instead. Shots are tallied at ReticleSystem's
+// fire site; pre-lunge tells are tallied during DinoBehaviorSystem's Hold.
 struct AudioCueCounts {
     int shotsFired = 0;
+    int raptorTells = 0; // pre-lunge vocalisation, emitted during Hold
 };
 
 // Cosmetic score-popup feed for the renderer ("+10" floaters at the hit

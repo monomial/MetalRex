@@ -5,6 +5,7 @@ static constexpr int kRexMaxPlayers = 4;
 static constexpr float kHealthPerWindowSecond = 0.6f;
 static constexpr int   kMaxDinoHealth = 6;
 static constexpr float kMinFairWindowSeconds = 0.9f;
+static constexpr float kTellLeadSeconds = 0.45f;
 static constexpr float kAttackClipSpeedMultiplier = 4.0f;
 // 6 raptors + 1 T-Rex, exactly — no unused slots. An unconfigured slot
 // defaults to moving=false, which the box-target flicker path in
@@ -219,6 +220,8 @@ struct DinoBehaviorComponent {
     DinoBehaviorState state = DinoBehaviorState::Dormant;
     DinoInterruptOutcome lastOutcome = DinoInterruptOutcome::None;
     bool outcomeThisCycle = false;
+    // Pre-lunge vocalisation, emitted once during Hold and reset for each attack cycle.
+    bool tellCueFired = false;
     float stateTime = 0.f;
     // Rail-units/second the dino runs after the jeep during Approach. Must
     // exceed the camera speed to actually gain ground; the margin over camera

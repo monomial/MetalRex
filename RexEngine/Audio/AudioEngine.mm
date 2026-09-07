@@ -175,6 +175,32 @@ static AVAudioPCMBuffer* make_fire_buffer(AVAudioFormat *fmt) {
     });
 }
 
+// Rising harmonic screech, separate from the short broadband gun crack.
+static AVAudioPCMBuffer* make_raptor_tell_buffer(AVAudioFormat *fmt) {
+    return synth_buffer(fmt, 0.35, ^(float *L, float *R, int frames, double sr) {
+        float low = 0.f, high = 0.f;
+        float lowAlpha = 1.f - expf(-2.f * (float)M_PI * 700.f / (float)sr);
+        float highAlpha = 1.f - expf(-2.f * (float)M_PI * 3500.f / (float)sr);
+        for (int i = 0; i < frames; ++i) {
+            float tSec = (float)i / (float)sr;
+            float attack = fminf(tSec / 0.006f, 1.f);
+            float release = fminf((float)(frames - 1 - i) / ((float)sr * 0.02f), 1.f);
+            float env = attack * expf(-tSec * 6.f) * release;
+            // Integrated 400 -> 1100 Hz sweep; finite saw harmonics avoid aliasing.
+            float phase = 2.f * (float)M_PI * (400.f * tSec + 1000.f * tSec * tSec);
+            float tone = sinf(phase) + 0.5f * sinf(2.f * phase)
+                       + sinf(3.f * phase) / 3.f + 0.25f * sinf(4.f * phase);
+            // Startup-only audio randomness never touches deterministic simulation state.
+            float noise = (float)rand() / (float)RAND_MAX * 2.f - 1.f;
+            low += lowAlpha * (noise - low);
+            high += highAlpha * (noise - high);
+            float sample = (0.32f * tone + 0.24f * (high - low)) * env;
+            L[i] = sample;
+            if (R) R[i] = sample;
+        }
+    });
+}
+
 // ---------------------------------------------------------------------------
 // Bundle asset lookup — tries multiple extensions, returns nil if not found.
 // ---------------------------------------------------------------------------
@@ -273,6 +299,7 @@ static const int kMaxMusicTracks = 8;
     AVAudioPCMBuffer    *_roomClearBuf;
     AVAudioPCMBuffer    *_uiClickBuf;
     AVAudioPCMBuffer    *_fireBuf;
+    AVAudioPCMBuffer    *_raptorTellBuf;
     AVAudioPlayer       *_musicPlayer;
     NSArray<NSURL*>     *_musicPlaylist;
     NSInteger            _musicIndex;
@@ -320,6 +347,8 @@ static const int kMaxMusicTracks = 8;
     _uiClickBuf   = loadBundleBuffer(@"sfx_ui_click",   fmt) ?: make_ui_click_buffer(fmt);
     _fireBuf      = loadBundleBuffer(@"sfx_fire",       fmt) ?: make_fire_buffer(fmt);
 
+    _raptorTellBuf = loadBundleBuffer(@"sfx_raptor_tell", fmt) ?: make_raptor_tell_buffer(fmt);
+
     _started = YES;
     NSLog(@"AudioEngine: ready (sampleRate %.0f Hz)", fmt.sampleRate);
 }
@@ -347,6 +376,7 @@ static const int kMaxMusicTracks = 8;
 - (void)playFinisherSound  { [self _playBuffer:_finisherBuf  name:"finisher"];   }
 - (void)playRoomClearSound { [self _playBuffer:_roomClearBuf name:"room_clear"]; }
 - (void)playUIClickSound   { [self _playBuffer:_uiClickBuf   name:"ui_click"];   }
+- (void)playRaptorTellSound { [self _playBuffer:_raptorTellBuf name:"raptor_tell"]; }
 - (void)playFireSound      { [self _playBuffer:_fireBuf      name:"fire"];       }
 
 // ---------------------------------------------------------------------------

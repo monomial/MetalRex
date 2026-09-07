@@ -1,6 +1,7 @@
 #import "RexGameHost.h"
 #import <QuartzCore/QuartzCore.h>
 #include "Simulation/World.h"
+#include <algorithm>
 #import "Renderer/RexRenderer.h"
 #import "Audio/AudioEngine.h"
 
@@ -100,12 +101,16 @@
 
 // Hit/weak-point/interrupt/hurt all used to trigger a synthesized "thump"
 // sound here (see git history) — pulled in favor of visual feedback for
-// those moments instead, at least for now. Only the gunshot report is left:
-// one per shot fired, independent of hit/miss.
+// those moments instead, at least for now. The gunshot report remains one
+// per shot fired, independent of hit/miss; raptors vocalise before lunging.
 - (void)_playAudioCues {
     if (!_audio || !_world) return;
     AudioCueCounts cues = _world->consume_audio_cues();
     for (int i = 0; i < cues.shotsFired; ++i) [_audio playFireSound];
+    // More than two identical buffers layered combs rather than reading as
+    // more animals. Keep the truthful per-dino count in the simulation.
+    int tells = std::min(cues.raptorTells, 2);
+    for (int i = 0; i < tells; ++i) [_audio playRaptorTellSound];
 }
 
 - (void)setInputState:(InputState)state forPlayer:(int)playerIndex {

@@ -69,7 +69,7 @@ static EntityID raptorWithLaneRole(World& world, uint8_t laneRole) {
 }
 
 static EntityID activateSingleEntryWave(World& world, RaptorArchetype archetype,
-                                        int activePlayers, uint32_t seed) {
+                                        int activePlayers, uint32_t seed, float holdSeconds = 2.f) {
     LevelChart chart = world.chart();
     chart.events.clear();
     ChartEvent event;
@@ -80,7 +80,7 @@ static EntityID activateSingleEntryWave(World& world, RaptorArchetype archetype,
     event.raptorWave.usesEntries = true;
     event.raptorWave.entries[0].archetype = archetype;
     event.raptorWave.entries[0].lane = 0.f;
-    event.raptorWave.holdSeconds = 2.f;
+    event.raptorWave.holdSeconds = holdSeconds;
     event.raptorWave.attackStaggerSeconds = 0.f;
     event.raptorWave.label = "test-wave";
     chart.events.push_back(event);
@@ -148,6 +148,230 @@ static bool runToMajorAttack(World& world, float chartDistance) {
 // bookkeeping — tests that care about those simulate the countdown for real.)
 static void endMajorAttack(World& world) {
     world.major_attack_mutable().phase = MajorAttackPhase::Inactive;
+}
+
+// Isolate a real spawned wave from later chart events and camera wrapping.
+static void isolateTellWorld(World& world) {
+    world.set_next_chart_event_index(world.chart().events.size());
+    world.rail_camera().speed = 0.f;
+}
+
+- (void)test_raptorTellFiresOnceWithFixedLeadThroughStrike {
+    World world;
+    EntityID id = activateSingleEntryWave(world, RaptorArchetype::Chase, 1, 0xC0FFEEu);
+    isolateTellWorld(world);
+    auto& dino = world.get_component<DinoBehaviorComponent>(id);
+    int cueTick = -1, lungeTick = -1, total = 0;
+    bool sawHold = false, sawTell = false;
+    for (int i = 0; i < 1600 && dino.state != DinoBehaviorState::Dormant; ++i) {
+        auto before = dino.state;
+        tick(world, 1);
+        int cues = world.consume_audio_cues().raptorTells;
+        total += cues;
+        if (cues) {
+            XCTAssertEqual(cues, 1);
+            XCTAssertEqual(before, DinoBehaviorState::Hold);
+            XCTAssertEqual(cueTick, -1);
+            cueTick = i;
+        }
+        sawHold |= dino.state == DinoBehaviorState::Hold;
+        sawTell |= dino.state == DinoBehaviorState::Tell;
+        if (before == DinoBehaviorState::Hold && dino.state == DinoBehaviorState::Tell) lungeTick = i;
+    }
+    XCTAssertTrue(sawHold);
+    XCTAssertTrue(sawTell);
+    XCTAssertEqual(total, 1);
+    XCTAssertGreaterThanOrEqual(cueTick, 0);
+    XCTAssertGreaterThan(lungeTick, cueTick);
+    XCTAssertEqualWithAccuracy((lungeTick - cueTick) / 120.f, kTellLeadSeconds, 1.f / 120.f);
+    XCTAssertEqual(world.player_health(0).health, 100 - dino.attackDamage);
+    XCTAssertEqual(dino.state, DinoBehaviorState::Dormant);
+    XCTAssertFalse(dino.tellCueFired); // enter_dormant rearms the recycled slot
+}
+
+- (void)test_shortArenaHoldsTellOnFirstHoldTickIncludingZeroHold {
+    for (float hold : {0.f, 0.1f, 0.4f}) {
+        World world;
+        isolateTellWorld(world);
+        XCTAssertTrue(DinoBehaviorSystem_spawn_arena_raptor(world, 1, 0.f, 7.f, hold, 0.f));
+        EntityID id = findDino(world);
+        auto& dino = world.get_component<DinoBehaviorComponent>(id);
+        int total = 0;
+        for (int i = 0; i < 600 && dino.state != DinoBehaviorState::Hold; ++i) {
+            tick(world, 1);
+            total += world.consume_audio_cues().raptorTells;
+        }
+        XCTAssertEqual(dino.state, DinoBehaviorState::Hold);
+        XCTAssertEqual(total, 0);
+        XCTAssertLessThan(dino.holdDuration + dino.attackDelay, kTellLeadSeconds);
+        tick(world, 1);
+        total += world.consume_audio_cues().raptorTells;
+        XCTAssertEqual(total, 1);
+        XCTAssertTrue(dino.tellCueFired);
+        for (int i = 0; i < 180 && dino.state != DinoBehaviorState::Retreat; ++i) {
+            tick(world, 1);
+            total += world.consume_audio_cues().raptorTells;
+        }
+        XCTAssertEqual(dino.state, DinoBehaviorState::Retreat);
+        XCTAssertEqual(total, 1);
+    }
+}
+
+- (void)test_closeAmbushShortHoldTellsImmediatelyOnce {
+    World world;
+    EntityID id = activateSingleEntryWave(world, RaptorArchetype::CloseAmbush, 1, 42, 0.4f);
+    isolateTellWorld(world);
+    auto& dino = world.get_component<DinoBehaviorComponent>(id);
+    for (int i = 0; i < 600 && dino.state != DinoBehaviorState::Hold; ++i) tick(world, 1);
+    XCTAssertEqual(dino.state, DinoBehaviorState::Hold);
+    XCTAssertEqualWithAccuracy(dino.holdDuration, 0.18f, 0.0001f);
+    XCTAssertEqual(world.consume_audio_cues().raptorTells, 0);
+    tick(world, 1);
+    XCTAssertEqual(world.consume_audio_cues().raptorTells, 1);
+    tick(world, 180);
+    XCTAssertEqual(world.consume_audio_cues().raptorTells, 0);
+}
+
+- (void)test_bossArrivalAndLoomNeverTell {
+    World world;
+    isolateTellWorld(world);
+    EntityID id = findTrex(world);
+    auto& boss = world.get_component<DinoBehaviorComponent>(id);
+    world.rail_camera().distance = boss.bossArrivalDistance;
+    boss.attackRange = 3.f; // exact stopped-camera boundary avoids float subtraction drift
+    boss.holdDuration = 0.f;
+    boss.attackDelay = 0.f;
+    bool sawApproach = false, sawHold = false;
+    for (int i = 0; i < 1600; ++i) {
+        tick(world, 1);
+        sawApproach |= boss.state == DinoBehaviorState::Approach;
+        sawHold |= boss.state == DinoBehaviorState::Hold;
+        XCTAssertEqual(world.consume_audio_cues().raptorTells, 0);
+        XCTAssertFalse(boss.tellCueFired);
+    }
+    XCTAssertTrue(sawApproach);
+    XCTAssertTrue(sawHold);
+}
+
+- (void)test_arenaRetreatReapproachRearmsTell {
+    World world;
+    isolateTellWorld(world);
+    XCTAssertTrue(DinoBehaviorSystem_spawn_arena_raptor(world, 1, 0.f, 8.f, 0.7f, 0.f));
+    auto& dino = world.get_component<DinoBehaviorComponent>(findDino(world));
+    int total = 0, holdEntries = 0;
+    bool sawRetreat = false, sawReapproach = false;
+    for (int i = 0; i < 1600 && total < 2; ++i) {
+        auto before = dino.state;
+        tick(world, 1);
+        sawRetreat |= dino.state == DinoBehaviorState::Retreat;
+        if (before == DinoBehaviorState::Retreat && dino.state == DinoBehaviorState::Approach) {
+            sawReapproach = true;
+            XCTAssertFalse(dino.tellCueFired);
+            // Also independently exercise enter_hold's reset of a stale latch.
+            dino.tellCueFired = true;
+        }
+        if (before == DinoBehaviorState::Approach && dino.state == DinoBehaviorState::Hold) {
+            ++holdEntries;
+            XCTAssertFalse(dino.tellCueFired);
+        }
+        int cues = world.consume_audio_cues().raptorTells;
+        if (cues) XCTAssertEqual(before, DinoBehaviorState::Hold);
+        total += cues;
+    }
+    XCTAssertTrue(sawRetreat);
+    XCTAssertTrue(sawReapproach);
+    XCTAssertEqual(holdEntries, 2);
+    XCTAssertEqual(total, 2);
+    XCTAssertGreaterThan(dino.health, 0);
+}
+
+- (void)test_raptorPutDownBeforeLeadNeverTells {
+    World world;
+    EntityID id = activateSingleEntryWave(world, RaptorArchetype::Chase, 1, 42);
+    isolateTellWorld(world);
+    auto& dino = world.get_component<DinoBehaviorComponent>(id);
+    for (int i = 0; i < 800 && dino.state != DinoBehaviorState::Hold; ++i) tick(world, 1);
+    XCTAssertEqual(dino.state, DinoBehaviorState::Hold);
+    XCTAssertLessThan(dino.stateTime, dino.holdDuration + dino.attackDelay - kTellLeadSeconds);
+    dino.health = 1;
+    world.target(dino.targetIndex).wasHit = true;
+    tick(world, 1);
+    XCTAssertEqual(dino.state, DinoBehaviorState::PutDown);
+    tick(world, 400);
+    XCTAssertEqual(world.consume_audio_cues().raptorTells, 0);
+    XCTAssertEqual(dino.state, DinoBehaviorState::Dormant);
+}
+
+- (void)test_simultaneousTellsRemainTruthfulAndDrainOnce {
+    World world;
+    isolateTellWorld(world);
+    for (int i = 0; i < 3; ++i) {
+        XCTAssertTrue(DinoBehaviorSystem_spawn_arena_raptor(world, 1, (i - 1) * 1.f, 5.f, 0.f, 0.f));
+    }
+    tick(world, 1); // all enter Hold
+    XCTAssertEqual(world.audio_cues().raptorTells, 0);
+    tick(world, 1); // all emit on the first Hold tick, before the zero-hold lunge
+    XCTAssertEqual(world.audio_cues().raptorTells, 3); // host owns the two-voice cap
+    world.audio_cues().shotsFired = 2;
+    AudioCueCounts cues = world.consume_audio_cues();
+    XCTAssertEqual(cues.raptorTells, 3);
+    XCTAssertEqual(cues.shotsFired, 2);
+    XCTAssertEqual(world.consume_audio_cues().raptorTells, 0);
+    XCTAssertEqual(world.consume_audio_cues().shotsFired, 0);
+    tick(world, 10);
+    XCTAssertEqual(world.consume_audio_cues().raptorTells, 0);
+}
+
+- (void)test_packWaveTellSequenceIsDeterministicAndLeadIsStable {
+    World a, b;
+    LevelChart chart = a.chart();
+    std::vector<ChartEvent> pack;
+    for (auto event : chart.events) {
+        if (event.type == "raptor_wave" && event.raptorWave.label == "pack-test") {
+            event.distance = 0.f;
+            pack.push_back(event);
+        }
+    }
+    XCTAssertEqual(pack.size(), 1u);
+    chart.events = pack;
+    a.replace_chart_for_tests(chart);
+    b.replace_chart_for_tests(chart);
+    a.set_seed(0xC0FFEEu);
+    b.set_seed(0xC0FFEEu);
+    a.rail_camera().speed = b.rail_camera().speed = 0.f;
+    std::vector<int> cueTick(a.entity_count(), -1);
+    int total = 0, lunges = 0;
+    for (int i = 0; i < 1800; ++i) {
+        std::vector<DinoBehaviorState> before(a.entity_count(), DinoBehaviorState::Dormant);
+        std::vector<bool> fired(a.entity_count(), false);
+        for (EntityID id = 0; id < a.entity_count(); ++id) {
+            if (!a.has_component<DinoBehaviorComponent>(id)) continue;
+            const auto& d = a.get_component<DinoBehaviorComponent>(id);
+            before[id] = d.state;
+            fired[id] = d.tellCueFired;
+        }
+        tick(a, 1);
+        tick(b, 1);
+        int count = a.consume_audio_cues().raptorTells;
+        XCTAssertEqual(count, b.consume_audio_cues().raptorTells);
+        total += count;
+        for (EntityID id = 0; id < a.entity_count(); ++id) {
+            if (!a.has_component<DinoBehaviorComponent>(id)) continue;
+            const auto& d = a.get_component<DinoBehaviorComponent>(id);
+            if (!fired[id] && d.tellCueFired) cueTick[id] = i;
+            if (before[id] == DinoBehaviorState::Hold && d.state == DinoBehaviorState::Tell) {
+                ++lunges;
+                XCTAssertGreaterThanOrEqual(cueTick[id], 0);
+                float lead = (i - cueTick[id]) / 120.f;
+                XCTAssertEqualWithAccuracy(lead, kTellLeadSeconds, 1.f / 120.f);
+                NSLog(@"pack-test tell: lane=%u lead=%.6f game seconds", d.laneRole, lead);
+            }
+        }
+    }
+    XCTAssertEqual(total, 3);
+    XCTAssertEqual(lunges, 3);
+    XCTAssertEqual(activeRaptorCount(a), 0);
+    XCTAssertEqual(activeRaptorCount(b), 0);
 }
 
 - (void)test_interruptWithinWindowPutsDownWithoutPlayerDamage {

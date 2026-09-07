@@ -21,6 +21,7 @@ static void enter_dormant(World& world, EntityID id, DinoBehaviorComponent& dino
     dino.activeInEncounter = false;
     dino.state = DinoBehaviorState::Dormant;
     dino.stateTime = 0.f;
+    dino.tellCueFired = false;
     dino.lastOutcome = DinoInterruptOutcome::None;
     dino.outcomeThisCycle = false;
     dino.wasHitDuringTell = false;
@@ -37,6 +38,7 @@ static void enter_approach(World& world, EntityID id, DinoBehaviorComponent& din
     dino.activeInEncounter = true;
     dino.state = DinoBehaviorState::Approach;
     dino.stateTime = 0.f;
+    dino.tellCueFired = false;
     dino.lastOutcome = DinoInterruptOutcome::None;
     dino.outcomeThisCycle = false;
     dino.wasHitDuringTell = false;
@@ -60,6 +62,7 @@ static CharacterClipSlot hold_clip(World& world) {
 static void enter_hold(World& world, EntityID id, DinoBehaviorComponent& dino) {
     dino.state = DinoBehaviorState::Hold;
     dino.stateTime = 0.f;
+    dino.tellCueFired = false;
     AnimationSystem_request_clip(world, id, hold_clip(world));
 }
 
@@ -438,6 +441,12 @@ void DinoBehaviorSystem_update(World& world, float gameDt) {
                 if (dino.targetIndex < kM1MaxTargets) {
                     TargetComponent& target = world.target(dino.targetIndex);
                     target.railDistance += world.rail_camera().speed * gameDt;
+                }
+                float leadPoint = dino.holdDuration + dino.attackDelay - kTellLeadSeconds;
+                if (!dino.tellCueFired && !dino.isBoss
+                    && dino.stateTime >= std::max(0.f, leadPoint)) {
+                    world.audio_cues().raptorTells += 1;
+                    dino.tellCueFired = true;
                 }
                 if (dino.stateTime >= dino.holdDuration + dino.attackDelay
                     && !dino.isBoss) {

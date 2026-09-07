@@ -50,21 +50,25 @@ the Attack clip. From there:
   [`interruptStartNormalized` 0.18, `interruptEndNormalized` 0.46]; the strike
   lands when the clip completes (progress 1.0).
 
-The encounter-feel calibration (default chase window ≈ 4.6s, of which
-approach ≈ 2.38s and hold 2.0s) leaves `tellTime` ≈ 0.22s, and since
-`tellTime = interruptEndNormalized * duration / 4.0`, the raw Attack clip is
-≈ 1.9s — about **0.48s of real time from tell to strike, with a ≈134ms
-interrupt window**.
+**Step 0 measurement (2026-09-06): 0.866666675s baked Attack duration**,
+replacing the derived 1.9s estimate. `usdcat` on
+`assets/characters/dinos/velociraptor/attack.usdz` reports startTimeCode 1,
+endTimeCode 21, and timeCodesPerSecond 24: a 0.833333333s source timeline.
+The exact `CharacterLoader_load` calculation, `ceil(duration * 30) + 1`,
+produces 26 frames; `BakedClip::duration()` is therefore 26 / 30 seconds.
+A temporary RexLogicTests probe registered that measured frame count and
+logged `AnimationSystem_clip_duration(world, id, CharacterClipSlot::Attack)`
+as **0.866666675**. The sandbox cannot create a Metal device or load the
+ModelIO asset, so this verifies the asset metadata and production duration
+calculation, not a full renderer-loaded query. The temporary probe was removed.
 
-So "fire the cue 0.4s before the strike" cannot be done inside `Tell`: the
-entire state is shorter than the lead. Placing it there would also make the
-lead vary per species (clip duration) and per entity (`rateScale`).
+At rateScale 1 and 4× playback, this is about **0.217s from clip start to
+strike**, **60.7ms in Tell**, and a **60.7ms interrupt window** (0.18–0.46).
+The interval through interruptEndNormalized is about 99.7ms. These numbers
+scale inversely with each entity's rateScale.
 
-> **Step 0 for the implementer:** the 1.9s above is derived from the plan
-> doc's arithmetic, not measured. Log the real
-> `AnimationSystem_clip_duration(world, id, CharacterClipSlot::Attack)` for
-> the velociraptor once and record it in this doc. If it differs materially,
-> the placement below still holds — only the prose numbers change.
+So a 0.45s lead cannot fit inside Tell. Placing the cue there would also make
+the lead vary per species (clip duration) and per entity (rateScale).
 
 **Therefore the cue fires during `Hold`, at a fixed lead before the lunge**,
 where the transition instant is exactly known and independent of clip data:
@@ -244,6 +248,40 @@ they fit naturally):
 
 Then `scripts/smoke.sh --autotest` for the suite and `scripts/smoke.sh` for a
 launch check. Use `REX_MUTE=1` for any manual run.
+
+## Implementation verification (2026-09-06)
+
+- Kept `kTellLeadSeconds = 0.45f`: the actual `pack-test` chart wave
+  produced one cue per raptor, with measured leads of 0.450000 game seconds
+  for lanes 0, 1, and 2. Identically seeded worlds matched on every tick.
+- All eight test-plan scenarios are covered in `DinoBehaviorTests.mm`,
+  including zero-duration arena Hold, short close_ambush Hold, all three
+  latch resets, and three simultaneous tells remaining unclamped in the sim.
+- Direct XCTest execution: **88 tests, 0 failures**. The tests use the existing
+  headless animation fallback; Step 0's separate asset measurement is above.
+- Silent synthetic-buffer probe: 16,800 frames at 48 kHz (0.35s), finite
+  matching stereo samples, zero endpoints, peak 0.5230, RMS 0.1290.
+  `REX_AUDIO_LOG=1` logged `AudioEngine: SFX raptor_tell` through the real
+  method using the buffer with no engine/player nodes attached. This checks
+  synthesis and dispatch, not audible mixing against the music.
+- `scripts/smoke.sh --autotest` was attempted again after the fixture fix:
+  exit 65, because sandbox restrictions block `com.apple.testmanagerd.control`.
+- `scripts/smoke.sh` was also retried: exit 65, missing the team's
+  Mac Development signing certificate/private key. An unsigned macOS build
+  passed, but a separate muted unsigned launch aborted (SIGABRT) without logs.
+  **Neither requested smoke script passed in this environment.**
+- Interactive/probe launches used `REX_MUTE=1`. Audible mix evaluation
+  remains unverified.
+- **Step 0 confirmed against a real renderer-loaded run (Claude, 2026-09-06).**
+  `scripts/smoke.sh` passed outside the sandbox ("smoke: launch ok") and its
+  `CharacterLoader` log independently reports the velociraptor attack clip as
+  **26 frames**, matching the static derivation above, so
+  `BakedClip::duration()` = 26/30 = 0.8667s as recorded. Note the log's own
+  "0.83s" is the *source* duration `dur`, not the baked
+  `AnimationSystem_clip_duration` the sim uses — do not confuse the two.
+  The 36-frame / 1.17s attack clip in the same log belongs to the **trex**,
+  which is loaded second (`RexRenderer.mm:500`) and never melees, so it never
+  reaches `Tell` and does not affect any number here.
 
 ## Explicitly out of scope
 
