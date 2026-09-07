@@ -46,23 +46,33 @@ at a different frame rate the same physical motion lands on a different number
 of ticks. This is the central reason a naive "record what the shell sent"
 replay would not reproduce.
 
-### 2. Gyro is a raw per-tick delta, and is frame-rate coupled (a live bug)
+### 2. Gyro sample-and-hold perturbs the reticle path (corrected)
 
-The shells sample `motion.rotationRate` once per frame and pre-scale it by a
-hardcoded `1.0 / 120.0` (`Rex-tvOS/GameViewController.mm:204-205`, macOS
-equivalent), as if a frame were a tick. `ReticleSystem.mm:133-134` then
-applies it with **no `gameDt`**:
+**An earlier draft of this plan claimed gyro aim was frame-rate coupled and
+needed a ~120x sensitivity rescale. That was wrong, and Codex caught it at the
+stop-and-report gate before any code moved.** The correction is recorded here
+because the wrong version is the intuitive one:
 
-```cpp
-dx += gyroX * s_tuning.gyroSensitivityH;   // stick above it is * gameDt; this is not
+```
+current:   dx += (r / 120) * S            // shell pre-scales, no gameDt
+proposed:  dx += r * S_new * gameDt       // gameDt is ALWAYS kFixedDt = 1/120
+equal when S_new == S                     // a factor of 1, not 120
 ```
 
-So the reticle trajectory depends on how ticks land inside frames. The
-long-run average survives (the accumulator still runs 120 ticks/second), but
-*which* samples get applied twice differs with frame rate — and the stillness
-smoothing (`smooth_toward`) is a stateful IIR filter, so tick alignment
-compounds into a different path, not just different noise. On a 120Hz ProMotion
-Mac versus a 60Hz Apple TV, the same wrist motion aims differently today.
+`ReticleSystem_update` is passed `gameDt`, never the slow-mo `worldDt`
+(`World.mm:454`), so it is always exactly `kFixedDt`. The shell's `/120` and
+the proposed `gameDt` cancel. The sensitivity constants never absorbed that
+factor.
+
+And the aggregate is already frame-rate independent: over wall time T the
+accumulator runs 120T ticks, each adding `(r_held / 120) * S`, which sums to
+`S * integral(r dt)` regardless of how frames chopped it up.
+
+What *is* frame-rate dependent is which sample gets held across how many
+ticks. That changes the exact reticle path and the stillness IIR's internal
+state (`smooth_toward` on `smoothedGyroX/Y`) — a genuine determinism problem,
+but it is **leak 1 wearing a different hat**, and per-tick capture fixes it.
+There is no separate gyro bug to fix.
 
 ### 3. `ReticleTuning` is a mutable global that decides scoring
 
@@ -137,31 +147,31 @@ bool replay_finished() const;
 During replay, `tick` populates `_inputs[]` from the log by tick index and
 **ignores `set_input`** entirely, so a live controller cannot perturb a replay.
 
-## Decision 2 — Latch gyro into the tick
+## Decision 2 — Document the gyro unit contract; change no behaviour
 
-Fix leak 2 at the seam, and fix the live bug at the same time.
+Given the correction above, the arithmetic is already right. Converting to a
+rate-based form would be behaviour-neutral **only** if the sensitivities stay
+identical and `stillnessThreshold` (0.0014) plus the gyro-availability epsilon
+(1e-6) are both scaled 120x, since those compare against a magnitude whose
+units would change from radians-per-tick to radians-per-second. That is real
+risk to aim feel in exchange for zero functional gain.
 
-The shells stop pre-scaling by `1.0/120.0` and instead pass the **raw
-`rotationRate`** (radians/sec) in `gyroDeltaX/Y`. Rename the fields to
-`gyroRateX`/`gyroRateY` so the units are not a lie. `ReticleSystem` then
-consumes them as a rate:
+So: **do not change the math.** Instead:
 
-```cpp
-dx += gyroX * s_tuning.gyroSensitivityH * gameDt;   // now matches the stick path
-```
+- Add a comment at the shell sample site (`Rex-tvOS/GameViewController.mm:204`
+  and the macOS equivalent) stating that `rotationRate` is converted to
+  radians-per-tick here because `ReticleSystem` consumes gyro as a per-tick
+  delta, and that this is what makes the aggregate frame-rate independent.
+- Add a comment at `ReticleSystem.mm:133` explaining why gyro has no `gameDt`
+  where the stick immediately above it does, and that adding one would require
+  rescaling `stillnessThreshold` and the availability epsilon by 120.
+- Leave `gyroDeltaX`/`gyroDeltaY` named as they are. They *are* deltas; the
+  earlier confusion was a misreading, not a bad name.
 
-This makes gyro aim frame-rate independent — the same wrist motion produces
-the same reticle travel at 60Hz or 120Hz — and it makes a per-tick recorded
-value meaningful rather than an artifact of frame pacing.
-
-**This changes aim feel.** `gyroSensitivityH/V` currently absorb the implicit
-`1/120`, so the raw numbers must be rescaled by ~120x to preserve today's
-feel. Compute the equivalent defaults, keep the clamp ranges proportional, and
-say plainly in the commit that gyro sensitivity constants moved and why.
-
-> If a rescale that preserves feel cannot be derived confidently, stop and say
-> so rather than shipping a silent sensitivity change. This is the one place
-> in this plan where getting it wrong is felt immediately by the player.
+Note while here: `gyroDriftX/Y` is accumulated every tick and never read
+except by one test asserting it is ~0 after a recenter. It is dead
+bookkeeping. Leave it (it is harmless and the test documents recenter), but do
+not let its presence imply it feeds aim.
 
 ## Decision 3 — The header carries everything that is not input
 
@@ -246,9 +256,9 @@ the harness will be asserting against the wrong timings.
 3. Decision 1 (`InputRecording` port + tick-seam capture/replay).
 4. Decision 3 (header fields + loud mismatch errors).
 5. Decision 6 (timeline capture + `ReplayTests.mm` + env hooks).
-6. Decision 2 (gyro latch + sensitivity rescale) — last, because it is the
-   only step that changes feel, and doing it last means the harness built in
-   steps 1-5 can prove it changed nothing else.
+6. Decision 2 (comments only) — last and trivial. It changes no behaviour,
+   so the harness from steps 1-5 should show a byte-identical timeline across
+   it. If it does not, something is wrong with the harness, not the comments.
 
 ## Test plan
 
@@ -267,9 +277,11 @@ the harness will be asserting against the wrong timings.
 - Frame-rate independence: driving `World::update` with a ragged `physicalDt`
   sequence (e.g. alternating 1/60 and 1/144, plus one long hitch) produces the
   same per-tick timeline as a uniform 1/120 drive, for the same tick count.
-- Gyro: a fixed rotation rate applied over one second of ticks produces the
-  same total reticle displacement regardless of the `physicalDt` pattern
-  (the leak-2 regression test).
+- Gyro aggregate (characterization, expected to pass unchanged): a fixed
+  rotation rate applied over one second produces the same total reticle
+  displacement under a uniform 1/120 drive and a ragged one. This locks in the
+  property that made the rescale unnecessary, so a future refactor that breaks
+  it fails loudly.
 - Clip table: the per-species table matches the loaded assets' baked durations
   within epsilon, asserted in a test rather than only logged.
 
@@ -289,8 +301,8 @@ say which checks did and did not run.
   do not chase it or start adding `-ffp-contract` flags.
 - **Replay compression, seeking, or a scrubbing UI.** Text logs, played from
   the start.
-- **Retuning any gameplay constant** beyond the gyro sensitivity rescale that
-  Decision 2 forces. In particular `kTellLeadSeconds` and
-  `interruptEndNormalized` stay where they are; they are still unfelt.
+- **Retuning any gameplay constant.** `gyroSensitivityH/V`,
+  `stillnessThreshold`, `kTellLeadSeconds` and `interruptEndNormalized` all
+  stay exactly where they are. Decision 2 is comments only.
 - **Networked or shared replays**, score verification as an anti-cheat
   feature, and ghost playback.
