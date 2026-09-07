@@ -109,6 +109,8 @@
     for (int i = 0; i < cues.shotsFired; ++i) [_audio playFireSound];
     // More than two identical buffers layered combs rather than reading as
     // more animals. Keep the truthful per-dino count in the simulation.
+    int hurts = std::min(cues.playerHurts, 2);
+    for (int i = 0; i < hurts; ++i) [_audio playHurtSound];
     int tells = std::min(cues.raptorTells, 2);
     for (int i = 0; i < tells; ++i) [_audio playRaptorTellSound];
 }
@@ -121,6 +123,11 @@
 
 - (InputState)currentInputStateForPlayer:(int)playerIndex {
     return (playerIndex >= 0 && playerIndex < 4) ? _inputs[playerIndex] : InputState{};
+}
+
+- (uint32_t)hurtCountForPlayer:(int)playerIndex {
+    if (!_world || playerIndex < 0 || playerIndex >= 4) return 0;
+    return _world->player_health(playerIndex).hitCount;
 }
 
 - (uint32_t)shotCountForPlayer:(int)playerIndex {

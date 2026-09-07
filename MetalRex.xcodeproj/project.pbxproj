@@ -135,6 +135,7 @@
 		023616D91291A9D8D903896B /* ChartLoader.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = ChartLoader.mm; sourceTree = "<group>"; };
 		0604376B2E287273A588D819 /* ScreenShakeSystem.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = ScreenShakeSystem.mm; sourceTree = "<group>"; };
 		06C96980F27DD82DD5C0F838 /* AVFoundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AVFoundation.framework; path = System/Library/Frameworks/AVFoundation.framework; sourceTree = SDKROOT; };
+		07EBCFD2EBA21A1CC4884F0E /* PLAN-LEGIBILITY.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = "PLAN-LEGIBILITY.md"; sourceTree = "<group>"; };
 		0AAB5666AC65C1A045CAABD0 /* GameViewController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = GameViewController.h; sourceTree = "<group>"; };
 		105B2556BDC7A289744004EC /* Shaders */ = {isa = PBXFileReference; lastKnownFileType = folder; path = Shaders; sourceTree = SOURCE_ROOT; };
 		15F5E5BB6F9B426318D2F765 /* ParticleSim.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ParticleSim.h; sourceTree = "<group>"; };
@@ -466,6 +467,7 @@
 				4FE3EA6AD3A9F146AD19CDD4 /* DESIGN.md */,
 				F29F0417E72A26D9C31C7E78 /* PLAN-AUDIO-TELL.md */,
 				1BB94F700F2042A7295A9FBF /* PLAN-ENCOUNTER-FEEL.md */,
+				07EBCFD2EBA21A1CC4884F0E /* PLAN-LEGIBILITY.md */,
 				C32528CD28DE93AE376944FF /* PLAN-M1.md */,
 				44240F80D2BF011C75CD0B47 /* PLAN-M2.md */,
 				D4512AAC63BD685BFAB6F7E4 /* PLAN-M3.md */,

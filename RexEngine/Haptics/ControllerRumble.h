@@ -16,5 +16,6 @@
 
 // Short sharp tap — call once per shot fired.
 - (void)playShootPulse;
+- (void)playHurtPulse;
 
 @end

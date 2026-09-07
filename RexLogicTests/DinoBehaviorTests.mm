@@ -930,4 +930,52 @@ static void isolateTellWorld(World& world) {
     XCTAssertGreaterThan(simd_length(ScreenShakeSystem_offset(world)), 0.f);
 }
 
+
+- (void)test_interruptWindowClearsAtEveryExit {
+    // Poison the flag before each real transition to catch missing clears.
+    for (int path = 0; path < 6; ++path) {
+        World world;
+        world.set_next_chart_event_index(world.chart().events.size());
+        EntityID id = findDino(world);
+        auto& dino = world.get_component<DinoBehaviorComponent>(id);
+        activateDino(world, id, DinoBehaviorState::Approach);
+        auto& anim = world.get_component<AnimationComponent>(id);
+        DinoBehaviorState expected = DinoBehaviorState::Dormant;
+        switch (path) {
+            case 0: dino.state = DinoBehaviorState::PutDown; dino.stateTime = 1.f; break;
+            case 1: dino.state = DinoBehaviorState::Retreat; dino.arena = true;
+                    dino.stateTime = 100.f; expected = DinoBehaviorState::Approach; break;
+            case 2: placeWithinAttackRange(world, dino); expected = DinoBehaviorState::Hold; break;
+            case 3: dino.arena = true; expected = DinoBehaviorState::Retreat; break;
+            case 4: dino.health = 1; world.target(dino.targetIndex).wasHit = true;
+                    expected = DinoBehaviorState::PutDown; break;
+            case 5: expected = DinoBehaviorState::Departing; break;
+        }
+        if (path == 3 || path == 5) {
+            dino.state = DinoBehaviorState::Attack;
+            anim.currentClip = CharacterClipSlot::Attack;
+            anim.clipTime = AnimationSystem_clip_duration(world, id, CharacterClipSlot::Attack);
+            anim.clipDone = true;
+        }
+        dino.interruptWindowOpen = true;
+        DinoBehaviorSystem_update(world, 1.f / 120.f);
+        XCTAssertEqual(dino.state, expected, @"transition %d", path);
+        XCTAssertFalse(dino.interruptWindowOpen, @"transition %d", path);
+    }
+}
+
+- (void)test_earlyPutDownNeverOpensWindow {
+    World world;
+    EntityID id = activateSingleEntryWave(world, RaptorArchetype::Chase, 1, 123);
+    auto& dino = world.get_component<DinoBehaviorComponent>(id);
+    dino.health = 1;
+    XCTAssertFalse(dino.interruptWindowOpen);
+    world.target(dino.targetIndex).wasHit = true;
+    for (int i = 0; i < 120; ++i) {
+        tick(world, 1);
+        XCTAssertFalse(dino.interruptWindowOpen);
+    }
+    XCTAssertEqual(dino.state, DinoBehaviorState::Dormant);
+}
+
 @end

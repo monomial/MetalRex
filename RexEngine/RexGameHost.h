@@ -26,6 +26,7 @@
 // per-frame to spawn tracers. Platform layers diff this the same way to
 // trigger one controller-rumble pulse per shot (see ControllerRumble).
 - (uint32_t)shotCountForPlayer:(int)playerIndex;
+- (uint32_t)hurtCountForPlayer:(int)playerIndex;
 
 @property (nonatomic) uint32_t rngSeedOverride;
 @property (nonatomic) float fixedFrameDt;

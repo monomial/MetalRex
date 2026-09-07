@@ -221,6 +221,8 @@ struct DinoBehaviorComponent {
     DinoInterruptOutcome lastOutcome = DinoInterruptOutcome::None;
     bool outcomeThisCycle = false;
     // Pre-lunge vocalisation, emitted once during Hold and reset for each attack cycle.
+    // Shares the attack progress used by interrupt scoring.
+    bool interruptWindowOpen = false;
     bool tellCueFired = false;
     float stateTime = 0.f;
     // Rail-units/second the dino runs after the jeep during Approach. Must
@@ -366,7 +368,8 @@ static constexpr float kArenaInterWaveDelay = 2.0f; // breather between waves
 struct PlayerHealthState {
     int health = 100;
     int maxHealth = 100;
-    float hitFlashTime = 0.f; // brief red screen flash on taking a hit
+    uint32_t hitCount = 0;
+    float hitFlashTime = 0.f; // brief player-colored flash on taking a hit
     // Post-hit grace window: without this, dinos whose attack windows happen
     // to land in the same tick (or the next) could stack damage from a
     // single moment of bad luck into an instant death. Sized to be longer

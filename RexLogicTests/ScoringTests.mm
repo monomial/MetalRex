@@ -3,6 +3,7 @@
 #include "Simulation/Systems/ReticleSystem.h"
 #include "Simulation/Systems/ScoringSystem.h"
 #include "Simulation/World.h"
+#include "Simulation/Systems/AnimationSystem.h"
 
 @interface ScoringTests : XCTestCase
 @end
@@ -145,6 +146,53 @@ static EntityID findDino(World& world) {
     // Zero shots fired must not divide by zero; it's a D.
     PlayerScoreState idle = {};
     XCTAssertEqual(ScoringSystem_letter_grade(idle), 'D');
+}
+
+
+- (void)test_windowMatchesActualInterruptAwardFromEveryCycleSnapshot {
+    World world;
+    world.set_next_chart_event_index(world.chart().events.size());
+    world.rail_camera().speed = 0.f;
+    EntityID id = findDino(world);
+    auto& dino = world.get_component<DinoBehaviorComponent>(id);
+    dino.activeInEncounter = true;
+    dino.state = DinoBehaviorState::Approach;
+    dino.holdDuration = 0.1f;
+    dino.attackDelay = 0.f;
+    auto& target = world.target(dino.targetIndex);
+    target.active = true;
+    target.railDistance = world.rail_camera().distance - dino.attackRange + 0.5f;
+    bool sawOpen = false, sawClosedAfter = false, sawPutDown = false;
+    for (int tick = 0; tick < 200; ++tick) {
+        AnimationSystem_update(world, 1.f / 120.f);
+        // Branch from this run's exact pre-behavior state; no parallel
+        // formula for the expected window, just an actual scoring attempt.
+        World shot = world;
+        auto& shotTarget = shot.target(dino.targetIndex);
+        shotTarget.wasHit = true;
+        shotTarget.lastHitByPlayer = 0;
+        int before = shot.score(0).interruptSuccesses;
+        DinoBehaviorSystem_update(shot, 1.f / 120.f);
+        ScoringSystem_update(shot, 1.f / 120.f);
+        DinoBehaviorSystem_update(world, 1.f / 120.f);
+        ScoringSystem_update(world, 1.f / 120.f);
+        XCTAssertEqual(dino.interruptWindowOpen, shot.score(0).interruptSuccesses > before);
+        if (dino.interruptWindowOpen) {
+            sawOpen = true;
+            XCTAssertEqual(shot.score(0).score - world.score(0).score, 50);
+            XCTAssertFalse(shot.get_component<DinoBehaviorComponent>(id).interruptWindowOpen);
+        } else if (sawOpen && dino.state == DinoBehaviorState::Attack && !sawPutDown) {
+            sawClosedAfter = true;
+            dino.health = 1;
+            target.wasHit = true;
+            target.lastHitByPlayer = 0;
+        }
+        sawPutDown |= dino.state == DinoBehaviorState::PutDown;
+    }
+    XCTAssertTrue(sawOpen);
+    XCTAssertTrue(sawClosedAfter);
+    XCTAssertTrue(sawPutDown);
+    XCTAssertEqual(dino.state, DinoBehaviorState::Dormant);
 }
 
 @end

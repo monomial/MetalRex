@@ -18,6 +18,7 @@ static void clear_target_hit(TargetComponent& target) {
 }
 
 static void enter_dormant(World& world, EntityID id, DinoBehaviorComponent& dino) {
+    dino.interruptWindowOpen = false;
     dino.activeInEncounter = false;
     dino.state = DinoBehaviorState::Dormant;
     dino.stateTime = 0.f;
@@ -35,6 +36,7 @@ static void enter_dormant(World& world, EntityID id, DinoBehaviorComponent& dino
 }
 
 static void enter_approach(World& world, EntityID id, DinoBehaviorComponent& dino) {
+    dino.interruptWindowOpen = false;
     dino.activeInEncounter = true;
     dino.state = DinoBehaviorState::Approach;
     dino.stateTime = 0.f;
@@ -60,6 +62,7 @@ static CharacterClipSlot hold_clip(World& world) {
 }
 
 static void enter_hold(World& world, EntityID id, DinoBehaviorComponent& dino) {
+    dino.interruptWindowOpen = false;
     dino.state = DinoBehaviorState::Hold;
     dino.stateTime = 0.f;
     dino.tellCueFired = false;
@@ -79,12 +82,14 @@ static void enter_attack(World& world, EntityID id, DinoBehaviorComponent& dino)
 }
 
 static void enter_retreat(World& world, EntityID id, DinoBehaviorComponent& dino) {
+    dino.interruptWindowOpen = false;
     dino.state = DinoBehaviorState::Retreat;
     dino.stateTime = 0.f;
     AnimationSystem_force_clip(world, id, CharacterClipSlot::Run);
 }
 
 static void enter_put_down(World& world, EntityID id, DinoBehaviorComponent& dino) {
+    dino.interruptWindowOpen = false;
     dino.health = 0;
     dino.state = DinoBehaviorState::PutDown;
     dino.stateTime = 0.f;
@@ -102,6 +107,7 @@ static void enter_put_down(World& world, EntityID id, DinoBehaviorComponent& din
 }
 
 static void enter_departing(World& world, EntityID id, DinoBehaviorComponent& dino) {
+    dino.interruptWindowOpen = false;
     dino.state = DinoBehaviorState::Departing;
     dino.stateTime = 0.f;
     AnimationSystem_force_clip(world, id, CharacterClipSlot::Run);
@@ -324,7 +330,10 @@ void DinoBehaviorSystem_update(World& world, float gameDt) {
         if (!dino.activeInEncounter && dino.state != DinoBehaviorState::Dormant) {
             dino.state = DinoBehaviorState::Dormant;
         }
-        if (!dino.activeInEncounter) continue;
+        if (!dino.activeInEncounter) {
+            dino.interruptWindowOpen = false;
+            continue;
+        }
 
         dino.stateTime += gameDt;
         AnimationComponent* anim = world.has_component<AnimationComponent>(id)
@@ -350,23 +359,23 @@ void DinoBehaviorSystem_update(World& world, float gameDt) {
         if (dino.hitFlashTime > 0.f) {
             dino.hitFlashTime = std::max(0.f, dino.hitFlashTime - gameDt);
         }
-        bool interruptPutDown = false;
-        if (wasShot && !dino.isBoss && anim
-            && (dino.state == DinoBehaviorState::Tell || dino.state == DinoBehaviorState::Attack)) {
-            float progress = attack_progress(world, id, *anim);
-            interruptPutDown = progress >= dino.interruptStartNormalized
-                            && progress <= dino.interruptEndNormalized;
-            if (interruptPutDown) {
-                dino.lastOutcome = DinoInterruptOutcome::Succeeded;
-                dino.outcomeThisCycle = true;
-                world.events().push_dino_score(shotPlayer,
-                                               DinoScoreEvent::InterruptSuccess,
-                                               dino.species,
-                                               world.target(dino.targetIndex).screenX,
-                                               world.target(dino.targetIndex).screenY);
-                enter_put_down(world, id, dino);
-                continue;
-            }
+        // One progress sample drives both the visual and this tick's award.
+        const bool attackCycle = dino.state == DinoBehaviorState::Tell
+                              || dino.state == DinoBehaviorState::Attack;
+        const float progress = attackCycle && anim ? attack_progress(world, id, *anim) : 0.f;
+        dino.interruptWindowOpen = !dino.isBoss && anim && attackCycle
+                               && progress >= dino.interruptStartNormalized
+                               && progress <= dino.interruptEndNormalized;
+        if (wasShot && dino.interruptWindowOpen) {
+            dino.lastOutcome = DinoInterruptOutcome::Succeeded;
+            dino.outcomeThisCycle = true;
+            world.events().push_dino_score(shotPlayer,
+                                       DinoScoreEvent::InterruptSuccess,
+                                       dino.species,
+                                       world.target(dino.targetIndex).screenX,
+                                       world.target(dino.targetIndex).screenY);
+            enter_put_down(world, id, dino);
+            continue;
         }
         if (wasShot && dino.state != DinoBehaviorState::PutDown
                     && dino.state != DinoBehaviorState::Departing) {
@@ -486,7 +495,6 @@ void DinoBehaviorSystem_update(World& world, float gameDt) {
                     break;
                 }
 
-                float progress = attack_progress(world, id, *anim);
                 if (progress >= dino.tellEndNormalized && dino.state == DinoBehaviorState::Tell) {
                     if (!dino.wasHitDuringTell && dino.targetIndex < kM1MaxTargets) {
                         int missedPlayer = nearest_damage_target_player(world, world.target(dino.targetIndex));

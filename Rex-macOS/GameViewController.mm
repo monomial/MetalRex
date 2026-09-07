@@ -13,6 +13,7 @@
     GCController *_controller;
     ControllerRumble *_rumble;
     uint32_t _lastShotCount;
+    uint32_t _lastHurtCount;
     BOOL _left, _right, _up, _down, _fire, _recenter, _pause;
     // Controller state mirrored into ivars by the GCController handlers.
     // The 120Hz feed below is the ONLY writer of the host's input state —
@@ -169,6 +170,18 @@
         _lastShotCount = shots;
         for (uint32_t s = 0; s < newShots && s < 3; ++s) {
             [_rumble playShootPulse];
+        }
+    }
+    uint32_t hurts = [_host hurtCountForPlayer:0];
+    if (hurts < _lastHurtCount) {
+        // Run restart (play-again zeroes hurtCount): resync without phantom
+        // rumble pulses from the unsigned wraparound.
+        _lastHurtCount = hurts;
+    } else if (hurts != _lastHurtCount) {
+        uint32_t newHurts = hurts - _lastHurtCount;
+        _lastHurtCount = hurts;
+        for (uint32_t s = 0; s < newHurts && s < 3; ++s) {
+            [_rumble playHurtPulse];
         }
     }
 }

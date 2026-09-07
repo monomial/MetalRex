@@ -13,6 +13,7 @@ static const int kMaxPlayers = 4;
     GCController *_assignedControllers[kMaxPlayers];
     ControllerRumble *_rumble[kMaxPlayers];
     uint32_t _lastShotCount[kMaxPlayers];
+    uint32_t _lastHurtCount[kMaxPlayers];
 }
 
 - (void)viewDidLoad {
@@ -220,6 +221,18 @@ static const int kMaxPlayers = 4;
             _lastShotCount[slot] = shots;
             for (uint32_t s = 0; s < newShots && s < 3; ++s) {
                 [_rumble[slot] playShootPulse];
+            }
+        }
+        uint32_t hurts = [_host hurtCountForPlayer:slot];
+        if (hurts < _lastHurtCount[slot]) {
+            // Run restart (play-again zeroes hurtCount): resync without
+            // phantom rumble pulses from the unsigned wraparound.
+            _lastHurtCount[slot] = hurts;
+        } else if (hurts != _lastHurtCount[slot]) {
+            uint32_t newHurts = hurts - _lastHurtCount[slot];
+            _lastHurtCount[slot] = hurts;
+            for (uint32_t s = 0; s < newHurts && s < 3; ++s) {
+                [_rumble[slot] playHurtPulse];
             }
         }
     }

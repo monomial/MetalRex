@@ -751,8 +751,10 @@ static id<MTLTexture> Rex_makeSkyGradientTexture(id<MTLDevice> device) {
         // deathFade — the shader screen-door-dissolves the corpse as it
         // drops below 1.
         bool hitFlash = dino.hitFlashTime > 0.f;
+        bool window = dino.interruptWindowOpen;
         uniforms.color = hitFlash ? (simd_float4){0.96f, 0.78f, 0.24f, anim.deathFade}
-                                  : (simd_float4){1.f, 1.f, 1.f, anim.deathFade};
+                                  : window ? (simd_float4){0.45f, 0.95f, 1.f, anim.deathFade}
+                                           : (simd_float4){1.f, 1.f, 1.f, anim.deathFade};
         // Boss escalation reads as a deepening red flush: phase 1 warms the
         // hide, phase 2 is unmistakably enraged. The hit flash still wins
         // while it runs (brighter, distinct color).
@@ -763,10 +765,10 @@ static id<MTLTexture> Rex_makeSkyGradientTexture(id<MTLDevice> device) {
             dx, camera.positionY - target.worldY, dz});
         simd_float3 lightDir = simd_normalize(towardCamera + (simd_float3){0.f, 0.9f, 0.f});
         uniforms.lightDir = (simd_float4){lightDir.x, lightDir.y, lightDir.z, 0.f};
-        if (!hitFlash && rageTint > 0.f) {
+        if (!hitFlash && !window && rageTint > 0.f) {
             uniforms.color = (simd_float4){1.f, 0.30f, 0.22f, anim.deathFade};
         }
-        uniforms.tintStrength = hitFlash ? 0.45f : rageTint;
+        uniforms.tintStrength = hitFlash ? 0.45f : (window ? 0.50f : rageTint);
 
         [encoder setVertexBuffer:character->vertexBuffer offset:0 atIndex:0];
         [encoder setVertexBytes:anim.boneMatrices length:sizeof(anim.boneMatrices) atIndex:1];
@@ -1537,6 +1539,36 @@ static id<MTLTexture> Rex_makeScoreTexture(id<MTLDevice> device, NSString *score
     return tex;
 }
 
+- (void)_drawWeakPoints:(World *)world encoder:(id<MTLRenderCommandEncoder>)encoder {
+    if (world->phase() != GamePhase::Playing) return;
+    std::vector<RexVertex> brackets;
+    for (EntityID id = 0; id < world->entity_count(); ++id) {
+        if (!world->has_component<DinoBehaviorComponent>(id)) continue;
+        const auto& dino = world->get_component<DinoBehaviorComponent>(id);
+        if (!dino.active || !dino.activeInEncounter || dino.isBoss
+            || dino.targetIndex >= kM1MaxTargets) continue;
+        const auto& target = world->target(dino.targetIndex);
+        if (!target.active || target.weakPointHalfW <= 0.f) continue;
+        // RailCamera owns this box, including the off-screen zero sentinel.
+        simd_float3 c = [self _screenPointX:target.screenX
+                                        y:target.screenY + target.weakPointOffsetY z:0.03f];
+        float radius = target.weakPointHalfW * _halfW * 2.f;
+        float height = radius * 0.45f;
+        for (int side : {-1, 1}) {
+            float x = c.x + (float)side * radius;
+            float inner = x - (float)side * radius * 0.3f;
+            brackets.push_back({{x, c.y - height, c.z}});
+            brackets.push_back({{x, c.y + height, c.z}});
+            brackets.push_back({{x, c.y - height, c.z}});
+            brackets.push_back({{inner, c.y - height, c.z}});
+            brackets.push_back({{x, c.y + height, c.z}});
+            brackets.push_back({{inner, c.y + height, c.z}});
+        }
+    }
+    [self _drawVertices:brackets color:(simd_float4){0.9f, 0.9f, 0.85f, 0.6f}
+              primitive:MTLPrimitiveTypeLine mvp:_overlayProjection encoder:encoder];
+}
+
 - (void)_drawReticles:(World *)world encoder:(id<MTLRenderCommandEncoder>)encoder {
     // Frame dt for the tracer animation (cosmetic only, so wall-clock is fine).
     CFTimeInterval now = CACurrentMediaTime();
@@ -2167,7 +2199,6 @@ static id<MTLTexture> Rex_makeScoreTexture(id<MTLDevice> device, NSString *score
     float barHeight = 20.f;
     float rowGap = 30.f;
 
-    float maxHitFlash = 0.f;
     for (int slot = 0; slot < activeCount; ++slot) {
         int player = activePlayers[slot];
         const PlayerHealthState& health = world->player_health(player);
@@ -2193,7 +2224,6 @@ static id<MTLTexture> Rex_makeScoreTexture(id<MTLDevice> device, NSString *score
         }
         [self _drawScoreForPlayer:player score:world->score(player)
                           centerX:scoreCenterX centerY:scoreCenterY encoder:encoder];
-        maxHitFlash = std::max(maxHitFlash, health.hitFlashTime);
     }
 
     for (EntityID id = 0; id < world->entity_count(); ++id) {
@@ -2258,11 +2288,17 @@ static id<MTLTexture> Rex_makeScoreTexture(id<MTLDevice> device, NSString *score
                              _scoreFloaters.end());
     }
 
-    if (maxHitFlash > 0.f) {
-        float alpha = std::clamp(maxHitFlash / 0.35f, 0.f, 1.f) * 0.35f;
+    for (int slot = 0; slot < activeCount; ++slot) {
+        int player = activePlayers[slot];
+        float time = world->player_health(player).hitFlashTime;
+        if (time <= 0.f) continue;
+        simd_float4 color = kReticleColors[player];
+        color.w = std::clamp(time / 0.35f, 0.f, 1.f) * 0.35f;
+        float halfWidth = activeCount == 1 ? _halfW : _halfW * 0.5f;
+        float centerX = activeCount == 1 ? 0.f : ((player % 2) == 0 ? -halfWidth : halfWidth);
         std::vector<RexVertex> vignette;
-        [self _appendQuad:vignette center:(simd_float3){0.f, 0.f, 0.02f} halfW:_halfW halfH:_halfH];
-        [self _drawVertices:vignette color:(simd_float4){0.85f, 0.05f, 0.05f, alpha}
+        [self _appendQuad:vignette center:(simd_float3){centerX, 0.f, 0.02f} halfW:halfWidth halfH:_halfH];
+        [self _drawVertices:vignette color:color
                   primitive:MTLPrimitiveTypeTriangle mvp:_overlayProjection encoder:encoder];
     }
 
@@ -2673,6 +2709,7 @@ static id<MTLTexture> Rex_makeScoreTexture(id<MTLDevice> device, NSString *score
 
     [encoder setDepthStencilState:_overlayDepthState];
     if (world) {
+        [self _drawWeakPoints:world encoder:encoder];
         [self _drawReticles:world encoder:encoder];
         [self _drawHUD:world encoder:encoder];
     }

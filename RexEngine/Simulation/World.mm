@@ -259,6 +259,9 @@ void World::damage_player(int playerIndex, int amount) {
     if (health.sittingOut || health.invulnTime > 0.f) return;
     health.health = std::max(0, health.health - amount);
     health.hitFlashTime = 0.35f;
+    ++_audioCues.playerHurts;
+    ++health.hitCount;
+    ScreenShakeSystem_trigger(*this, 0.18f);
     // Post-hit grace: without this, dinos whose attacks land in close
     // succession could stack damage from a single bad moment into an
     // instant death rather than a readable series of hits.

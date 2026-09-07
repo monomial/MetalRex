@@ -1,6 +1,7 @@
 #import <XCTest/XCTest.h>
 #include "Simulation/Systems/DinoBehaviorSystem.h"
 #include "Simulation/World.h"
+#include "Simulation/Systems/ScreenShakeSystem.h"
 
 @interface HealthTests : XCTestCase
 @end
@@ -162,6 +163,108 @@ static void placeWithinAttackRange(World& world, DinoBehaviorComponent& dino) {
     XCTAssertTrue(world.player_health(0).sittingOut);  // P1 still out
     XCTAssertFalse(world.player_health(1).sittingOut); // P2 revived themselves
     XCTAssertTrue(world.any_player_active_and_not_sitting_out());
+}
+
+
+- (void)test_hurtCuesOnlyForLandedHitsAndDrainOnce {
+    World world;
+    ScreenShakeSystem_update(world, 10.f);
+    world.damage_player(0, 20);
+    XCTAssertEqual(world.player_health(0).hitCount, 1u);
+    XCTAssertEqual(world.consume_audio_cues().playerHurts, 1);
+    XCTAssertEqual(world.consume_audio_cues().playerHurts, 0);
+    ScreenShakeSystem_update(world, 1.f / 120.f);
+    XCTAssertGreaterThan(simd_length(ScreenShakeSystem_offset(world)), 0.f);
+
+    // A grace-period no-op must produce no sound, flash, shake, or rumble.
+    ScreenShakeSystem_update(world, 10.f);
+    world.player_health(0).hitFlashTime = 0.f;
+    world.damage_player(0, 20);
+    XCTAssertEqual(world.player_health(0).health, 80);
+    XCTAssertEqual(world.player_health(0).hitCount, 1u);
+    XCTAssertEqual(world.consume_audio_cues().playerHurts, 0);
+    XCTAssertEqual(world.player_health(0).hitFlashTime, 0.f);
+    ScreenShakeSystem_update(world, 1.f / 120.f);
+    XCTAssertEqual(simd_length(ScreenShakeSystem_offset(world)), 0.f);
+
+    world.player_health(0).invulnTime = 0.f;
+    world.damage_player(0, 20);
+    XCTAssertEqual(world.player_health(0).hitCount, 2u);
+    XCTAssertEqual(world.consume_audio_cues().playerHurts, 1);
+
+    ScreenShakeSystem_update(world, 10.f);
+    world.player_health(0).sittingOut = true;
+    world.player_health(0).invulnTime = 0.f; // isolate sittingOut gate
+    world.player_health(0).hitFlashTime = 0.f;
+    world.damage_player(0, 20);
+    XCTAssertEqual(world.player_health(0).health, 60);
+    XCTAssertEqual(world.player_health(0).hitCount, 2u);
+    XCTAssertEqual(world.consume_audio_cues().playerHurts, 0);
+    XCTAssertEqual(world.player_health(0).hitFlashTime, 0.f);
+    ScreenShakeSystem_update(world, 1.f / 120.f);
+    XCTAssertEqual(simd_length(ScreenShakeSystem_offset(world)), 0.f);
+}
+
+- (void)test_twoAttacksOnSameTickEmitOneHurt {
+    World world;
+    world.set_next_chart_event_index(world.chart().events.size());
+    world.reticle(1).active = false;
+    int armed = 0;
+    for (EntityID id = 0; id < world.entity_count() && armed < 2; ++id) {
+        if (!world.has_component<DinoBehaviorComponent>(id)) continue;
+        auto& dino = world.get_component<DinoBehaviorComponent>(id);
+        if (dino.isBoss) continue;
+        placeWithinAttackRange(world, dino);
+        dino.state = DinoBehaviorState::Attack;
+        auto& anim = world.get_component<AnimationComponent>(id);
+        anim.currentClip = CharacterClipSlot::Attack;
+        anim.clipDone = true;
+        ++armed;
+    }
+    XCTAssertEqual(armed, 2);
+    DinoBehaviorSystem_update(world, 1.f / 120.f);
+    XCTAssertEqual(world.consume_audio_cues().playerHurts, 1);
+    XCTAssertEqual(world.player_health(0).hitCount, 1u);
+    XCTAssertEqual(world.player_health(1).hitCount, 0u);
+}
+
+- (void)test_playerTwoHurtDoesNotRumblePlayerOneAndRestartClearsCounts {
+    World world;
+    world.damage_player(1, 20);
+    XCTAssertEqual(world.player_health(0).hitCount, 0u);
+    XCTAssertEqual(world.player_health(1).hitCount, 1u);
+    XCTAssertEqual(world.consume_audio_cues().playerHurts, 1);
+    world.enter_title();
+    XCTAssertEqual(world.player_health(1).hitCount, 0u);
+    XCTAssertEqual(world.consume_audio_cues().playerHurts, 0);
+}
+
+- (void)test_legibilitySequencesAreDeterministic {
+    World a, b;
+    a.set_seed(12345); b.set_seed(12345);
+    bool sawWindow = false, sawHurt = false;
+    for (int i = 0; i < 1800; ++i) {
+        // Include landed hits and grace-period attempts for both slots.
+        if (i % 80 == 0 || i % 80 == 1) {
+            a.damage_player((i / 80) % 2, 1);
+            b.damage_player((i / 80) % 2, 1);
+        }
+        tick(a, 1); tick(b, 1);
+        for (EntityID id = 0; id < a.entity_count(); ++id) {
+            if (!a.has_component<DinoBehaviorComponent>(id)) continue;
+            bool open = a.get_component<DinoBehaviorComponent>(id).interruptWindowOpen;
+            XCTAssertEqual(open, b.get_component<DinoBehaviorComponent>(id).interruptWindowOpen);
+            sawWindow |= open;
+        }
+        int hurts = a.consume_audio_cues().playerHurts;
+        XCTAssertEqual(hurts, b.consume_audio_cues().playerHurts);
+        sawHurt |= hurts > 0;
+        for (int p = 0; p < kRexMaxPlayers; ++p) {
+            XCTAssertEqual(a.player_health(p).hitCount, b.player_health(p).hitCount);
+        }
+    }
+    XCTAssertTrue(sawWindow);
+    XCTAssertTrue(sawHurt);
 }
 
 @end

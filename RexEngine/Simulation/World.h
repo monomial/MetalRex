@@ -20,6 +20,7 @@ static constexpr EntityID kInvalidEntity = UINT32_MAX;
 // favor of visual feedback instead. Shots are tallied at ReticleSystem's
 // fire site; pre-lunge tells are tallied during DinoBehaviorSystem's Hold.
 struct AudioCueCounts {
+    int playerHurts = 0;
     int shotsFired = 0;
     int raptorTells = 0; // pre-lunge vocalisation, emitted during Hold
 };

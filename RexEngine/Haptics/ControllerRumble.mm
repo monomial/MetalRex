@@ -4,6 +4,7 @@
 @implementation ControllerRumble {
     CHHapticEngine *_engine;
     id<CHHapticPatternPlayer> _shootPlayer;
+    id<CHHapticPatternPlayer> _hurtPlayer;
 }
 
 - (instancetype)initWithController:(GCController *)controller {
@@ -48,6 +49,15 @@
     _shootPlayer = [_engine createPlayerWithPattern:pattern error:&err];
     if (!_shootPlayer) NSLog(@"ControllerRumble: player init failed: %@", err);
 
+    CHHapticEvent *hurt = [[CHHapticEvent alloc]
+        initWithEventType:CHHapticEventTypeHapticContinuous
+        parameters:@[
+            [[CHHapticEventParameter alloc] initWithParameterID:CHHapticEventParameterIDHapticIntensity value:0.9f],
+            [[CHHapticEventParameter alloc] initWithParameterID:CHHapticEventParameterIDHapticSharpness value:0.35f]]
+        relativeTime:0 duration:0.18];
+    CHHapticPattern *hurtPattern = [[CHHapticPattern alloc] initWithEvents:@[hurt] parameters:@[] error:&err];
+    if (hurtPattern) _hurtPlayer = [_engine createPlayerWithPattern:hurtPattern error:&err];
+    if (!_hurtPlayer) NSLog(@"ControllerRumble: hurt player init failed: %@", err);
     return self;
 }
 
@@ -59,6 +69,11 @@
     if ([supported containsObject:GCHapticsLocalityDefault]) return GCHapticsLocalityDefault;
     if ([supported containsObject:GCHapticsLocalityAll]) return GCHapticsLocalityAll;
     return supported.anyObject;
+}
+
+- (void)playHurtPulse {
+    if (!_hurtPlayer) return;
+    [_hurtPlayer startAtTime:0 error:nil];
 }
 
 - (void)playShootPulse {
