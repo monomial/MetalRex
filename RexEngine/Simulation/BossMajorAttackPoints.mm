@@ -18,10 +18,17 @@ const BossMajorAttackPoint* BossMajorAttackPoints_for(DinoSpecies species) {
         case DinoSpecies::Trex:
             return kTrexPoints;
         case DinoSpecies::Velociraptor:
+        case DinoSpecies::Triceratops:
+        case DinoSpecies::Stegosaurus:
+        case DinoSpecies::Parasaurolophus:
+        case DinoSpecies::Apatosaurus:
         case DinoSpecies::Count:
             break;
     }
-    // No boss species other than Trex exists yet; fall back to its table
-    // rather than returning null so a caller can't crash on a missing case.
+    // No boss species other than Trex has an authored table yet; fall back to
+    // its rather than returning null so a caller can't crash on a missing
+    // case. The herbivores are listed explicitly instead of behind a default:
+    // so that adding a SEVENTH species warns here again — that warning is the
+    // reminder that a new boss needs its own points.
     return kTrexPoints;
 }

@@ -198,8 +198,10 @@ void World::reset_m1_scene() {
     // (BossChartConfig defaults when absent) — different levels get
     // different bosses by authoring different charts, no code change.
     const BossChartConfig& bossConfig = _chart.boss; // defaults are the classic T-Rex
-    DinoSpecies bossSpecies = bossConfig.species == "velociraptor"
-                            ? DinoSpecies::Velociraptor : DinoSpecies::Trex;
+    // The loader validates chart names; retain the classic fallback for
+    // programmatically constructed configs that bypass chart loading.
+    DinoSpecies bossSpecies = DinoSpecies::Trex;
+    DinoSpecies_from_name(bossConfig.species.c_str(), &bossSpecies);
     bool bossIsTrex = (bossSpecies == DinoSpecies::Trex);
 
     bool bossArrivesLater = bossConfig.arrivalDistance > 0.f;

@@ -171,13 +171,23 @@ static BossChartConfig parse_boss_config(id bossObject) {
     }
     BossChartConfig out; // field defaults double as the fallback values
     out.species = [(NSString *)species UTF8String];
-    // Species whitelist mirrors the loadable character set — a typo (or a
-    // species whose asset hasn't landed yet, e.g. triceratops) must fail at
-    // chart load, not silently render the wrong boss.
-    if (out.species != "trex" && out.species != "velociraptor") {
+    // Validated against BOSS-CAPABLE species, not merely loadable ones: a
+    // typo, or a species with no authored boss proportions and no major-attack
+    // point table, must fail at chart load rather than silently staging a
+    // wrongly-sized boss running the T-Rex's QTE points. The list is generated
+    // so it can never drift from the predicate the way the old hand-written
+    // "(supported: trex, velociraptor)" string could.
+    DinoSpecies parsedSpecies;
+    if (!DinoSpecies_from_name(out.species.c_str(), &parsedSpecies)
+        || !DinoSpecies_is_boss_capable(parsedSpecies)) {
+        NSMutableArray<NSString*> *supported = [NSMutableArray array];
+        for (int s = 0; s < (int)DinoSpecies::Count; ++s) {
+            if (!DinoSpecies_is_boss_capable((DinoSpecies)s)) continue;
+            [supported addObject:[NSString stringWithUTF8String:DinoSpecies_name((DinoSpecies)s)]];
+        }
         throw chart_error([NSString stringWithFormat:
-            @"boss.species '%@' is not a loadable character (supported: trex, velociraptor)",
-            (NSString *)species]);
+            @"boss.species '%@' is not a boss-capable character (supported: %@)",
+            (NSString *)species, [supported componentsJoinedByString:@", "]]);
     }
     out.valid = true;
     out.maxHealth = (int)optional_float(dict, @"health", (float)out.maxHealth);

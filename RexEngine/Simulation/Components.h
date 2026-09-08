@@ -1,5 +1,6 @@
 #pragma once
 #include <stdint.h>
+#include <cstring>
 
 static constexpr int kRexMaxPlayers = 4;
 static constexpr float kHealthPerWindowSecond = 0.6f;
@@ -179,11 +180,54 @@ enum class GamePhase : uint8_t {
     Playing,
 };
 
+// Append only: replay headers and the score timeline serialize these values.
+// Reordering existing species would silently reinterpret old recordings.
 enum class DinoSpecies : uint8_t {
     Velociraptor = 0,
     Trex,
+    Triceratops,
+    Stegosaurus,
+    Parasaurolophus,
+    Apatosaurus,
     Count
 };
+
+// Keep asset directories, chart validation and capture tools on one mapping.
+// Reverse lookup walks it so accepting a species cannot drift from loading it.
+inline const char* DinoSpecies_name(DinoSpecies species) {
+    switch (species) {
+        case DinoSpecies::Velociraptor:     return "velociraptor";
+        case DinoSpecies::Trex:             return "trex";
+        case DinoSpecies::Triceratops:      return "triceratops";
+        case DinoSpecies::Stegosaurus:      return "stegosaurus";
+        case DinoSpecies::Parasaurolophus:  return "parasaurolophus";
+        case DinoSpecies::Apatosaurus:      return "apatosaurus";
+        case DinoSpecies::Count:            return "count";
+    }
+    return "unknown";
+}
+
+// Loadable is not the same as boss-capable. A boss needs authored body
+// proportions (World::reset_m1_scene) and a major-attack point table
+// (BossMajorAttackPoints_for); the herbivores have neither yet. Keeping the
+// two notions apart is what preserves ChartLoader's promise that a boss
+// species it accepts is a boss it can actually stage — see TODOS item 12 for
+// the Triceratops-as-act-2-boss work that flips one of these to true.
+inline bool DinoSpecies_is_boss_capable(DinoSpecies species) {
+    return species == DinoSpecies::Trex || species == DinoSpecies::Velociraptor;
+}
+
+inline bool DinoSpecies_from_name(const char* name, DinoSpecies* out) {
+    if (!name) return false;
+    for (int s = 0; s < (int)DinoSpecies::Count; ++s) {
+        DinoSpecies species = (DinoSpecies)s;
+        if (std::strcmp(name, DinoSpecies_name(species)) == 0) {
+            if (out) *out = species;
+            return true;
+        }
+    }
+    return false;
+}
 
 enum class DinoScoreEvent : uint8_t {
     Hit = 0,

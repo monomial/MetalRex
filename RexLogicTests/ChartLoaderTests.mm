@@ -113,13 +113,13 @@
     XCTAssertEqual(chart.boss.maxHealth, 40);
     XCTAssertEqual(chart.boss.attackDamage, 30);
 
-    // A species with no loadable character (triceratops asset hasn't landed
-    // yet) must fail at parse time, not silently render the wrong boss.
+    // A misspelled species must fail at parse time, not silently render
+    // the wrong boss. All names in the shared mapping are loadable.
     NSString *path = [NSTemporaryDirectory() stringByAppendingPathComponent:@"metalrex-bad-boss-chart.json"];
     NSString *json = @"{\"rail\":{\"controlPoints\":[[0,0.3,0],[0,0.3,10],[0,0.3,20],[0,0.3,30]]},"
                       @"\"lookAtBeats\":[{\"distance\":0,\"target\":[0,0.3,5]}],"
                       @"\"events\":[],"
-                      @"\"boss\":{\"species\":\"triceratops\"}}";
+                      @"\"boss\":{\"species\":\"triceratop\"}}";
     [json writeToFile:path atomically:YES encoding:NSUTF8StringEncoding error:nil];
 
     bool threw = false;
@@ -127,9 +127,47 @@
         ChartLoader_load_file([path UTF8String]);
     } catch (const std::runtime_error& ex) {
         threw = true;
-        XCTAssertTrue(std::string(ex.what()).find("triceratops") != std::string::npos);
+        XCTAssertTrue(std::string(ex.what()).find("triceratop") != std::string::npos);
     }
     XCTAssertTrue(threw);
+
+    // Concrete expectations, NOT derived from DinoSpecies_is_boss_capable:
+    // an earlier version of this test asked that predicate what to expect and
+    // so passed happily when the predicate was mutated to accept everything.
+    // A test that consults the implementation for its oracle proves nothing.
+    //
+    // trex and velociraptor have authored boss proportions (World's
+    // reset_m1_scene) and a major-attack point table. The herbivores render
+    // fine as characters but have neither, so accepting one would stage a
+    // raptor-sized "boss" running the T-Rex's QTE points — the silent
+    // wrong-boss this validation exists to stop. Flip one of these to the
+    // load branch when TODOS item 12 gives Triceratops its boss data.
+    auto loadWithBoss = [&](NSString *speciesName) {
+        NSString *speciesJSON = [json stringByReplacingOccurrencesOfString:@"triceratop"
+                                                                withString:speciesName];
+        [speciesJSON writeToFile:path atomically:YES encoding:NSUTF8StringEncoding error:nil];
+        return ChartLoader_load_file(path.UTF8String);
+    };
+
+    for (NSString *accepted in @[@"trex", @"velociraptor"]) {
+        LevelChart loaded = loadWithBoss(accepted);
+        XCTAssertTrue(loaded.boss.valid);
+        XCTAssertEqual(loaded.boss.species, std::string(accepted.UTF8String));
+    }
+
+    for (NSString *refusedName in @[@"triceratops", @"stegosaurus",
+                                    @"parasaurolophus", @"apatosaurus"]) {
+        bool refused = false;
+        try {
+            loadWithBoss(refusedName);
+        } catch (const std::runtime_error& ex) {
+            refused = true;
+            // The error names the offender and lists the real options.
+            XCTAssertTrue(std::string(ex.what()).find(refusedName.UTF8String) != std::string::npos);
+            XCTAssertTrue(std::string(ex.what()).find("trex") != std::string::npos);
+        }
+        XCTAssertTrue(refused, @"%@ has no boss data but the chart accepted it as a boss", refusedName);
+    }
 }
 
 @end

@@ -498,19 +498,19 @@ static id<MTLTexture> Rex_makeSkyGradientTexture(id<MTLDevice> device) {
     for (NSString *arg in [NSProcessInfo processInfo].arguments) {
         if (![arg hasPrefix:@"--capture-portrait="]) continue;
         NSString *name = [arg substringFromIndex:[@"--capture-portrait=" length]];
-        if ([name isEqualToString:@"trex"]) _portraitSpecies = (int)DinoSpecies::Trex;
-        else if ([name isEqualToString:@"velociraptor"]) _portraitSpecies = (int)DinoSpecies::Velociraptor;
+        DinoSpecies species;
+        if (DinoSpecies_from_name(name.UTF8String, &species)) _portraitSpecies = (int)species;
     }
 
     // One LoadedCharacter per DinoSpecies, indexed by the enum. Directory
-    // names must line up with the species order in Components.h.
-    NSArray<NSString*> *speciesDirs = @[@"velociraptor", @"trex"];
+    // names come from the same mapping used by chart validation and tests.
     for (int s = 0; s < (int)DinoSpecies::Count; ++s) {
-        NSString *dinoDir = [[NSBundle mainBundle] pathForResource:speciesDirs[s]
+        NSString *speciesName = [NSString stringWithUTF8String:DinoSpecies_name((DinoSpecies)s)];
+        NSString *dinoDir = [[NSBundle mainBundle] pathForResource:speciesName
                                                             ofType:nil
                                                        inDirectory:@"assets/characters/dinos"];
         if (!dinoDir.length) {
-            NSLog(@"RexRenderer: %@ asset directory missing", speciesDirs[s]);
+            NSLog(@"RexRenderer: %@ asset directory missing", speciesName);
             continue;
         }
         NSString *basePath = [dinoDir stringByAppendingPathComponent:@"base.usdz"];
@@ -524,10 +524,10 @@ static id<MTLTexture> Rex_makeSkyGradientTexture(id<MTLDevice> device) {
                 _dinoChars[s] = CharacterLoader_load(basePath, clips, _device);
                 AnimationSystem_set_dino_character((DinoSpecies)s, _dinoChars[s]);
             } catch (const std::exception& ex) {
-                NSLog(@"RexRenderer: %@ load failed: %s", speciesDirs[s], ex.what());
+                NSLog(@"RexRenderer: %@ load failed: %s", speciesName, ex.what());
             }
         } @catch (NSException *exception) {
-            NSLog(@"RexRenderer: %@ load failed: %@", speciesDirs[s], exception.reason);
+            NSLog(@"RexRenderer: %@ load failed: %@", speciesName, exception.reason);
         }
     }
 
@@ -1121,6 +1121,10 @@ static NSString *Rex_bossSpeciesDisplayName(DinoSpecies species) {
     switch (species) {
         case DinoSpecies::Trex: return @"TYRANNOSAURUS REX";
         case DinoSpecies::Velociraptor: return @"VELOCIRAPTOR";
+        case DinoSpecies::Triceratops: return @"TRICERATOPS";
+        case DinoSpecies::Stegosaurus: return @"STEGOSAURUS";
+        case DinoSpecies::Parasaurolophus: return @"PARASAUROLOPHUS";
+        case DinoSpecies::Apatosaurus: return @"APATOSAURUS";
         case DinoSpecies::Count: break;
     }
     return @"UNKNOWN";

@@ -160,6 +160,7 @@
 		1D129F32809AC4D2196A3946 /* BossMajorAttackSystem.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = BossMajorAttackSystem.mm; sourceTree = "<group>"; };
 		1D4170C632E74E0BC0DCAC6E /* GameController.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = GameController.framework; path = System/Library/Frameworks/GameController.framework; sourceTree = SDKROOT; };
 		1D7B034B00A4E0F74AED4A97 /* TitleFlowTests.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = TitleFlowTests.mm; sourceTree = "<group>"; };
+		1E1EEDE060F93DD649E4D635 /* PLAN-DEMO-CAPTURE.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = "PLAN-DEMO-CAPTURE.md"; sourceTree = "<group>"; };
 		215B35A2BB13635BCE5C9BFD /* RexLogicTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = RexLogicTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		215B80C5038893DB52B737C0 /* HealthTests.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = HealthTests.mm; sourceTree = "<group>"; };
 		22130E3A1C7B610D976AF583 /* PLAN-CLOCKS-AND-TESTABILITY.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = "PLAN-CLOCKS-AND-TESTABILITY.md"; sourceTree = "<group>"; };
@@ -201,6 +202,7 @@
 		6DC490049C0E8A3EF205B9BF /* ScoringSystem.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ScoringSystem.h; sourceTree = "<group>"; };
 		6FBDA8732F625A70A7CA9536 /* AppDelegate.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AppDelegate.h; sourceTree = "<group>"; };
 		7649D00B3DF5927FEFD9A797 /* Rex-macOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Rex-macOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		7B8F44F5BD59E838466523CF /* PLAN-HERBIVORES.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = "PLAN-HERBIVORES.md"; sourceTree = "<group>"; };
 		7BFD5A5F7E2D037FF4148A45 /* AudioEngine.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AudioEngine.h; sourceTree = "<group>"; };
 		7C33B342517DC4C678297EBB /* ControllerRumble.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = ControllerRumble.mm; sourceTree = "<group>"; };
 		80FAA2F6BAC5124039F91CD7 /* RailCameraSystem.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = RailCameraSystem.mm; sourceTree = "<group>"; };
@@ -512,7 +514,9 @@
 				4FE3EA6AD3A9F146AD19CDD4 /* DESIGN.md */,
 				F29F0417E72A26D9C31C7E78 /* PLAN-AUDIO-TELL.md */,
 				22130E3A1C7B610D976AF583 /* PLAN-CLOCKS-AND-TESTABILITY.md */,
+				1E1EEDE060F93DD649E4D635 /* PLAN-DEMO-CAPTURE.md */,
 				1BB94F700F2042A7295A9FBF /* PLAN-ENCOUNTER-FEEL.md */,
+				7B8F44F5BD59E838466523CF /* PLAN-HERBIVORES.md */,
 				07EBCFD2EBA21A1CC4884F0E /* PLAN-LEGIBILITY.md */,
 				C32528CD28DE93AE376944FF /* PLAN-M1.md */,
 				44240F80D2BF011C75CD0B47 /* PLAN-M2.md */,

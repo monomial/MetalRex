@@ -21,9 +21,9 @@
 - (void)test_tableMatchesLoadedAssets {
     id<MTLDevice> device = MTLCreateSystemDefaultDevice();
     XCTSkipIf(device == nil, @"Metal unavailable; cannot load and bake character assets");
-    NSArray<NSString*>* species = @[@"velociraptor", @"trex"];
     for (int s = 0; s < (int)DinoSpecies::Count; ++s) {
-        NSString* dir = [@"assets/characters/dinos" stringByAppendingPathComponent:species[s]];
+        NSString* species = [NSString stringWithUTF8String:DinoSpecies_name((DinoSpecies)s)];
+        NSString* dir = [@"assets/characters/dinos" stringByAppendingPathComponent:species];
         NSBundle* bundle = [NSBundle bundleForClass:[self class]];
         NSString* mesh = [bundle pathForResource:@"base" ofType:@"usdz" inDirectory:dir];
         XCTAssertNotNil(mesh);
@@ -67,24 +67,33 @@
 // MDLAsset reads the timing metadata without any device, and the loader's own
 // ceil(dur * kBakedFPS) + 1 is reproduced here, so this FAILS rather than skips.
 - (void)test_tableMatchesAssetMetadataWithoutAMetalDevice {
-    NSArray<NSString*>* species = @[@"velociraptor", @"trex"];
     NSBundle* bundle = [NSBundle bundleForClass:[self class]];
     for (int s = 0; s < (int)DinoSpecies::Count; ++s) {
-        NSString* dir = [@"assets/characters/dinos" stringByAppendingPathComponent:species[s]];
+        NSString* species = [NSString stringWithUTF8String:DinoSpecies_name((DinoSpecies)s)];
+        NSString* dir = [@"assets/characters/dinos" stringByAppendingPathComponent:species];
+        // The base has no clip duration, but must also be readable without
+        // Metal: missing or LFS-pointer meshes should fail this CI check.
+        NSString* mesh = [bundle pathForResource:@"base" ofType:@"usdz" inDirectory:dir];
+        XCTAssertNotNil(mesh, @"%@ base missing from the test bundle", species);
+        if (mesh) {
+            MDLAsset* base = [[MDLAsset alloc] initWithURL:[NSURL fileURLWithPath:mesh]];
+            XCTAssertGreaterThan([base childObjectsOfClass:[MDLMesh class]].count, (NSUInteger)0,
+                                 @"%@ base has no mesh", species);
+        }
         for (int c = 0; c < (int)CharacterClipSlot::Count; ++c) {
             NSString* name = [NSString stringWithUTF8String:CharacterClipSlot_name((CharacterClipSlot)c)];
             NSString* path = [bundle pathForResource:[name lowercaseString] ofType:@"usdz" inDirectory:dir];
-            XCTAssertNotNil(path, @"%@ %@ missing from the test bundle", species[s], name);
+            XCTAssertNotNil(path, @"%@ %@ missing from the test bundle", species, name);
             if (!path) continue;
             MDLAsset* asset = [[MDLAsset alloc] initWithURL:[NSURL fileURLWithPath:path]];
             XCTAssertNotNil(asset);
             double dur = asset.endTime - asset.startTime;
-            XCTAssertGreaterThan(dur, 0.0, @"%@ %@ has no timeline", species[s], name);
+            XCTAssertGreaterThan(dur, 0.0, @"%@ %@ has no timeline", species, name);
             int frames = (int)ceil(dur * kBakedFPS) + 1;
             float baked = (float)frames / kBakedFPS;
             XCTAssertEqualWithAccuracy(baked, kClipDurations[s][c], kClipDurationEpsilon,
                 @"%@ %@: assets say %.6f (%d frames), table says %.6f",
-                species[s], name, baked, frames, kClipDurations[s][c]);
+                species, name, baked, frames, kClipDurations[s][c]);
         }
     }
 }
