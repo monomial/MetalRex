@@ -1,4 +1,5 @@
 #import <XCTest/XCTest.h>
+#import "ScenarioBuilder.h"
 #include "Simulation/World.h"
 #include "Simulation/Systems/ScreenShakeSystem.h"
 #import "RexGameHost.h"
@@ -21,24 +22,7 @@
 }
 
 - (LevelChart)waveChart {
-    NSBundle* bundle = [NSBundle bundleForClass:self.class];
-    NSString* path = [bundle pathForResource:@"m2-test" ofType:@"json" inDirectory:@"assets/charts"];
-    NSMutableDictionary* json = [NSJSONSerialization JSONObjectWithData:[NSData dataWithContentsOfFile:path]
-        options:NSJSONReadingMutableContainers error:nil];
-    NSMutableDictionary* pack = nil;
-    for (NSMutableDictionary* event in json[@"events"]) {
-        if ([event[@"type"] isEqual:@"raptor_wave"] && [event[@"payload"][@"label"] isEqual:@"pack-test"])
-            pack = event;
-    }
-    XCTAssertNotNil(pack);
-    pack[@"distance"] = @0;
-    json[@"events"] = @[pack];
-    json[@"boss"][@"arrivalDistance"] = @1000;
-    // Keep source identity tied to actual bytes, including this authored fixture.
-    NSData* data = [NSJSONSerialization dataWithJSONObject:json options:NSJSONWritingSortedKeys error:nil];
-    NSString* fixture = [[self temporaryPath] stringByAppendingString:@".json"];
-    XCTAssertTrue([data writeToFile:fixture atomically:YES]);
-    return ChartLoader_load_file(fixture.UTF8String);
+    return Scenario().onlyWave(@"pack-test").noBoss().build();
 }
 
 static void configure(World& world, const LevelChart& chart) {

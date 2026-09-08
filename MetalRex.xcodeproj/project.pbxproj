@@ -107,6 +107,7 @@
 		B35342C01E5D6E5A3B90ED0C /* CoreHaptics.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 60C0E90E9C621BF1852AFA13 /* CoreHaptics.framework */; };
 		B5CB9D3D404F27F564728D76 /* BossMajorAttackPoints.mm in Sources */ = {isa = PBXBuildFile; fileRef = 3498AD7A47714359C377EC68 /* BossMajorAttackPoints.mm */; };
 		BAA67AED3B0E4ECBD0A7F3BA /* main.mm in Sources */ = {isa = PBXBuildFile; fileRef = 50CE385CDDEA3219EBC451EB /* main.mm */; };
+		BC1A0A41E590E94D3425B77F /* ScenarioBuilder.mm in Sources */ = {isa = PBXBuildFile; fileRef = 2D87DE999A6D3DAD0DAFD3C5 /* ScenarioBuilder.mm */; };
 		BF82031A273824896A149CC4 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 2DC8B19B98734D8A5BCB46C7 /* Assets.xcassets */; };
 		CC8A8DEDDE3586398DD26B1E /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = EB68E680D43E6A243EE60DAE /* Cocoa.framework */; };
 		CEF2EA681102A26BB102CD5F /* Shaders in Resources */ = {isa = PBXBuildFile; fileRef = 105B2556BDC7A289744004EC /* Shaders */; };
@@ -158,6 +159,7 @@
 		2A7C75196D06EAC27F9A64E2 /* AudioEngine.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = AudioEngine.mm; sourceTree = "<group>"; };
 		2B53E6DF22E58127DB39ACF7 /* RexRenderer.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = RexRenderer.h; sourceTree = "<group>"; };
 		2CFD6B42E517EC4F93E57EDD /* RailSpline.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = RailSpline.h; sourceTree = "<group>"; };
+		2D87DE999A6D3DAD0DAFD3C5 /* ScenarioBuilder.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = ScenarioBuilder.mm; sourceTree = "<group>"; };
 		2DC8B19B98734D8A5BCB46C7 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		322F98B61C57C3BA906BA5A4 /* Components.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = Components.h; sourceTree = "<group>"; };
 		32BFDE2E89C9BCDDAD0C49D8 /* RexGameHost.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = RexGameHost.h; sourceTree = "<group>"; };
@@ -222,6 +224,7 @@
 		D19215428D510F18874F5DC5 /* RexRenderer.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = RexRenderer.mm; sourceTree = "<group>"; };
 		D4512AAC63BD685BFAB6F7E4 /* PLAN-M3.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = "PLAN-M3.md"; sourceTree = "<group>"; };
 		D4D32BBDB71C4CE1CF154191 /* AppDelegate.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = AppDelegate.mm; sourceTree = "<group>"; };
+		DB23C791FF2B2BABC091CA2A /* ScenarioBuilder.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ScenarioBuilder.h; sourceTree = "<group>"; };
 		DB89988E27321892CE512A1C /* PlayerHealthSystem.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = PlayerHealthSystem.h; sourceTree = "<group>"; };
 		DBC41631A32153B737C39699 /* InputRecording.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = InputRecording.mm; sourceTree = "<group>"; };
 		DC48A4FFFCED309C5A20C805 /* DinoBehaviorSystem.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = DinoBehaviorSystem.mm; sourceTree = "<group>"; };
@@ -343,6 +346,8 @@
 				AF70F53A5C81D63A0A3CAE5F /* RailCameraTests.mm */,
 				84471577751C808E292327E9 /* ReplayTests.mm */,
 				B83DE11BFAEAC7DDE1053DA3 /* ReticleInputTests.mm */,
+				DB23C791FF2B2BABC091CA2A /* ScenarioBuilder.h */,
+				2D87DE999A6D3DAD0DAFD3C5 /* ScenarioBuilder.mm */,
 				C27B5C79F033DA1E66F335BB /* ScoringTests.mm */,
 				1D7B034B00A4E0F74AED4A97 /* TitleFlowTests.mm */,
 				62B42ED1E2636BF79323DFDA /* WorldSmokeTests.mm */,
@@ -730,6 +735,7 @@
 				E6925E39BD6C1C8A7702E539 /* ReticleSystem.mm in Sources */,
 				AC7DF45263A8E4167C55744B /* RexGameHost.mm in Sources */,
 				80AD01AAB6C768EB1B4E4D4F /* RexRenderer.mm in Sources */,
+				BC1A0A41E590E94D3425B77F /* ScenarioBuilder.mm in Sources */,
 				E717B43F92C91A9C3D0C7F60 /* ScoringSystem.mm in Sources */,
 				FED4874AB6C5D989FCC91F5F /* ScoringTests.mm in Sources */,
 				DA5A71C41D646251B75EB44F /* ScreenShakeSystem.mm in Sources */,
