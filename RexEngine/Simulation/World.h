@@ -104,6 +104,14 @@ public:
     template<typename T> T&   get_component(EntityID id);
     template<typename T> bool has_component(EntityID id);
     template<typename T> void remove_component(EntityID id);
+    // const overloads: read-only inspection (test predicates, invariant checks)
+    // shouldn't have to take a mutable World and risk perturbing what it reads.
+    template<typename T> const T& get_component(EntityID id) const {
+        return const_cast<World*>(this)->get_component<T>(id);
+    }
+    template<typename T> bool has_component(EntityID id) const {
+        return const_cast<World*>(this)->has_component<T>(id);
+    }
 
     uint32_t entity_count() const { return _nextID; }
     uint64_t tick_count() const { return _tickCount; }

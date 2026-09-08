@@ -14,6 +14,7 @@
 		0C6E607D0A3D5DE997BA013B /* ScreenShakeSystem.mm in Sources */ = {isa = PBXBuildFile; fileRef = 0604376B2E287273A588D819 /* ScreenShakeSystem.mm */; };
 		0D99D6CE30057EF551EE5069 /* HapticsEngine.mm in Sources */ = {isa = PBXBuildFile; fileRef = DF0E49C9D1B509090135F40B /* HapticsEngine.mm */; };
 		0E6F7D7973F946BD55F3012B /* ControllerRumble.mm in Sources */ = {isa = PBXBuildFile; fileRef = 7C33B342517DC4C678297EBB /* ControllerRumble.mm */; };
+		0E938AC0BF44BBA3574F0DBD /* ScriptedInput.mm in Sources */ = {isa = PBXBuildFile; fileRef = 27C54675A5592D35AB7E4A7D /* ScriptedInput.mm */; };
 		11E836CEB88EC88F05CD7E21 /* PhysicsSystem.mm in Sources */ = {isa = PBXBuildFile; fileRef = 19CFD438813570373EF78E93 /* PhysicsSystem.mm */; };
 		121CD4D3EC2664469D2F72E2 /* InputRecording.mm in Sources */ = {isa = PBXBuildFile; fileRef = DBC41631A32153B737C39699 /* InputRecording.mm */; };
 		155C9A2701741481F0484438 /* PhysicsSystem.mm in Sources */ = {isa = PBXBuildFile; fileRef = 19CFD438813570373EF78E93 /* PhysicsSystem.mm */; };
@@ -65,6 +66,7 @@
 		5F94F7F9E9B3CE1353D5E11C /* ParticleSim.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 97C15A79A4F325FCF1A47F0D /* ParticleSim.cpp */; };
 		61836ADEF794B2D09BC92F59 /* QuartzCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F2E58A68AFED6E15C76E9CFA /* QuartzCore.framework */; };
 		6498F3287F59220C3B6F873A /* PlayerHealthSystem.mm in Sources */ = {isa = PBXBuildFile; fileRef = B709D13B5703D3FFE4734D8B /* PlayerHealthSystem.mm */; };
+		65F450A6F0FCFB5A34D865F7 /* ScenarioTests.mm in Sources */ = {isa = PBXBuildFile; fileRef = 3DB0205F0C3BD355A63ACBF7 /* ScenarioTests.mm */; };
 		6805C5F9FC3D0AE7910E087F /* ArenaSystem.mm in Sources */ = {isa = PBXBuildFile; fileRef = F58EC8B44EC928DF61B96A74 /* ArenaSystem.mm */; };
 		686BD6E73FD2A46D03358540 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = EB68E680D43E6A243EE60DAE /* Cocoa.framework */; };
 		695028C01B5375FFB250E300 /* AVFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 06C96980F27DD82DD5C0F838 /* AVFoundation.framework */; };
@@ -145,6 +147,7 @@
 		0AAB5666AC65C1A045CAABD0 /* GameViewController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = GameViewController.h; sourceTree = "<group>"; };
 		0E75BB27BDC58DBD8CF3E1A2 /* ClipDurationTests.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = ClipDurationTests.mm; sourceTree = "<group>"; };
 		105B2556BDC7A289744004EC /* Shaders */ = {isa = PBXFileReference; lastKnownFileType = folder; path = Shaders; sourceTree = SOURCE_ROOT; };
+		12BE6329C76610477529AD5E /* ScriptedInput.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ScriptedInput.h; sourceTree = "<group>"; };
 		15F5E5BB6F9B426318D2F765 /* ParticleSim.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ParticleSim.h; sourceTree = "<group>"; };
 		19CFD438813570373EF78E93 /* PhysicsSystem.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = PhysicsSystem.mm; sourceTree = "<group>"; };
 		19FDEB5EBC97B36C1D4F1D82 /* PLAN-M4b-DETERMINISM.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = "PLAN-M4b-DETERMINISM.md"; sourceTree = "<group>"; };
@@ -156,6 +159,7 @@
 		215B80C5038893DB52B737C0 /* HealthTests.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = HealthTests.mm; sourceTree = "<group>"; };
 		22130E3A1C7B610D976AF583 /* PLAN-CLOCKS-AND-TESTABILITY.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = "PLAN-CLOCKS-AND-TESTABILITY.md"; sourceTree = "<group>"; };
 		2726887279D805614D70EAC1 /* CharacterLoader.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = CharacterLoader.h; sourceTree = "<group>"; };
+		27C54675A5592D35AB7E4A7D /* ScriptedInput.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = ScriptedInput.mm; sourceTree = "<group>"; };
 		2A7C75196D06EAC27F9A64E2 /* AudioEngine.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = AudioEngine.mm; sourceTree = "<group>"; };
 		2B53E6DF22E58127DB39ACF7 /* RexRenderer.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = RexRenderer.h; sourceTree = "<group>"; };
 		2CFD6B42E517EC4F93E57EDD /* RailSpline.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = RailSpline.h; sourceTree = "<group>"; };
@@ -168,6 +172,7 @@
 		34A962C9761AE26A1155D1F1 /* RexGameHost.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = RexGameHost.mm; sourceTree = "<group>"; };
 		36C9F6F43FE862FE83C07921 /* GameViewController.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = GameViewController.mm; sourceTree = "<group>"; };
 		3D784BB894793F7E159097AD /* BossMajorAttackPoints.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = BossMajorAttackPoints.h; sourceTree = "<group>"; };
+		3DB0205F0C3BD355A63ACBF7 /* ScenarioTests.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = ScenarioTests.mm; sourceTree = "<group>"; };
 		40DE8E15BFE8E8B2A92844FE /* InputRecording.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = InputRecording.h; sourceTree = "<group>"; };
 		40E98F035D1058105BC446ED /* RailSpline.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = RailSpline.mm; sourceTree = "<group>"; };
 		44240F80D2BF011C75CD0B47 /* PLAN-M2.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = "PLAN-M2.md"; sourceTree = "<group>"; };
@@ -348,7 +353,10 @@
 				B83DE11BFAEAC7DDE1053DA3 /* ReticleInputTests.mm */,
 				DB23C791FF2B2BABC091CA2A /* ScenarioBuilder.h */,
 				2D87DE999A6D3DAD0DAFD3C5 /* ScenarioBuilder.mm */,
+				3DB0205F0C3BD355A63ACBF7 /* ScenarioTests.mm */,
 				C27B5C79F033DA1E66F335BB /* ScoringTests.mm */,
+				12BE6329C76610477529AD5E /* ScriptedInput.h */,
+				27C54675A5592D35AB7E4A7D /* ScriptedInput.mm */,
 				1D7B034B00A4E0F74AED4A97 /* TitleFlowTests.mm */,
 				62B42ED1E2636BF79323DFDA /* WorldSmokeTests.mm */,
 			);
@@ -736,9 +744,11 @@
 				AC7DF45263A8E4167C55744B /* RexGameHost.mm in Sources */,
 				80AD01AAB6C768EB1B4E4D4F /* RexRenderer.mm in Sources */,
 				BC1A0A41E590E94D3425B77F /* ScenarioBuilder.mm in Sources */,
+				65F450A6F0FCFB5A34D865F7 /* ScenarioTests.mm in Sources */,
 				E717B43F92C91A9C3D0C7F60 /* ScoringSystem.mm in Sources */,
 				FED4874AB6C5D989FCC91F5F /* ScoringTests.mm in Sources */,
 				DA5A71C41D646251B75EB44F /* ScreenShakeSystem.mm in Sources */,
+				0E938AC0BF44BBA3574F0DBD /* ScriptedInput.mm in Sources */,
 				1ECC4E8CE30938F8ADCF87EA /* TitleFlowTests.mm in Sources */,
 				E5C334F603C17707D610E205 /* World.mm in Sources */,
 				1EFB714F3B9ECB85EF721C9B /* WorldSmokeTests.mm in Sources */,
