@@ -3,13 +3,23 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
+# CI path. Deliberately NOT -quiet: that flag suppresses assertion messages
+# entirely, so a red CI run named the failing test and never said why — the
+# LFS-pointer breakage took a local repro to diagnose from a log that had the
+# answer nowhere in it. Filtered instead of silenced: failures, the totals,
+# and the verdict.
 if [ "${1:-}" = "--autotest" ]; then
   xcodegen
+  set +e
   xcodebuild -scheme RexLogicTests \
              -destination 'platform=macOS' \
              -derivedDataPath .build/DerivedData \
-             test -quiet
-  exit $?
+             test 2>&1 \
+    | grep -E "error:|Executed [0-9]+ tests|\*\* TEST (SUCCEEDED|FAILED) \*\*|^Failing tests:|^	-\[" \
+    | awk '!seen[$0]++'
+  status=${PIPESTATUS[0]}
+  set -e
+  exit "$status"
 fi
 
 xcodegen

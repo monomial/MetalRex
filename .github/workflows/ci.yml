@@ -11,6 +11,30 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      # The dino models are Git LFS, and checkout does NOT fetch LFS objects
+      # by default — so every .usdz arrived as a ~130-byte pointer file and
+      # every test that reads one failed. That is what made CI red: MDLAsset
+      # cannot parse a pointer, so the clip-duration checks saw no animation
+      # data and reported the whole table as drifted.
+      #
+      # Only the models are pulled, not the 11MB of audio: no test plays a
+      # sound, and the app builds fine with pointer files in the bundle
+      # (they are copied as resources, not parsed at build time). Halves the
+      # LFS bandwidth this repo spends per run against GitHub's quota.
+      - name: Cache LFS objects
+        uses: actions/cache@v4
+        with:
+          path: .git/lfs
+          key: lfs-dinos-${{ hashFiles('assets/characters/dinos/**/*.usdz') }}
+
+      - name: Fetch dino models (Git LFS)
+        run: |
+          git lfs pull --include="assets/characters/dinos/**"
+          # Prove the pointers were actually replaced by content before any
+          # test blames the asset table for a checkout problem.
+          file assets/characters/dinos/trex/attack.usdz
+          test "$(stat -f%z assets/characters/dinos/trex/attack.usdz)" -gt 10000
+
       - name: Install XcodeGen
         run: brew install xcodegen
 
