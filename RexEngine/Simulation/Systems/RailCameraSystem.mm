@@ -24,16 +24,18 @@ static constexpr float kPursuerBodyHalfWidth = 0.8f;
 
 static void update_camera_basis(RailCameraState& camera, const LevelChart& chart) {
     float railLength = chart.rail.total_length();
-    // Loop back to the start rather than clamping at the end: clamping left
-    // the camera permanently stuck once it reached the rail's length (~30s
-    // at the default speed against the M2 test chart) — which is also what
-    // caused a real hang in update_targets below, since target respawn logic
-    // assumes the camera keeps advancing and can never "catch up" once it's
-    // frozen at the far end. This is a test-scene loop; a real level (M5+)
-    // will end the act instead of looping.
+    // The rail ENDS. It used to fmod-wrap back to the start, which was
+    // explicitly a test-scene placeholder ("a real level will end the act
+    // instead of looping") — and it made the act uncompletable, since the
+    // level-ending boss QTE is authored near the end of the rail and defers
+    // behind any live raptor wave, so the wrap kept arriving first and
+    // restarting the chart. RailCameraSystem_update stops the jeep here
+    // (speed = 0), the same stationary state World::enter_arena already
+    // uses for the post-boss holdout. The earlier objection to clamping —
+    // a hang in update_targets — no longer applies: its recycle/pin block
+    // is straight-line, one assignment always lands in range.
     if (railLength > 0.0001f) {
-        camera.distance = fmodf(camera.distance, railLength);
-        if (camera.distance < 0.f) camera.distance += railLength;
+        camera.distance = std::clamp(camera.distance, 0.f, railLength);
     } else {
         camera.distance = 0.f;
     }
@@ -270,30 +272,18 @@ void RailCameraSystem_update(World& world, float worldDt) {
     RailCameraState& camera = world.rail_camera();
     camera.elapsed += worldDt;
     camera.distance += camera.speed * worldDt;
-    float distanceBeforeWrap = camera.distance;
-    update_camera_basis(camera, world.chart());
-    // The test-scene rail loops (update_camera_basis fmod-wraps distance
-    // back to the start), but chart events are consumed by a monotonically
-    // advancing index — without resetting it on wrap, every raptor_wave
-    // fires exactly once and the level goes permanently quiet after the
-    // first lap, even though the T-Rex fight (the thing that actually ends
-    // the level now) usually outlasts a lap. Real levels (M5+) will end the
-    // act instead of looping, at which point this reset never triggers.
-    if (camera.distance < distanceBeforeWrap) {
-        world.set_next_chart_event_index(0);
-        // Rebase every pursuer by the same amount the camera just jumped,
-        // preserving each one's gap exactly. Without this, gap
-        // (camera.distance - railDistance) went hugely negative at the wrap
-        // and update_targets' "nothing may pass the jeep" clamp slammed
-        // every active dino — including the boss — to exactly 1 unit behind
-        // the player, which read as "the T-Rex suddenly teleported on top
-        // of me" at the loop point. railDistance may go negative here;
-        // that's fine, since target placement is camera-relative (gap
-        // only), and every respawn/recycle path assigns a fresh value.
-        float wrapDelta = distanceBeforeWrap - camera.distance;
-        for (int i = 0; i < kM1MaxTargets; ++i) {
-            world.target(i).railDistance -= wrapDelta;
-        }
+
+    // The act ends where the rail ends: the jeep stops rather than looping
+    // back to the start, and the finale (a boss QTE, then the arena) plays
+    // out stationary. Zeroing speed — not just clamping distance — is what
+    // makes that a real stop: World::enter_arena does exactly this for the
+    // post-boss holdout, so the stationary case is well-trodden.
+    float railLength = world.chart().rail.total_length();
+    if (railLength > 0.0001f && camera.distance >= railLength) {
+        camera.distance = railLength;
+        camera.speed = 0.f;
     }
+
+    update_camera_basis(camera, world.chart());
     update_targets(world, worldDt);
 }

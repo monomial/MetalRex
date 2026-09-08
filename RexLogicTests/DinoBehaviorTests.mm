@@ -673,28 +673,36 @@ static void isolateTellWorld(World& world) {
     XCTAssertEqual(activeRaptorCount(world), 3);
 }
 
-- (void)test_chartEventsRearmAfterRailLoopWrap {
-    // The test rail loops (fmod wrap in RailCameraSystem) but chart events
-    // are consumed by a monotonically advancing index — without resetting
-    // it on wrap, all raptor_wave events fire exactly once and the level
-    // goes permanently quiet after the first lap, while the 40HP T-Rex
-    // fight usually outlasts a lap.
+- (void)test_railEndStopsTheJeepAndKeepsChartProgress {
+    // The rail used to fmod-wrap back to the start, which reset the chart
+    // event index and restarted the act — making the act uncompletable,
+    // because the level-ending QTE is authored near the end of the rail and
+    // defers behind any live raptor wave, so the wrap always arrived first.
+    // The act now ENDS at the end of the rail: the jeep stops and whatever
+    // is left of the finale plays out stationary.
     World world;
     XCTAssertGreaterThan(world.chart().events.size(), 0u);
-    world.rail_camera().speed = 40.f; // cross the whole test rail in under a second
+    world.rail_camera().speed = 40.f; // cross the whole rail in under a second
 
+    float railLength = world.chart().rail.total_length();
     float previous = world.rail_camera().distance;
-    bool wrapped = false;
-    for (int i = 0; i < 600 && !wrapped; ++i) {
+    size_t previousIndex = world.next_chart_event_index();
+    for (int i = 0; i < 600; ++i) {
         world.update(1.f / 120.f);
-        float current = world.rail_camera().distance;
-        if (current < previous) wrapped = true;
-        previous = current;
+        XCTAssertGreaterThanOrEqual(world.rail_camera().distance, previous,
+                                    @"rail went backwards — it must never loop");
+        // The chart index only ever advances. It used to be reset to 0 on
+        // the wrap, which is what restarted the act; a pending event may
+        // sit unconsumed (a QTE defers behind live raptors), but it must
+        // never rearm one already spent.
+        XCTAssertGreaterThanOrEqual(world.next_chart_event_index(), previousIndex);
+        previous = world.rail_camera().distance;
+        previousIndex = world.next_chart_event_index();
     }
-    XCTAssertTrue(wrapped);
-    // Before the wrap every event was consumed (index == events.size());
-    // the wrap must rearm them for the next lap.
-    XCTAssertLessThan(world.next_chart_event_index(), world.chart().events.size());
+
+    XCTAssertEqualWithAccuracy(world.rail_camera().distance, railLength, 0.001f);
+    XCTAssertEqual(world.rail_camera().speed, 0.f, @"the jeep must actually stop, not creep");
+    XCTAssertGreaterThan(world.next_chart_event_index(), 0u);
 }
 
 - (void)test_raptorWaveApproachesHoldsThenStaggersPounce {
@@ -767,12 +775,12 @@ static void isolateTellWorld(World& world) {
     XCTAssertEqualWithAccuracy(dino[2], 0.30f, 0.0001f);
 }
 
-- (void)test_railWrapPreservesPursuerGaps {
-    // The looping test rail's wrap used to leave pursuer railDistances
-    // un-rebased: gap went hugely negative and the "nothing may pass the
-    // jeep" clamp slammed every active dino to exactly 1 unit behind the
-    // player — the boss visibly teleported on top of the jeep at the loop
-    // point.
+- (void)test_railEndPreservesPursuerGaps {
+    // The old looping rail left pursuer railDistances un-rebased across the
+    // wrap: gap went hugely negative and the "nothing may pass the jeep"
+    // clamp slammed every active dino to exactly 1 unit behind the player —
+    // the boss visibly teleported onto the jeep at the loop point. The rail
+    // no longer loops, and stopping at its end must not reintroduce that.
     World world;
     EntityID trexId = findTrex(world);
     XCTAssertNotEqual(trexId, kInvalidEntity);
@@ -784,17 +792,14 @@ static void isolateTellWorld(World& world) {
     world.rail_camera().distance = railLength - 0.5f;
     world.target(trex.targetIndex).railDistance = world.rail_camera().distance - 5.f;
     // Consume past all chart events so jumping the camera near the rail's end
-    // doesn't arm a scripted major-attack QTE (which would slow-mo the camera
-    // and prevent the wrap this test is about).
+    // doesn't arm a scripted major-attack QTE (which would slow-mo the camera).
     world.set_next_chart_event_index(world.chart().events.size());
 
-    // One second of travel at the default 1.2 u/s crosses the wrap.
-    float before = world.rail_camera().distance;
-    tick(world, 120);
-    XCTAssertLessThan(world.rail_camera().distance, before); // wrapped
+    tick(world, 120); // one second at the default 1.2 u/s: crosses the end
+    XCTAssertEqualWithAccuracy(world.rail_camera().distance, railLength, 0.001f);
 
-    // Gap preserved through the wrap (boss closes at ~0.2 u/s net, so a
-    // second of chasing only shaves a fraction) — NOT pinned to 1.
+    // Gap preserved through the stop (the boss closes at ~0.2 u/s net, and
+    // keeps closing once the jeep halts) — NOT pinned to 1.
     float gap = world.rail_camera().distance - world.target(trex.targetIndex).railDistance;
     XCTAssertGreaterThan(gap, 3.5f);
     XCTAssertLessThan(gap, 6.f);
