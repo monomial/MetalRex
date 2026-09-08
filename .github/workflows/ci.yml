@@ -22,7 +22,7 @@ jobs:
       # (they are copied as resources, not parsed at build time). Halves the
       # LFS bandwidth this repo spends per run against GitHub's quota.
       - name: Cache LFS objects
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: .git/lfs
           key: lfs-dinos-${{ hashFiles('assets/characters/dinos/**/*.usdz') }}
