@@ -9,6 +9,7 @@
 #include "Simulation/BossMajorAttackPoints.h"
 #include <TargetConditionals.h>
 #include <algorithm>
+#include <atomic>
 #include <vector>
 #include <simd/simd.h>
 #import <ImageIO/ImageIO.h>
@@ -18,6 +19,12 @@
 struct RexVertex {
     simd_float3 position;
 };
+
+// Capture writes in flight. File-scope rather than an ivar so the completion
+// handler holds no reference to the renderer: one renderer exists per
+// process, and a block that captured self would keep it (and its whole
+// resource graph) alive until the last frame finished encoding.
+static std::atomic<int> s_pendingCaptureWrites{0};
 
 // Writes a BGRA8 staging buffer as a PNG. Runs on the Metal completion thread.
 static void RexRenderer_writePNG(id<MTLBuffer> staging, NSUInteger w, NSUInteger h,
@@ -2739,8 +2746,10 @@ static id<MTLTexture> Rex_makeScoreTexture(id<MTLDevice> device, NSString *score
             destinationBytesPerRow:bpr destinationBytesPerImage:bpr * h];
             [blit endEncoding];
 
+            s_pendingCaptureWrites.fetch_add(1, std::memory_order_relaxed);
             [commandBuffer addCompletedHandler:^(id<MTLCommandBuffer> _) {
                 RexRenderer_writePNG(staging, w, h, bpr, path);
+                s_pendingCaptureWrites.fetch_sub(1, std::memory_order_relaxed);
             }];
         }
     }
@@ -2752,8 +2761,16 @@ static id<MTLTexture> Rex_makeScoreTexture(id<MTLDevice> device, NSString *score
     _pendingCapturePath = [path copy];
 }
 
+- (int)pendingCaptureWrites {
+    return s_pendingCaptureWrites.load(std::memory_order_relaxed);
+}
+
 - (void)toggleDebugHUD {
     _debugHUDVisible = !_debugHUDVisible;
+}
+
+- (void)setDebugHUDVisible:(BOOL)visible {
+    _debugHUDVisible = visible;
 }
 
 @end

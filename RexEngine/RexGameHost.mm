@@ -1,6 +1,7 @@
 #import "RexGameHost.h"
 #import <QuartzCore/QuartzCore.h>
 #include "Simulation/World.h"
+#include "Simulation/Systems/AutopilotSystem.h"
 #include <algorithm>
 #include <stdexcept>
 #include <cstdio>
@@ -21,6 +22,12 @@
     NSException* _replayHookError;
     std::string _recordPath;
     uint64_t _lastSavedTick;
+    AutopilotState _autopilotState;
+    NSString *_clipDirectory;
+    int _clipFramesRemaining;
+    int _clipWarmupRemaining;
+    int _clipFrameIndex;
+    void (^_clipCompletion)(void);
 }
 
 - (instancetype)initWithDevice:(id<MTLDevice>)device pixelFormat:(MTLPixelFormat)pixelFormat {
@@ -183,6 +190,11 @@
 - (void)advanceFrame:(float)dt {
     if (!_world) return;
     [self _startReplayHooks];
+    // Composed BEFORE the set_input loop so it goes through the exact same
+    // path a controller does — the autopilot is a player, not a back door.
+    if (_autopilotEnabled) {
+        _inputs[0] = AutopilotSystem_input(*_world, _autopilotState, 0);
+    }
     for (int i = 0; i < 4; ++i) {
         _world->set_input(_inputs[i], i);
     }
@@ -246,6 +258,66 @@
     [_renderer captureNextFrameToPath:path];
 }
 
+- (void)startClipCaptureToDirectory:(NSString*)directory
+                             frames:(int)frameCount
+                                fps:(int)fps
+                       warmupFrames:(int)warmupFrames
+                         completion:(void (^)(void))completion {
+    [[NSFileManager defaultManager] createDirectoryAtPath:directory
+                              withIntermediateDirectories:YES
+                                               attributes:nil
+                                                    error:nil];
+    _clipDirectory = [directory copy];
+    _clipFramesRemaining = frameCount;
+    _clipWarmupRemaining = warmupFrames;
+    _clipFrameIndex = 0;
+    _clipCompletion = [completion copy];
+    // The macOS tuning overlay defaults on, and it sat over every frame of
+    // the first recorded clip. A clip is for judging the GAME.
+    [_renderer setDebugHUDVisible:NO];
+    self.fixedFrameDt = 1.f / (float)std::max(1, fps);
+    NSLog(@"clip: recording %d frames at %d fps -> %@", frameCount, fps, directory);
+}
+
+// Requests the current frame's PNG, and stalls first if the encoder is
+// behind. Without the stall a slow encode never slows the render loop (the
+// in-flight semaphore is signalled by an earlier completion handler than the
+// one that writes the PNG), so staging buffers pile up unbounded — a long
+// capture would grow to gigabytes of retained frames.
+- (void)_captureClipFrameIfRecording {
+    if (!_clipDirectory) return;
+    if (_clipWarmupRemaining > 0) { --_clipWarmupRemaining; return; }
+
+    while ([_renderer pendingCaptureWrites] >= 2) usleep(2000);
+
+    ++_clipFrameIndex;
+    NSString *path = [_clipDirectory stringByAppendingPathComponent:
+                      [NSString stringWithFormat:@"frame-%05d.png", _clipFrameIndex]];
+    [_renderer captureNextFrameToPath:path];
+
+    if (--_clipFramesRemaining > 0) return;
+
+    _clipDirectory = nil;
+    void (^done)(void) = _clipCompletion;
+    _clipCompletion = nil;
+    if (!done) return;
+
+    int written = _clipFrameIndex;
+    __weak RexGameHost *weakSelf = self;
+    dispatch_async(dispatch_get_main_queue(), ^{
+        // The last frames' PNGs are written on the Metal completion thread,
+        // after the frame that requested them has been presented — so the
+        // caller's exit() would otherwise race the final write. (It did:
+        // the first clip recorded 599 of 600 frames.)
+        RexGameHost *host = weakSelf;
+        for (int i = 0; i < 500 && host && [host->_renderer pendingCaptureWrites] > 0; ++i) {
+            usleep(10000);
+        }
+        NSLog(@"clip: %d frames written", written);
+        done();
+    });
+}
+
 - (void)toggleDebugHUD {
     [_renderer toggleDebugHUD];
 }
@@ -290,6 +362,7 @@
     [commandBuffer addCompletedHandler:^(__unused id<MTLCommandBuffer> buffer) {
         dispatch_semaphore_signal(semaphore);
     }];
+    [self _captureClipFrameIfRecording];
     [_renderer drawWorld:_world inView:view commandBuffer:commandBuffer];
     [commandBuffer commit];
 }

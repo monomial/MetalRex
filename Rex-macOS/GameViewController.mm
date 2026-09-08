@@ -23,6 +23,7 @@
     BOOL _padFire, _padRecenter;
     BOOL _autoFire;                 // --auto-fire: pulse the trigger for headless captures
     CFTimeInterval _lastAutoFire;
+    CGSize _captureSize;            // --capture-size=WxH: pinned clip resolution
 }
 
 - (void)loadView {
@@ -40,15 +41,53 @@
 // permission needed — this reads the app's own Metal texture), and exits.
 // Ported from MetalBrawler's BrawlerAutoTest/BrawlerRenderer capture flow.
 - (void)_startCaptureIfRequested {
+    _captureSize = CGSizeMake(1280, 720);
     NSString *outPath = nil;
+    NSString *clipDir = nil;
     float afterSeconds = 2.0f;
+    int clipFrames = 900;
+    int clipFps = 30;
     for (NSString *arg in [NSProcessInfo processInfo].arguments) {
         if ([arg hasPrefix:@"--capture-out="]) {
             outPath = [arg substringFromIndex:[@"--capture-out=" length]];
         } else if ([arg hasPrefix:@"--capture-after="]) {
             afterSeconds = [[arg substringFromIndex:[@"--capture-after=" length]] floatValue];
+        } else if ([arg hasPrefix:@"--capture-clip="]) {
+            clipDir = [arg substringFromIndex:[@"--capture-clip=" length]];
+        } else if ([arg hasPrefix:@"--capture-frames="]) {
+            clipFrames = [[arg substringFromIndex:[@"--capture-frames=" length]] intValue];
+        } else if ([arg hasPrefix:@"--capture-fps="]) {
+            clipFps = [[arg substringFromIndex:[@"--capture-fps=" length]] intValue];
+        } else if ([arg hasPrefix:@"--capture-size="]) {
+            NSArray<NSString*> *wh = [[arg substringFromIndex:[@"--capture-size=" length]]
+                                      componentsSeparatedByString:@"x"];
+            if (wh.count == 2) _captureSize = CGSizeMake([wh[0] doubleValue], [wh[1] doubleValue]);
         }
     }
+
+    // --capture-clip=<dir>: record every frame as a PNG for scripts/
+    // capture-clip.sh to assemble. Frames are paced by sim time, not wall
+    // time (see startClipCaptureToDirectory:), so a slow encode stretches
+    // the wall-clock run without stretching the clip.
+    if (clipDir) {
+        _mtkView.preferredFramesPerSecond = clipFps;
+        // Pin the capture resolution instead of inheriting the window's
+        // Retina-backed 4:3 drawable: the clip wants 16:9, and every pixel
+        // is a pixel the PNG encoder has to chew through 30 times a second.
+        _mtkView.autoResizeDrawable = NO;
+        _mtkView.drawableSize = _captureSize;
+        [_host mtkView:_mtkView drawableSizeWillChange:_captureSize];
+        [_host startClipCaptureToDirectory:clipDir
+                                    frames:clipFrames
+                                       fps:clipFps
+                              warmupFrames:6
+                                completion:^{
+            NSLog(@"clip: done, exiting");
+            exit(0);
+        }];
+        return;
+    }
+
     if (!outPath) return;
 
     __weak GameViewController *weakSelf = self;
@@ -111,6 +150,11 @@
     }
 
     _autoFire = [[NSProcessInfo processInfo].arguments containsObject:@"--auto-fire"];
+    // --autopilot: the host composes player 0's input from the world every
+    // frame (AutopilotSystem), overriding whatever _feedKeyboardInput just
+    // wrote — the bot always has the last word for the length of the run.
+    _host.autopilotEnabled =
+        [[NSProcessInfo processInfo].arguments containsObject:@"--autopilot"];
 
     [self _startCaptureIfRequested];
 }

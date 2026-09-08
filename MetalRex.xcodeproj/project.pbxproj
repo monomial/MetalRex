@@ -46,6 +46,7 @@
 		4E2F65CF42C349E72FD0DC2D /* ArenaSystem.mm in Sources */ = {isa = PBXBuildFile; fileRef = F58EC8B44EC928DF61B96A74 /* ArenaSystem.mm */; };
 		4E6C5FFCC5205F0F5A49D157 /* BossMajorAttackPoints.mm in Sources */ = {isa = PBXBuildFile; fileRef = 3498AD7A47714359C377EC68 /* BossMajorAttackPoints.mm */; };
 		4E96425B90F675E9D199BFEA /* ModelIO.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FF21A3D89DFCD32DB2F372CF /* ModelIO.framework */; };
+		4F14F35291150D48A7EA56EB /* AutopilotTests.mm in Sources */ = {isa = PBXBuildFile; fileRef = 868641DF70842728789F7970 /* AutopilotTests.mm */; };
 		4F73DEAFE2E7C817EFB73766 /* GameViewController.mm in Sources */ = {isa = PBXBuildFile; fileRef = 36C9F6F43FE862FE83C07921 /* GameViewController.mm */; };
 		4FE9E86E41CB3DCC9D8A08CA /* CoreGraphics.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 34892C62ADBBD67118CC0D23 /* CoreGraphics.framework */; };
 		51EF8CD88C45BF1C1BF99187 /* ScreenShakeSystem.mm in Sources */ = {isa = PBXBuildFile; fileRef = 0604376B2E287273A588D819 /* ScreenShakeSystem.mm */; };
@@ -76,6 +77,7 @@
 		7A21BE1133729902E327ED12 /* GameViewController.mm in Sources */ = {isa = PBXBuildFile; fileRef = ED88C80248F776C6E3864AED /* GameViewController.mm */; };
 		7FB95C9B0064C6C039D91217 /* SceneDelegate.mm in Sources */ = {isa = PBXBuildFile; fileRef = 6CF16262AD420C9CCC907874 /* SceneDelegate.mm */; };
 		7FE1BC27DA2779E17864BAC5 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 00D4BFD242748220523ECF71 /* Assets.xcassets */; };
+		80865F47546538E4D2839466 /* AutopilotSystem.mm in Sources */ = {isa = PBXBuildFile; fileRef = A4F2D87A0D4BE6022E782147 /* AutopilotSystem.mm */; };
 		80AAA43C2537DED109B1F885 /* CoreHaptics.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 60C0E90E9C621BF1852AFA13 /* CoreHaptics.framework */; };
 		80AD01AAB6C768EB1B4E4D4F /* RexRenderer.mm in Sources */ = {isa = PBXBuildFile; fileRef = D19215428D510F18874F5DC5 /* RexRenderer.mm */; };
 		820A52F745B7074732605D8E /* ControllerRumble.mm in Sources */ = {isa = PBXBuildFile; fileRef = 7C33B342517DC4C678297EBB /* ControllerRumble.mm */; };
@@ -94,6 +96,7 @@
 		94F73AC9AAF1B4F827DB2ADC /* ImageIO.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = EBCCBADB86BCC3BC079D9397 /* ImageIO.framework */; };
 		992A2BF914C0273D6867A7FA /* AppDelegate.mm in Sources */ = {isa = PBXBuildFile; fileRef = 5A0AF114A95B797C661E0AB0 /* AppDelegate.mm */; };
 		9A45C1EEF96AE8BBEE3914BA /* CoreText.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F133AD737FDF28F461217E8A /* CoreText.framework */; };
+		9AC0E383606768EBDB9D4234 /* AutopilotSystem.mm in Sources */ = {isa = PBXBuildFile; fileRef = A4F2D87A0D4BE6022E782147 /* AutopilotSystem.mm */; };
 		9B228E502AD1AA29F07E487C /* ChartLoader.mm in Sources */ = {isa = PBXBuildFile; fileRef = 023616D91291A9D8D903896B /* ChartLoader.mm */; };
 		9B5D3922D400E87983E81452 /* RailCameraSystem.mm in Sources */ = {isa = PBXBuildFile; fileRef = 80FAA2F6BAC5124039F91CD7 /* RailCameraSystem.mm */; };
 		9D7F92C0E116BA302E450479 /* AnimationSystem.mm in Sources */ = {isa = PBXBuildFile; fileRef = DDE8330981F4B3171E516CDD /* AnimationSystem.mm */; };
@@ -113,6 +116,7 @@
 		BC1A0A41E590E94D3425B77F /* ScenarioBuilder.mm in Sources */ = {isa = PBXBuildFile; fileRef = 2D87DE999A6D3DAD0DAFD3C5 /* ScenarioBuilder.mm */; };
 		BF82031A273824896A149CC4 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 2DC8B19B98734D8A5BCB46C7 /* Assets.xcassets */; };
 		CC8A8DEDDE3586398DD26B1E /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = EB68E680D43E6A243EE60DAE /* Cocoa.framework */; };
+		CCDCE89E8EE958DFA8C5E855 /* AutopilotSystem.mm in Sources */ = {isa = PBXBuildFile; fileRef = A4F2D87A0D4BE6022E782147 /* AutopilotSystem.mm */; };
 		CEF2EA681102A26BB102CD5F /* Shaders in Resources */ = {isa = PBXBuildFile; fileRef = 105B2556BDC7A289744004EC /* Shaders */; };
 		CF360E3DEC9566D9744C946C /* ClipDurationTests.mm in Sources */ = {isa = PBXBuildFile; fileRef = 0E75BB27BDC58DBD8CF3E1A2 /* ClipDurationTests.mm */; };
 		D1AF1DB4EF5DCED0DFAFA6F0 /* DinoBehaviorTests.mm in Sources */ = {isa = PBXBuildFile; fileRef = EA80D5C012615225879CF397 /* DinoBehaviorTests.mm */; };
@@ -201,6 +205,7 @@
 		7C33B342517DC4C678297EBB /* ControllerRumble.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = ControllerRumble.mm; sourceTree = "<group>"; };
 		80FAA2F6BAC5124039F91CD7 /* RailCameraSystem.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = RailCameraSystem.mm; sourceTree = "<group>"; };
 		84471577751C808E292327E9 /* ReplayTests.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = ReplayTests.mm; sourceTree = "<group>"; };
+		868641DF70842728789F7970 /* AutopilotTests.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = AutopilotTests.mm; sourceTree = "<group>"; };
 		86E62A1F5C179CF49ED651D2 /* TODOS.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = TODOS.md; sourceTree = "<group>"; };
 		86FC80FD0678A689BCFAC968 /* ReticleSystem.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ReticleSystem.h; sourceTree = "<group>"; };
 		87D7247D05FC2A57F6DAEB29 /* CharacterLoader.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = CharacterLoader.mm; sourceTree = "<group>"; };
@@ -215,7 +220,9 @@
 		9B5C40306347D48D25BFFC35 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		A105B2EDF7085318E71DBDC5 /* BossMajorAttackTests.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = BossMajorAttackTests.mm; sourceTree = "<group>"; };
 		A40566C90DE1D326A699485D /* EventBus.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = EventBus.h; sourceTree = "<group>"; };
+		A4F2D87A0D4BE6022E782147 /* AutopilotSystem.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = AutopilotSystem.mm; sourceTree = "<group>"; };
 		A76351B00D3C69B10C9A91A7 /* main.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = main.mm; sourceTree = "<group>"; };
+		A7B4D6837551DF122AD924A2 /* AutopilotSystem.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AutopilotSystem.h; sourceTree = "<group>"; };
 		ABAB2B43F9A5A68DA6B8DD97 /* ScreenShakeSystem.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ScreenShakeSystem.h; sourceTree = "<group>"; };
 		AE2D0D4CC6CEEC753D54A8E2 /* AnimationSystem.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AnimationSystem.h; sourceTree = "<group>"; };
 		AF70F53A5C81D63A0A3CAE5F /* RailCameraTests.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = RailCameraTests.mm; sourceTree = "<group>"; };
@@ -345,6 +352,7 @@
 			isa = PBXGroup;
 			children = (
 				F4082FFE3E009EF0C7FEAC59 /* ArenaTests.mm */,
+				868641DF70842728789F7970 /* AutopilotTests.mm */,
 				A105B2EDF7085318E71DBDC5 /* BossMajorAttackTests.mm */,
 				EC0C28A795440865E01D6BDB /* ChartLoaderTests.mm */,
 				0E75BB27BDC58DBD8CF3E1A2 /* ClipDurationTests.mm */,
@@ -474,6 +482,8 @@
 				DDE8330981F4B3171E516CDD /* AnimationSystem.mm */,
 				530DBFDD6D40908FC6B5B910 /* ArenaSystem.h */,
 				F58EC8B44EC928DF61B96A74 /* ArenaSystem.mm */,
+				A7B4D6837551DF122AD924A2 /* AutopilotSystem.h */,
+				A4F2D87A0D4BE6022E782147 /* AutopilotSystem.mm */,
 				6A724D572F1E22143A381D5C /* BossMajorAttackSystem.h */,
 				1D129F32809AC4D2196A3946 /* BossMajorAttackSystem.mm */,
 				BB3B5CBD52BAF7B79D5FFC1B /* DinoBehaviorSystem.h */,
@@ -688,6 +698,7 @@
 				94729FDF10BC4E37667B3F1C /* AppDelegate.mm in Sources */,
 				6805C5F9FC3D0AE7910E087F /* ArenaSystem.mm in Sources */,
 				31606CC8BF1AF50087CE8D4F /* AudioEngine.mm in Sources */,
+				CCDCE89E8EE958DFA8C5E855 /* AutopilotSystem.mm in Sources */,
 				1CB497BF582E38C2E7E6CBE4 /* BossMajorAttackPoints.mm in Sources */,
 				0A9B11E00BBAAA99AB2EFCC9 /* BossMajorAttackSystem.mm in Sources */,
 				A1CED7364AAFDFDA8360962C /* CharacterLoader.mm in Sources */,
@@ -721,6 +732,8 @@
 				4E2F65CF42C349E72FD0DC2D /* ArenaSystem.mm in Sources */,
 				8D16777626F018F068CD2650 /* ArenaTests.mm in Sources */,
 				5218353F3036242B883DED5D /* AudioEngine.mm in Sources */,
+				80865F47546538E4D2839466 /* AutopilotSystem.mm in Sources */,
+				4F14F35291150D48A7EA56EB /* AutopilotTests.mm in Sources */,
 				B5CB9D3D404F27F564728D76 /* BossMajorAttackPoints.mm in Sources */,
 				D1F4D5B10FA5CF703E19A060 /* BossMajorAttackSystem.mm in Sources */,
 				84FA329CB64726691C9135B3 /* BossMajorAttackTests.mm in Sources */,
@@ -767,6 +780,7 @@
 				992A2BF914C0273D6867A7FA /* AppDelegate.mm in Sources */,
 				586A659CD2A32DD0DCCBEE62 /* ArenaSystem.mm in Sources */,
 				ACEE1ADC2FDEFDE0EA723E2C /* AudioEngine.mm in Sources */,
+				9AC0E383606768EBDB9D4234 /* AutopilotSystem.mm in Sources */,
 				4E6C5FFCC5205F0F5A49D157 /* BossMajorAttackPoints.mm in Sources */,
 				46F31797C623229F3A8273BC /* BossMajorAttackSystem.mm in Sources */,
 				EB78733079BAA5A7702561D9 /* CharacterLoader.mm in Sources */,
