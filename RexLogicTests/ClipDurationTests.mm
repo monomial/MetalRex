@@ -2,6 +2,8 @@
 #include "Simulation/Systems/AnimationSystem.h"
 #include "Assets/CharacterLoader.h"
 #include <memory>
+#import <ModelIO/ModelIO.h>
+#include <cmath>
 
 @interface ClipDurationTests : XCTestCase
 @end
@@ -58,4 +60,33 @@
     XCTAssertEqual(AnimationSystem_clip_duration(world, 0, CharacterClipSlot::Attack), 26.f/30.f);
     AnimationSystem_set_dino_character(DinoSpecies::Velociraptor, nullptr);
 }
+
+// Device-free counterpart to test_tableMatchesLoadedAssets. That one needs a
+// Metal device to bake, so it SKIPS on CI — meaning the drift M4b just fixed
+// (a stale table silently disagreeing with the assets) could return unnoticed.
+// MDLAsset reads the timing metadata without any device, and the loader's own
+// ceil(dur * kBakedFPS) + 1 is reproduced here, so this FAILS rather than skips.
+- (void)test_tableMatchesAssetMetadataWithoutAMetalDevice {
+    NSArray<NSString*>* species = @[@"velociraptor", @"trex"];
+    NSBundle* bundle = [NSBundle bundleForClass:[self class]];
+    for (int s = 0; s < (int)DinoSpecies::Count; ++s) {
+        NSString* dir = [@"assets/characters/dinos" stringByAppendingPathComponent:species[s]];
+        for (int c = 0; c < (int)CharacterClipSlot::Count; ++c) {
+            NSString* name = [NSString stringWithUTF8String:CharacterClipSlot_name((CharacterClipSlot)c)];
+            NSString* path = [bundle pathForResource:[name lowercaseString] ofType:@"usdz" inDirectory:dir];
+            XCTAssertNotNil(path, @"%@ %@ missing from the test bundle", species[s], name);
+            if (!path) continue;
+            MDLAsset* asset = [[MDLAsset alloc] initWithURL:[NSURL fileURLWithPath:path]];
+            XCTAssertNotNil(asset);
+            double dur = asset.endTime - asset.startTime;
+            XCTAssertGreaterThan(dur, 0.0, @"%@ %@ has no timeline", species[s], name);
+            int frames = (int)ceil(dur * kBakedFPS) + 1;
+            float baked = (float)frames / kBakedFPS;
+            XCTAssertEqualWithAccuracy(baked, kClipDurations[s][c], kClipDurationEpsilon,
+                @"%@ %@: assets say %.6f (%d frames), table says %.6f",
+                species[s], name, baked, frames, kClipDurations[s][c]);
+        }
+    }
+}
+
 @end
