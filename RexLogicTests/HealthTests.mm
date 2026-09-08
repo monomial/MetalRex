@@ -17,7 +17,7 @@ static EntityID findDino(World& world) {
 
 static void tick(World& world, int count) {
     for (int i = 0; i < count; ++i) {
-        world.update(1.f / 120.f, 1.f / 120.f);
+        world.update(1.f / 120.f);
     }
 }
 

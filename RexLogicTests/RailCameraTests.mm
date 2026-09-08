@@ -61,13 +61,13 @@ static LevelChart curvedTestChart(void) {
     world.replace_chart_for_tests(curvedTestChart());
     world.rail_camera().speed = 1.5f;
 
-    world.update(1.f, 1.f);
+    world.update(1.f);
     float d1 = world.rail_camera().distance;
     float raw1 = world.rail_camera().rawT;
-    world.update(1.f, 1.f);
+    world.update(1.f);
     float d2 = world.rail_camera().distance;
     float raw2 = world.rail_camera().rawT;
-    world.update(1.f, 1.f);
+    world.update(1.f);
     float d3 = world.rail_camera().distance;
     float raw3 = world.rail_camera().rawT;
 
@@ -84,7 +84,7 @@ static LevelChart curvedTestChart(void) {
     LevelChart chart = curvedTestChart();
     world.replace_chart_for_tests(chart);
 
-    world.update(1.f / 120.f, 1.f / 120.f);
+    world.update(1.f / 120.f);
 
     const RailCameraState& camera = world.rail_camera();
     RexVec3 expected = chart.rail.position_at_distance(std::max(0.f, camera.distance - 4.f));
@@ -117,7 +117,7 @@ static LevelChart curvedTestChart(void) {
     world.rail_camera().speed = chart.rail.total_length() * 4.f; // cross the whole rail every tick
 
     for (int i = 0; i < 500; ++i) {
-        world.update(1.f / 120.f, 1.f / 120.f);
+        world.update(1.f / 120.f);
     }
 
     float distance = world.rail_camera().distance;

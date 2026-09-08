@@ -23,13 +23,13 @@
 
 - (void)test_update_doesNotCrash {
     World world;
-    XCTAssertNoThrow(world.update(0.0f, 0.0f));
+    XCTAssertNoThrow(world.update(0.0f));
 }
 
 - (void)test_fixedTick_120Hz_doesNotCrash {
     World world;
     for (int i = 0; i < 120; ++i) {
-        XCTAssertNoThrow(world.update(1.0f / 120.0f, 1.0f / 120.0f));
+        XCTAssertNoThrow(world.update(1.0f / 120.0f));
     }
 }
 

@@ -3,8 +3,9 @@
 class World;
 
 // Manages a camera-offset that decays exponentially after trigger_screen_shake().
-// Uses physicalDt — never freezes during HitStop (shake runs while game is frozen).
-void ScreenShakeSystem_update(World& world, float physicalDt);
+// Uses gameDt (real tick time, never slow-mo scaled) so a shake decays at a
+// constant rate — it keeps running while the world is frozen or in bullet time.
+void ScreenShakeSystem_update(World& world, float gameDt);
 
 // Returns the current camera shake offset in world units (XY).
 // RenderSystem adds this to the camera target each frame.

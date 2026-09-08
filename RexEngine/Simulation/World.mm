@@ -429,6 +429,21 @@ void World::begin_replay(const InputRecording& log) {
     _replayIndex = 0;
 }
 
+// The sim has three clocks. Keeping them straight matters: reading gameDt as
+// "some variable frame delta" is what produced a wrong analysis once already
+// (see docs/PLAN-M4b-DETERMINISM.md, leak 2).
+//
+//   physicalDt  wallclock since the last frame. Variable, clamped to 0.1s by
+//               RexGameHost. Only World::update and ParticleSim ever see it.
+//   gameDt      the fixed tick. ALWAYS exactly kFixedDt (1/120) — never
+//               scaled, never variable. Player time: aim, the QTE countdown,
+//               scoring, shake decay and health timers all run on it.
+//   worldDt     gameDt scaled by kMajorAttackSlowMoScale during a boss QTE,
+//               otherwise identical to gameDt. Diegetic time: the rail, the
+//               arena, dino behaviour and animation slow down with it.
+//
+// A system's parameter is named for the clock it actually receives. If you
+// change what a system is called with, rename its parameter to match.
 void World::tick(float gameDt) {
     // One row is one fixed tick, including title/frozen ticks. Never capture frames.
     if (_replay) {
@@ -570,7 +585,7 @@ void World::tick(float gameDt) {
     ++_tickCount;
 }
 
-void World::update(float physicalDt, float /*gameDt*/) {
+void World::update(float physicalDt) {
     if (!_replayError.empty()) throw std::runtime_error(_replayError);
     _events.clear();
     _particles.update(physicalDt);

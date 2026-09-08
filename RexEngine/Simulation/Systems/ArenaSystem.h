@@ -6,4 +6,4 @@ class World;
 // spread lanes/depths, advances to the next wave only once the current one is
 // fully cleared (arena raptors loop-attack until killed), and completes the
 // level after the last wave. No-ops unless World::arena_active().
-void ArenaSystem_update(World& world, float gameDt);
+void ArenaSystem_update(World& world, float worldDt);

@@ -91,8 +91,8 @@ static float clip_speed_multiplier(World& world, EntityID entity, CharacterClipS
     return mult * world.get_component<AnimationComponent>(entity).rateScale;
 }
 
-void AnimationSystem_update(World& world, float gameDt) {
-    if (gameDt == 0.f) return; // frozen during HitStop
+void AnimationSystem_update(World& world, float worldDt) {
+    if (worldDt == 0.f) return; // frozen during HitStop
 
     uint32_t count = world.entity_count();
     for (EntityID id = 0; id < count; ++id) {
@@ -105,7 +105,7 @@ void AnimationSystem_update(World& world, float gameDt) {
         float duration = AnimationSystem_clip_duration(world, id, anim.currentClip);
         // Attack and Hurt play at 1.5× so punches feel snappy and hit reactions
         // are brief. Idle/Walk/Death keep normal speed.
-        anim.clipTime += gameDt * clip_speed_multiplier(world, id, anim.currentClip);
+        anim.clipTime += worldDt * clip_speed_multiplier(world, id, anim.currentClip);
         anim.clipDone  = false;
 
         if (clip_loops(anim.currentClip)) {
@@ -141,8 +141,8 @@ void AnimationSystem_update(World& world, float gameDt) {
             }
         }
         if (anim.blendRemaining > 0.f)
-            anim.blendRemaining = anim.blendRemaining - gameDt < 0.f
-                                ? 0.f : anim.blendRemaining - gameDt;
+            anim.blendRemaining = anim.blendRemaining - worldDt < 0.f
+                                ? 0.f : anim.blendRemaining - worldDt;
     }
 
     // Dissolve then destroy non-player entities whose death animation has
@@ -154,7 +154,7 @@ void AnimationSystem_update(World& world, float gameDt) {
         if (world.player_tags().present(id)) continue; // player death handled by game loop
         AnimationComponent& anim = world.get_component<AnimationComponent>(id);
         if (anim.dying && anim.clipDone && anim.currentClip == CharacterClipSlot::Death) {
-            anim.deathFade -= gameDt / kDeathFadeDuration;
+            anim.deathFade -= worldDt / kDeathFadeDuration;
             if (anim.deathFade <= 0.f)
                 world.defer_destroy(id);
         }

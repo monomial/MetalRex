@@ -304,8 +304,8 @@ static void consume_chart_events(World& world) {
     world.set_next_chart_event_index(index);
 }
 
-void DinoBehaviorSystem_update(World& world, float gameDt) {
-    if (gameDt == 0.f) return;
+void DinoBehaviorSystem_update(World& world, float worldDt) {
+    if (worldDt == 0.f) return;
     consume_chart_events(world);
 
     uint32_t count = world.entity_count();
@@ -335,7 +335,7 @@ void DinoBehaviorSystem_update(World& world, float gameDt) {
             continue;
         }
 
-        dino.stateTime += gameDt;
+        dino.stateTime += worldDt;
         AnimationComponent* anim = world.has_component<AnimationComponent>(id)
                                  ? &world.get_component<AnimationComponent>(id) : nullptr;
 
@@ -357,7 +357,7 @@ void DinoBehaviorSystem_update(World& world, float gameDt) {
             }
         }
         if (dino.hitFlashTime > 0.f) {
-            dino.hitFlashTime = std::max(0.f, dino.hitFlashTime - gameDt);
+            dino.hitFlashTime = std::max(0.f, dino.hitFlashTime - worldDt);
         }
         // One progress sample drives both the visual and this tick's award.
         const bool attackCycle = dino.state == DinoBehaviorState::Tell
@@ -426,12 +426,12 @@ void DinoBehaviorSystem_update(World& world, float gameDt) {
                     }
                     float gap = std::max(0.f, world.rail_camera().distance - target.railDistance);
                     if (gap > dino.attackRange && dino.chaseSpeed > 0.f) {
-                        target.railDistance += std::min(dino.chaseSpeed * gameDt,
+                        target.railDistance += std::min(dino.chaseSpeed * worldDt,
                                                         gap - dino.attackRange);
                     }
                     gap = std::max(0.f, world.rail_camera().distance - target.railDistance);
                     if (gap <= dino.attackRange) {
-                        target.railDistance += world.rail_camera().speed * gameDt;
+                        target.railDistance += world.rail_camera().speed * worldDt;
                         enter_hold(world, id, dino);
                         break;
                     }
@@ -449,7 +449,7 @@ void DinoBehaviorSystem_update(World& world, float gameDt) {
                 }
                 if (dino.targetIndex < kM1MaxTargets) {
                     TargetComponent& target = world.target(dino.targetIndex);
-                    target.railDistance += world.rail_camera().speed * gameDt;
+                    target.railDistance += world.rail_camera().speed * worldDt;
                 }
                 float leadPoint = dino.holdDuration + dino.attackDelay - kTellLeadSeconds;
                 if (!dino.tellCueFired && !dino.isBoss
@@ -549,7 +549,7 @@ void DinoBehaviorSystem_update(World& world, float gameDt) {
                 if (dino.targetIndex < kM1MaxTargets) {
                     TargetComponent& target = world.target(dino.targetIndex);
                     target.railDistance = std::max(0.f,
-                                                   target.railDistance - dino.chaseSpeed * 1.25f * gameDt);
+                                                   target.railDistance - dino.chaseSpeed * 1.25f * worldDt);
                     float gap = world.rail_camera().distance - target.railDistance;
                     if (gap >= dino.retreatGap || dino.stateTime >= dino.retreatDuration) {
                         if (dino.isBoss || dino.arena) {
@@ -582,7 +582,7 @@ void DinoBehaviorSystem_update(World& world, float gameDt) {
                 if (dino.targetIndex < kM1MaxTargets) {
                     TargetComponent& target = world.target(dino.targetIndex);
                     target.railDistance = std::max(0.f,
-                                                   target.railDistance - dino.chaseSpeed * 1.25f * gameDt);
+                                                   target.railDistance - dino.chaseSpeed * 1.25f * worldDt);
                     float gap = world.rail_camera().distance - target.railDistance;
                     if (gap >= dino.retreatGap || dino.stateTime >= 0.9f) {
                         enter_dormant(world, id, dino);

@@ -31,7 +31,7 @@ static EntityID findTrex(World& world) {
 
 static void tick(World& world, int count) {
     for (int i = 0; i < count; ++i) {
-        world.update(1.f / 120.f, 1.f / 120.f);
+        world.update(1.f / 120.f);
     }
 }
 
@@ -137,7 +137,7 @@ static bool runToMajorAttack(World& world, float chartDistance) {
     world.rail_camera().distance = chartDistance - 0.3f;
     for (int i = 0; i < 200; ++i) {
         clearActiveRaptors(world);
-        world.update(1.f / 120.f, 1.f / 120.f);
+        world.update(1.f / 120.f);
         if (world.major_attack_active()) return true;
     }
     return false;
@@ -652,7 +652,7 @@ static void isolateTellWorld(World& world) {
     // begins: boss enters Approach from deep behind the jeep.
     world.rail_camera().speed = 12.f; // compress the wait, same distances
     for (int i = 0; i < 400 && !trex.activeInEncounter; ++i) {
-        world.update(1.f / 120.f, 1.f / 120.f);
+        world.update(1.f / 120.f);
     }
     XCTAssertTrue(trex.activeInEncounter);
     XCTAssertGreaterThanOrEqual(world.rail_camera().distance, 26.f);
@@ -686,7 +686,7 @@ static void isolateTellWorld(World& world) {
     float previous = world.rail_camera().distance;
     bool wrapped = false;
     for (int i = 0; i < 600 && !wrapped; ++i) {
-        world.update(1.f / 120.f, 1.f / 120.f);
+        world.update(1.f / 120.f);
         float current = world.rail_camera().distance;
         if (current < previous) wrapped = true;
         previous = current;

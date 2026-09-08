@@ -45,12 +45,12 @@ static void configure(World& world, const LevelChart& chart) {
     world.replace_chart_for_tests(chart);
     world.set_seed(0xC0FFEEu);
 }
-static void tick(World& world) { world.update(1.f/120.f, 1.f/120.f); }
+static void tick(World& world) { world.update(1.f/120.f); }
 static void raggedReplay(World& world) {
     int frame = 0;
     while (!world.replay_finished() && frame < 10000) {
         float dt = frame == 7 ? 0.37f : (frame % 2 ? 1.f/144.f : 1.f/60.f);
-        world.update(dt, dt);
+        world.update(dt);
         ++frame;
     }
 }
@@ -145,7 +145,7 @@ static void raggedReplay(World& world) {
     raggedReplay(ragged);
     XCTAssertTrue(uniform.replay_finished()); XCTAssertTrue(ragged.replay_finished());
     [self assertSame:record other:uniform]; [self assertSame:record other:injected]; [self assertSame:record other:ragged];
-    uint64_t ended = ragged.tick_count(); ragged.update(1.f, 1.f);
+    uint64_t ended = ragged.tick_count(); ragged.update(1.f);
     XCTAssertEqual(ragged.tick_count(), ended);
     // A stable artifact for the before/after comments-only verification.
     std::string timeline;
@@ -261,13 +261,13 @@ static void raggedReplay(World& world) {
     int frame = 0;
     while (ragged.tick_count() < 100) {
         float dt = frame == 4 ? 0.2f : frame % 2 ? 1.f/144.f : 1.f/60.f;
-        ragged.update(dt, dt);
+        ragged.update(dt);
         ++frame;
     }
     // Consume the remaining ticks of one simulation second, leaving any
     // fractional accumulator remainder untouched.
     float remaining = (120 - ragged.tick_count()) * (1.f/120.f);
-    ragged.update(remaining, remaining);
+    ragged.update(remaining);
     XCTAssertEqual(ragged.tick_count(), 120ull);
     XCTAssertEqual(uniform.reticle(0).x, ragged.reticle(0).x);
     XCTAssertEqual(uniform.reticle(0).y, ragged.reticle(0).y);
@@ -306,7 +306,7 @@ static void raggedReplay(World& world) {
         record.set_input(input);
         size_t before = record.tick_count();
         float dt = frame == 7 ? 0.31f : frame % 2 ? 1.f/144.f : 1.f/60.f;
-        record.update(dt, dt);
+        record.update(dt);
         XCTAssertEqual(record.recording()->tickCount(), record.tick_count());
         for (size_t t = before; t < record.tick_count(); ++t) {
             XCTAssertEqual(record.recording()->inputAt(t, 0).stickX, input.stickX);

@@ -1,7 +1,7 @@
 #pragma once
 #include "Simulation/World.h"
 
-void DinoBehaviorSystem_update(World& world, float gameDt);
+void DinoBehaviorSystem_update(World& world, float worldDt);
 
 // Claims a dormant raptor from the pool and activates it as an arena-defense
 // pursuer at the given lane/depth (see ArenaSystem). Returns true if a slot

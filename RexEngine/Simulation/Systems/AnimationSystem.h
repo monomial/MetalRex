@@ -17,8 +17,9 @@ void AnimationSystem_set_characters(const LoadedCharacter* player,
 void AnimationSystem_set_dino_character(DinoSpecies species, const LoadedCharacter* character);
 
 // Advances clip time + samples bone matrices for every entity with an AnimationComponent.
-// Uses gameDt — animation freezes during HitStop along with physics.
-void AnimationSystem_update(World& world, float gameDt);
+// Uses worldDt — animation slows with the world during a boss QTE, and
+// freezes during HitStop along with physics.
+void AnimationSystem_update(World& world, float worldDt);
 
 // Request a clip transition. Sets requestedClip; AnimationSystem handles the
 // actual transition at the next safe frame boundary — for a non-looping

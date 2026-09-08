@@ -16,7 +16,7 @@ void ScreenShakeSystem_trigger(World& world, float magnitude) {
     if (magnitude > world._shakeMagnitude) world._shakeMagnitude = magnitude;
 }
 
-void ScreenShakeSystem_update(World& world, float physicalDt) {
+void ScreenShakeSystem_update(World& world, float gameDt) {
     // Always consume exactly one RNG draw per tick, even when idle: conditional
     // consumption would let shake state shift the seeded simulation RNG stream.
     float angle = world.rand_float01() * 2.f * (float)M_PI;
@@ -28,7 +28,7 @@ void ScreenShakeSystem_update(World& world, float physicalDt) {
     }
 
     // Exponential decay.
-    world._shakeMagnitude *= expf(-kDecayRate * physicalDt);
+    world._shakeMagnitude *= expf(-kDecayRate * gameDt);
     world._shakeOffset = { cosf(angle) * world._shakeMagnitude, sinf(angle) * world._shakeMagnitude };
 }
 

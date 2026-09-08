@@ -75,7 +75,7 @@ public:
     World();
     ~World();
 
-    void update(float physicalDt, float gameDt);
+    void update(float physicalDt);
 
     const ScoreTimeline& score_timeline() const { return _scoreTimeline; }
     ReplayHeader replay_header() const;

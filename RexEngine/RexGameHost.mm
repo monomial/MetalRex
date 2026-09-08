@@ -186,7 +186,7 @@
     for (int i = 0; i < 4; ++i) {
         _world->set_input(_inputs[i], i);
     }
-    _world->update(dt, dt);
+    _world->update(dt);
     if (!_recordPath.empty() && _world->tick_count() - _lastSavedTick >= 120) [self _saveRecording];
     [self _playAudioCues];
 }

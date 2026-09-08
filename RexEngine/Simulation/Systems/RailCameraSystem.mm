@@ -92,7 +92,7 @@ static simd_float4x4 view_projection_for_camera(const RailCameraState& camera) {
     return simd_mul(projection, view);
 }
 
-static void update_targets(World& world, float gameDt) {
+static void update_targets(World& world, float worldDt) {
     const RailCameraState& camera = world.rail_camera();
     const LevelChart& chart = world.chart();
     simd_float4x4 viewProjection = view_projection_for_camera(camera);
@@ -262,14 +262,14 @@ static void update_targets(World& world, float gameDt) {
         target.weakPointOffsetY = target.screenHalfH * 0.65f;
     }
 
-    (void)gameDt;
+    (void)worldDt;
 }
 
-void RailCameraSystem_update(World& world, float gameDt) {
-    if (gameDt == 0.f) return;
+void RailCameraSystem_update(World& world, float worldDt) {
+    if (worldDt == 0.f) return;
     RailCameraState& camera = world.rail_camera();
-    camera.elapsed += gameDt;
-    camera.distance += camera.speed * gameDt;
+    camera.elapsed += worldDt;
+    camera.distance += camera.speed * worldDt;
     float distanceBeforeWrap = camera.distance;
     update_camera_basis(camera, world.chart());
     // The test-scene rail loops (update_camera_basis fmod-wraps distance
@@ -295,5 +295,5 @@ void RailCameraSystem_update(World& world, float gameDt) {
             world.target(i).railDistance -= wrapDelta;
         }
     }
-    update_targets(world, gameDt);
+    update_targets(world, worldDt);
 }

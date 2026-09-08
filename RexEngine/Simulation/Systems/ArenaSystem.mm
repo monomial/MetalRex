@@ -49,14 +49,14 @@ static void spawn_wave(World& world, int waveIndex) {
     }
 }
 
-void ArenaSystem_update(World& world, float gameDt) {
+void ArenaSystem_update(World& world, float worldDt) {
     ArenaState& arena = world.arena_mutable();
     if (!arena.active) return;
     int totalWaves = world.chart().arenaWaveCount;
 
     switch (arena.phase) {
         case ArenaState::WaitingToSpawn: {
-            arena.timer = std::max(0.f, arena.timer - gameDt);
+            arena.timer = std::max(0.f, arena.timer - worldDt);
             if (arena.timer > 0.f) return;
             if (arena.waveIndex + 1 >= totalWaves) {
                 // Survived every wave — the holdout is won.
