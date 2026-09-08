@@ -223,6 +223,49 @@ which catches a black frame or a failed draw).
 Then `scripts/smoke.sh --autotest` and `scripts/smoke.sh`, `REX_MUTE=1` for
 manual runs. Report sandbox blocks plainly rather than claiming green.
 
+## Implementation record (2026-09-07)
+
+All six decisions landed. Codex hit its account usage limit one minute in
+(after writing the cross-build proof scaffolding in bd9f136), so the rest was
+implemented directly.
+
+| # | commit | note |
+|---|---|---|
+| 1 | 7d79ec6 | rename proved neutral: byte-identical 13-event timeline across it |
+| 2 | 5fa1659 | `waveChart` 25 lines -> 1; timeline unchanged, so a faithful rewrite |
+| 3 | 52d08d8 | `trackAndFireWhen`; adds const `get_component`/`has_component` |
+| 4 | 4f12c64 | invariants + seeded fuzz, proven non-vacuous by mutation |
+| 5,6 | b5b2c4a | device-free asset check; labelled capture sheet |
+
+Five things the plan did not anticipate, each worth keeping:
+
+1. **`World::update`'s dead parameter had ~20 call sites** across four literal
+   forms in the tests, all of which had to collapse to single-arg.
+2. **Aiming once does not work.** `aimAt` then wait leaves the reticle where
+   the animal *was*. Tracking every tick (`trackAndFireWhen`) is required.
+3. **The interrupt scenario needs `solo-test`, not `pack-test`.** Since
+   3e64496 a bullet hits only the front-most dino, so in a pack the shot lands
+   on whichever raptor occludes the tracked one — which is not in its window.
+4. **`score_timeline()` only accumulates while recording or replaying**
+   (`World.mm`'s `if (_recording || _replay)`). A scenario test that forgets
+   `begin_recording` reads an empty timeline while the shots land fine.
+5. **Captures must background the app.** Launched in the foreground from a
+   non-interactive shell it never acquires a drawable, so the world never
+   ticks and the capture writes nothing — while still logging "capture: done".
+   And the title scene must omit `--auto-fire`, since a trigger pulse joins a
+   player and starts the run.
+
+Mutation-tested rather than assumed: breaking `interruptWindowOpen`'s gate
+fails all three invariant tests naming the tick; corrupting one clip-table
+entry fails the asset check naming the species and clip. Worth recording that
+the *first* attempted mutation did not fail — replacing `attackCycle` with
+`true` changes nothing, because `progress` is 0 outside the cycle and still
+fails the range check. A weaker mutation would have "proved" a suite that
+proved nothing.
+
+Still unverified: aim, tint and marker *feel*. Everything here is headless or
+structural.
+
 ## Explicitly out of scope
 
 - **Pixel-exact golden images in CI.** See Decision 6.
