@@ -106,6 +106,7 @@
 		AC7DF45263A8E4167C55744B /* RexGameHost.mm in Sources */ = {isa = PBXBuildFile; fileRef = 34A962C9761AE26A1155D1F1 /* RexGameHost.mm */; };
 		ACEE1ADC2FDEFDE0EA723E2C /* AudioEngine.mm in Sources */ = {isa = PBXBuildFile; fileRef = 2A7C75196D06EAC27F9A64E2 /* AudioEngine.mm */; };
 		AF2F683A80A8998A9AD78C43 /* ParticleSim.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 97C15A79A4F325FCF1A47F0D /* ParticleSim.cpp */; };
+		B2218FA5746CD1AD167DE955 /* InvariantTests.mm in Sources */ = {isa = PBXBuildFile; fileRef = E7351EE687E3347C53C1A2A7 /* InvariantTests.mm */; };
 		B35342C01E5D6E5A3B90ED0C /* CoreHaptics.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 60C0E90E9C621BF1852AFA13 /* CoreHaptics.framework */; };
 		B5CB9D3D404F27F564728D76 /* BossMajorAttackPoints.mm in Sources */ = {isa = PBXBuildFile; fileRef = 3498AD7A47714359C377EC68 /* BossMajorAttackPoints.mm */; };
 		BAA67AED3B0E4ECBD0A7F3BA /* main.mm in Sources */ = {isa = PBXBuildFile; fileRef = 50CE385CDDEA3219EBC451EB /* main.mm */; };
@@ -240,6 +241,7 @@
 		E2652A98013BE0F6DF4B06B4 /* ControllerRumble.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ControllerRumble.h; sourceTree = "<group>"; };
 		E2CD79E815BBA360995598A8 /* MetalKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = MetalKit.framework; path = System/Library/Frameworks/MetalKit.framework; sourceTree = SDKROOT; };
 		E661802610C9D27E46EB4BA9 /* UIKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UIKit.framework; path = System/Library/Frameworks/UIKit.framework; sourceTree = SDKROOT; };
+		E7351EE687E3347C53C1A2A7 /* InvariantTests.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = InvariantTests.mm; sourceTree = "<group>"; };
 		EA80D5C012615225879CF397 /* DinoBehaviorTests.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = DinoBehaviorTests.mm; sourceTree = "<group>"; };
 		EB68E680D43E6A243EE60DAE /* Cocoa.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Cocoa.framework; path = System/Library/Frameworks/Cocoa.framework; sourceTree = SDKROOT; };
 		EB7B41B03A8E026B414C7DA3 /* project.yml */ = {isa = PBXFileReference; lastKnownFileType = text.yaml; path = project.yml; sourceTree = "<group>"; };
@@ -348,6 +350,7 @@
 				0E75BB27BDC58DBD8CF3E1A2 /* ClipDurationTests.mm */,
 				EA80D5C012615225879CF397 /* DinoBehaviorTests.mm */,
 				215B80C5038893DB52B737C0 /* HealthTests.mm */,
+				E7351EE687E3347C53C1A2A7 /* InvariantTests.mm */,
 				AF70F53A5C81D63A0A3CAE5F /* RailCameraTests.mm */,
 				84471577751C808E292327E9 /* ReplayTests.mm */,
 				B83DE11BFAEAC7DDE1053DA3 /* ReticleInputTests.mm */,
@@ -732,6 +735,7 @@
 				3D50833CE1DF4FDF2428B717 /* HealthTests.mm in Sources */,
 				121CD4D3EC2664469D2F72E2 /* InputRecording.mm in Sources */,
 				5C826A0FD6F44503E15EE165 /* InputSystem.mm in Sources */,
+				B2218FA5746CD1AD167DE955 /* InvariantTests.mm in Sources */,
 				AF2F683A80A8998A9AD78C43 /* ParticleSim.cpp in Sources */,
 				155C9A2701741481F0484438 /* PhysicsSystem.mm in Sources */,
 				6498F3287F59220C3B6F873A /* PlayerHealthSystem.mm in Sources */,
