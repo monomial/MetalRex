@@ -152,6 +152,32 @@ static void raggedReplay(World& world) {
     for (const auto& e : record.score_timeline()) timeline += std::to_string(e.tickIndex) + ":"
         + std::to_string(e.player) + ":" + std::to_string((int)e.event) + ":" + std::to_string((int)e.species) + ";";
     NSLog(@"ReplayTimeline: %s", timeline.c_str());
+    // Optional cross-build proof: preserve the original input bytes and compare
+    // the replay's serialized timeline, never regenerate the expectation.
+    if (const char* dir = getenv("REX_TIMELINE_PROOF_DIR")) {
+        std::string root(dir), recordingPath = root + "/wave.replay";
+        std::string expectedPath = root + "/before.timeline";
+        if (getenv("REX_TIMELINE_PROOF_RECORD")) {
+            XCTAssertTrue(record.recording()->saveToFile(recordingPath.c_str(), &error));
+            std::ofstream out(expectedPath, std::ios::binary);
+            out << timeline;
+            XCTAssertTrue(out.good());
+        } else {
+            InputRecording before;
+            XCTAssertTrue(before.loadFromFile(recordingPath.c_str(), &error), @"%s", error.c_str());
+            World across; configure(across, chart); across.begin_replay(before);
+            raggedReplay(across);
+            std::string actual;
+            for (const auto& e : across.score_timeline()) actual += std::to_string(e.tickIndex) + ":"
+                + std::to_string(e.player) + ":" + std::to_string((int)e.event) + ":" + std::to_string((int)e.species) + ";";
+            std::ifstream in(expectedPath, std::ios::binary);
+            XCTAssertTrue(in.good());
+            std::string expected((std::istreambuf_iterator<char>(in)), {});
+            XCTAssertFalse(expected.empty());
+            XCTAssertEqual(actual, expected, @"Cross-build score timeline must be byte-identical");
+            std::ofstream out(root + "/after.timeline", std::ios::binary); out << actual;
+        }
+    }
 }
 - (void)test_eachHeaderMismatchNamesItsFieldBeforeAnyTick {
     World original; original.begin_recording(4); tick(original);

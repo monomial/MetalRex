@@ -153,6 +153,7 @@
 		1D7B034B00A4E0F74AED4A97 /* TitleFlowTests.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = TitleFlowTests.mm; sourceTree = "<group>"; };
 		215B35A2BB13635BCE5C9BFD /* RexLogicTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = RexLogicTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		215B80C5038893DB52B737C0 /* HealthTests.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = HealthTests.mm; sourceTree = "<group>"; };
+		22130E3A1C7B610D976AF583 /* PLAN-CLOCKS-AND-TESTABILITY.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = "PLAN-CLOCKS-AND-TESTABILITY.md"; sourceTree = "<group>"; };
 		2726887279D805614D70EAC1 /* CharacterLoader.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = CharacterLoader.h; sourceTree = "<group>"; };
 		2A7C75196D06EAC27F9A64E2 /* AudioEngine.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = AudioEngine.mm; sourceTree = "<group>"; };
 		2B53E6DF22E58127DB39ACF7 /* RexRenderer.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = RexRenderer.h; sourceTree = "<group>"; };
@@ -484,6 +485,7 @@
 			children = (
 				4FE3EA6AD3A9F146AD19CDD4 /* DESIGN.md */,
 				F29F0417E72A26D9C31C7E78 /* PLAN-AUDIO-TELL.md */,
+				22130E3A1C7B610D976AF583 /* PLAN-CLOCKS-AND-TESTABILITY.md */,
 				1BB94F700F2042A7295A9FBF /* PLAN-ENCOUNTER-FEEL.md */,
 				07EBCFD2EBA21A1CC4884F0E /* PLAN-LEGIBILITY.md */,
 				C32528CD28DE93AE376944FF /* PLAN-M1.md */,
