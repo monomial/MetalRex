@@ -1,0 +1,61 @@
+#import <XCTest/XCTest.h>
+#include "Simulation/Systems/AnimationSystem.h"
+#include "Assets/CharacterLoader.h"
+#include <memory>
+
+@interface ClipDurationTests : XCTestCase
+@end
+@implementation ClipDurationTests
+- (void)test_raptorInterruptWindowUsesBakedAttackDuration {
+    World world;
+    const auto& dino = world.get_component<DinoBehaviorComponent>(0);
+    float duration = AnimationSystem_clip_duration(world, 0, CharacterClipSlot::Attack);
+    XCTAssertEqual(duration, 26.f / 30.f);
+    // Old headless fallback: 1.03 / 4 * (0.85 - 0.18) = 0.172525 seconds.
+    // Actual baked clip: 26/30 / 4 * (0.85 - 0.18) = 0.14516667 seconds.
+    XCTAssertEqualWithAccuracy(duration / kAttackClipSpeedMultiplier
+        * (dino.interruptEndNormalized - dino.interruptStartNormalized), 0.14516667f, 0.000001f);
+}
+- (void)test_tableMatchesLoadedAssets {
+    id<MTLDevice> device = MTLCreateSystemDefaultDevice();
+    XCTSkipIf(device == nil, @"Metal unavailable; cannot load and bake character assets");
+    NSArray<NSString*>* species = @[@"velociraptor", @"trex"];
+    for (int s = 0; s < (int)DinoSpecies::Count; ++s) {
+        NSString* dir = [@"assets/characters/dinos" stringByAppendingPathComponent:species[s]];
+        NSBundle* bundle = [NSBundle bundleForClass:[self class]];
+        NSString* mesh = [bundle pathForResource:@"base" ofType:@"usdz" inDirectory:dir];
+        XCTAssertNotNil(mesh);
+        NSMutableArray* clips = [NSMutableArray array];
+        for (int c = 0; c < (int)CharacterClipSlot::Count; ++c) {
+            NSString* name = [NSString stringWithUTF8String:CharacterClipSlot_name((CharacterClipSlot)c)];
+            NSString* path = [bundle pathForResource:[name lowercaseString] ofType:@"usdz" inDirectory:dir];
+            XCTAssertNotNil(path);
+            if (!path) return;
+            [clips addObject:path];
+        }
+        std::unique_ptr<LoadedCharacter> loaded(CharacterLoader_load(mesh, clips, device));
+        XCTAssertTrue(loaded != nullptr);
+        if (!loaded) return;
+        std::string error;
+        XCTAssertTrue(AnimationSystem_validate_clip_durations((DinoSpecies)s, *loaded, &error), @"%s", error.c_str());
+        for (int c = 0; c < (int)CharacterClipSlot::Count; ++c)
+            XCTAssertEqualWithAccuracy(loaded->clips[c].duration(), kClipDurations[s][c], kClipDurationEpsilon,
+                                      @"species %d clip %d", s, c);
+    }
+}
+- (void)test_loadedMismatchNamesSpeciesAndClipAndCannotChangeSimulation {
+    LoadedCharacter character;
+    for (int c = 0; c < (int)CharacterClipSlot::Count; ++c) {
+        character.clipLoaded[c] = true;
+        character.clips[c].frameCount = (int)lroundf(kClipDurations[0][c] * 30);
+    }
+    character.clips[(int)CharacterClipSlot::Attack].frameCount += 1;
+    std::string error;
+    XCTAssertFalse(AnimationSystem_validate_clip_durations(DinoSpecies::Velociraptor, character, &error));
+    XCTAssertTrue(error.find("clipDurations[0][attack]") != std::string::npos);
+    AnimationSystem_set_dino_character(DinoSpecies::Velociraptor, &character);
+    World world;
+    XCTAssertEqual(AnimationSystem_clip_duration(world, 0, CharacterClipSlot::Attack), 26.f/30.f);
+    AnimationSystem_set_dino_character(DinoSpecies::Velociraptor, nullptr);
+}
+@end

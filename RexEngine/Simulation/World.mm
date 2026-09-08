@@ -13,6 +13,10 @@
 #include <algorithm>
 #include <cassert>
 #include <cmath>
+#include <stdexcept>
+#include <sstream>
+#include <iomanip>
+#include <locale>
 
 static constexpr float kFixedDt = 1.0f / 120.0f;
 
@@ -342,7 +346,104 @@ static void join_player(World& world, int player) {
     world.score(player) = {};
 }
 
+void World::set_seed(uint32_t seed) {
+    if (_recording || _replay) throw std::runtime_error("replay mismatch: seed (session already started)");
+    _initialSeed = seed;
+    _rngState = seed ? seed : 0x9E3779B9u;
+}
+
+ReplayHeader World::replay_header() const {
+    ReplayHeader header;
+    auto put = [&](const std::string& name, auto value) {
+        std::ostringstream out;
+        out.imbue(std::locale::classic());
+        out << std::setprecision(9) << value;
+        header.fields[name] = out.str();
+    };
+    put("seed", _initialSeed);
+    put("chart.name", _chart.sourceName);
+    put("chart.hash", _chart.sourceHash);
+    put("kFixedDt", kFixedDt);
+    put("kAttackClipSpeedMultiplier", kAttackClipSpeedMultiplier);
+    put("kTellLeadSeconds", kTellLeadSeconds);
+    put("kHealthPerWindowSecond", kHealthPerWindowSecond);
+    put("initial.phase", (int)_phase);
+    put("initial.arena", (int)_arena.active);
+    for (int p = 0; p < kRexMaxPlayers; ++p)
+        put("initial.active[" + std::to_string(p) + "]", (int)_reticles[p].active);
+    // These are per-entity values (boss and raptor defaults differ).
+    for (EntityID id = 0; id < _nextID; ++id) {
+        if (!_dinoBehaviors.present(id)) continue;
+        const auto& d = _dinoBehaviors.data[id];
+        std::string prefix = "dino[" + std::to_string(id) + "].";
+        put(prefix + "interruptStartNormalized", d.interruptStartNormalized);
+        put(prefix + "interruptEndNormalized", d.interruptEndNormalized);
+        put(prefix + "tellEndNormalized", d.tellEndNormalized);
+    }
+    ReticleTuning tuning = ReticleSystem_tuning();
+    put("ReticleTuning.stickSensitivityH", tuning.stickSensitivityH);
+    put("ReticleTuning.stickSensitivityV", tuning.stickSensitivityV);
+    put("ReticleTuning.gyroSensitivityH", tuning.gyroSensitivityH);
+    put("ReticleTuning.gyroSensitivityV", tuning.gyroSensitivityV);
+    put("ReticleTuning.stillnessThreshold", tuning.stillnessThreshold);
+    put("ReticleTuning.stillnessSmoothingAlpha", tuning.stillnessSmoothingAlpha);
+    put("ReticleTuning.fallbackFrictionScale", tuning.fallbackFrictionScale);
+    put("ReticleTuning.fallbackMagnetRadius", tuning.fallbackMagnetRadius);
+    put("ReticleTuning.fallbackMagnetStrength", tuning.fallbackMagnetStrength);
+    for (int species = 0; species < (int)DinoSpecies::Count; ++species)
+        for (int clip = 0; clip < (int)CharacterClipSlot::Count; ++clip)
+            put("clipDurations[" + std::to_string(species) + "][" + std::to_string(clip) + "]",
+                kClipDurations[species][clip]);
+    return header;
+}
+
+void World::begin_recording(uint8_t playerCount) {
+    if (_tickCount != 0 || _recording || _replay)
+        throw std::runtime_error("recording requires a fresh World (tickCount)");
+    if (playerCount == 0 || playerCount > kRexMaxPlayers)
+        throw std::runtime_error("invalid replay playerCount");
+    for (int p = playerCount; p < kRexMaxPlayers; ++p)
+        if (_reticles[p].active) throw std::runtime_error("replay playerCount excludes an active player");
+    _sessionTuning = ReticleSystem_tuning();
+    _recording.emplace(playerCount);
+    _recording->header = replay_header();
+}
+
+void World::begin_replay(const InputRecording& log) {
+    if (_tickCount != 0 || _recording || _replay)
+        throw std::runtime_error("replay requires a fresh World (tickCount)");
+    std::string error;
+    if (!log.header.matches(replay_header(), &error)) {
+        _replayError = error;
+        throw std::runtime_error(error);
+    }
+    for (int p = log.playerCount(); p < kRexMaxPlayers; ++p) {
+        if (_reticles[p].active) {
+            _replayError = "replay mismatch: playerCount excludes an active player";
+            throw std::runtime_error(_replayError);
+        }
+    }
+    _replayError.clear();
+    _sessionTuning = ReticleSystem_tuning();
+    _replay = log;
+    _replayIndex = 0;
+}
+
 void World::tick(float gameDt) {
+    // One row is one fixed tick, including title/frozen ticks. Never capture frames.
+    if (_replay) {
+        if (replay_finished()) return;
+        for (int p = 0; p < kRexMaxPlayers; ++p) _inputs[p] = _replay->inputAt(_replayIndex, p);
+        ++_replayIndex;
+    }
+    if (_recording) {
+        for (int p = _recording->playerCount(); p < kRexMaxPlayers; ++p) {
+            const auto& in = _inputs[p];
+            if (in.stickX || in.stickY || in.gyroDeltaX || in.gyroDeltaY || in.fire || in.recenter || in.pause)
+                throw std::runtime_error("replay playerCount excludes live input player " + std::to_string(p));
+        }
+        _recording->appendTick(_inputs, kRexMaxPlayers);
+    }
     // Title mode select: any player's stick flicks the 1P/2P highlight.
     // Edge-gated on returning to neutral so holding the stick doesn't
     // oscillate the selection at 120Hz.
@@ -455,6 +556,13 @@ void World::tick(float gameDt) {
         BossMajorAttackSystem_update(*this, gameDt);
         ArenaSystem_update(*this, worldDt);
         DinoBehaviorSystem_update(*this, worldDt);
+        if (_recording || _replay) {
+            for (int i = 0; i < _events.count; ++i) {
+                const Event& e = _events.slots[i];
+                if (e.type == EventType::DinoScore)
+                    _scoreTimeline.push_back({_tickCount, e.playerIndex, e.scoreEvent, e.dinoSpecies});
+            }
+        }
         ScoringSystem_update(*this, gameDt);
         AnimationSystem_update(*this, worldDt);
     }
@@ -463,6 +571,7 @@ void World::tick(float gameDt) {
 }
 
 void World::update(float physicalDt, float /*gameDt*/) {
+    if (!_replayError.empty()) throw std::runtime_error(_replayError);
     _events.clear();
     _particles.update(physicalDt);
     _accumulator += physicalDt;

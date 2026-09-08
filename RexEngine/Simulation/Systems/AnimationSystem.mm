@@ -2,6 +2,7 @@
 #include "Simulation/World.h"
 #include "Assets/CharacterLoader.h"
 #include <math.h>
+#include <cmath>
 
 static const LoadedCharacter* s_playerChar = nullptr;
 static const LoadedCharacter* s_enemyChar  = nullptr;
@@ -15,6 +16,11 @@ void AnimationSystem_set_characters(const LoadedCharacter* player,
 
 void AnimationSystem_set_dino_character(DinoSpecies species, const LoadedCharacter* character) {
     if ((int)species < (int)DinoSpecies::Count) {
+        if (character) {
+            std::string error;
+            if (!AnimationSystem_validate_clip_durations(species, *character, &error))
+                NSLog(@"CLIP DURATION MISMATCH: %s", error.c_str());
+        }
         s_dinoChars[(int)species] = character;
     }
 }
@@ -35,23 +41,19 @@ static const LoadedCharacter* character_for(World& world, EntityID id) {
     return nullptr;
 }
 
-// Fallback clip durations used before character assets are loaded.
-// These match the actual Mixamo clips we exported (idle 3.83s, walk 1.03s, etc.).
-static const float kClipDurationFallback[(int)CharacterClipSlot::Count] = {
-    3.83f, // Idle    — looping
-    1.03f, // Walk    — looping
-    0.80f, // Run     — looping
-    1.03f, // Attack  — one-shot
-    0.70f, // Jump    — one-shot interrupt reaction stand-in
-    4.50f, // Death   — one-shot
-};
-
-static float clip_duration(const LoadedCharacter* charData, CharacterClipSlot id) {
-    if (charData && charData->clipLoaded[(int)id]) {
-        float d = charData->clips[(int)id].duration();
-        if (d > 0.f) return d;
+bool AnimationSystem_validate_clip_durations(DinoSpecies species, const LoadedCharacter& character,
+                                              std::string* error) {
+    for (int clip = 0; clip < (int)CharacterClipSlot::Count; ++clip) {
+        float expected = kClipDurations.at((int)species)[clip];
+        float actual = character.clips[clip].duration();
+        if (!character.clipLoaded[clip] || !std::isfinite(actual) || fabsf(actual - expected) > kClipDurationEpsilon) {
+            if (error) *error = "clipDurations[" + std::to_string((int)species) + "]["
+                + CharacterClipSlot_name((CharacterClipSlot)clip) + "]: expected "
+                + std::to_string(expected) + ", loaded " + std::to_string(actual);
+            return false;
+        }
     }
-    return kClipDurationFallback[(int)id];
+    return true;
 }
 
 static bool clip_loops(CharacterClipSlot id) {
@@ -97,10 +99,10 @@ void AnimationSystem_update(World& world, float gameDt) {
         if (!world.has_component<AnimationComponent>(id)) continue;
         AnimationComponent& anim = world.get_component<AnimationComponent>(id);
 
-        // Resolve character data for accurate clip durations.
+        // Character assets supply bone poses; the table owns simulation timing.
         const LoadedCharacter* charData = character_for(world, id);
 
-        float duration = clip_duration(charData, anim.currentClip);
+        float duration = AnimationSystem_clip_duration(world, id, anim.currentClip);
         // Attack and Hurt play at 1.5× so punches feel snappy and hit reactions
         // are brief. Idle/Walk/Death keep normal speed.
         anim.clipTime += gameDt * clip_speed_multiplier(world, id, anim.currentClip);
@@ -174,5 +176,7 @@ void AnimationSystem_force_clip(World& world, EntityID entity, CharacterClipSlot
 }
 
 float AnimationSystem_clip_duration(World& world, EntityID entity, CharacterClipSlot clip) {
-    return clip_duration(character_for(world, entity), clip);
+    DinoSpecies species = world.has_component<DinoBehaviorComponent>(entity)
+        ? world.get_component<DinoBehaviorComponent>(entity).species : DinoSpecies::Velociraptor;
+    return kClipDurations.at((int)species).at((int)clip);
 }

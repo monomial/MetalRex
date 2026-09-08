@@ -228,6 +228,13 @@ LevelChart ChartLoader_load_file(const char *path) {
             }
 
             LevelChart chart;
+            chart.sourceName = nsPath.lastPathComponent.UTF8String;
+            chart.sourceHash = 14695981039346656037ull;
+            const uint8_t* bytes = (const uint8_t*)data.bytes;
+            for (NSUInteger i = 0; i < data.length; ++i) {
+                chart.sourceHash ^= bytes[i];
+                chart.sourceHash *= 1099511628211ull;
+            }
             chart.rail.build(points, samplesPerSegment);
 
             NSArray *beatsJSON = required_array(dict, @"lookAtBeats");

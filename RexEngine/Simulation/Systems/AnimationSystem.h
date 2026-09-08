@@ -1,6 +1,10 @@
 #pragma once
 #include "Simulation/World.h"
 struct LoadedCharacter;
+#include "Simulation/ClipDurations.h"
+#include <string>
+bool AnimationSystem_validate_clip_durations(DinoSpecies species, const LoadedCharacter& character,
+                                              std::string* error = nullptr);
 
 // Call once at startup to supply character mesh data for bone matrix sampling.
 // Either pointer may be null (animation timers still advance, bone matrices stay identity).

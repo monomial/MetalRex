@@ -148,6 +148,11 @@
 
     GCMotion *motion = _controller.motion;
     if (motion && motion.sensorsActive) {
+        // Convert radians/sec to radians per fixed 1/120s tick. ReticleSystem
+        // consumes this as a per-tick delta; 120 ticks/sec makes the aggregate
+        // frame-rate independent (the frame sample is held across its ticks).
+        // A raw-rate path would keep sensitivities unchanged but must scale
+        // stillnessThreshold and the gyro-availability epsilon by 120.
         state.gyroDeltaX = (float)(motion.rotationRate.y * (1.0 / 120.0));
         state.gyroDeltaY = (float)(motion.rotationRate.x * (1.0 / 120.0));
     } else {

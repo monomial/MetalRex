@@ -1,5 +1,6 @@
 #pragma once
 #include <stdint.h>
+#include <simd/simd.h>
 #include <vector>
 #include <cassert>
 #include <stddef.h>
@@ -7,6 +8,10 @@
 #include "ChartLoader.h"
 #include "Platform/InputState.h"
 #include "EventBus.h"
+#include "InputRecording.h"
+#include "ScoreTimeline.h"
+#include "Systems/ReticleSystem.h"
+#include <optional>
 #include "Renderer/ParticleSim.h"
 
 using EntityID = uint32_t;
@@ -72,7 +77,20 @@ public:
 
     void update(float physicalDt, float gameDt);
 
+    const ScoreTimeline& score_timeline() const { return _scoreTimeline; }
+    ReplayHeader replay_header() const;
+    // Tuning is frozen for a recording/replay; HUD changes affect subsequent sessions.
+    ReticleTuning reticle_tuning() const { return (_recording || _replay) ? _sessionTuning : ReticleSystem_tuning(); }
+    // Start at tick zero; seeking and mid-session state snapshots are not supported.
+    // playerCount is the number of input slots captured (use all four for live joins).
+    // Invalid configuration/header throws with its field name before any replay tick.
+    void begin_recording(uint8_t playerCount);
+    void begin_replay(const InputRecording& log);
+    const InputRecording* recording() const { return _recording ? &*_recording : nullptr; }
+    bool replay_finished() const { return _replay && _replayIndex >= _replay->tickCount(); }
+
     void set_input(InputState input, int playerIndex = 0) {
+        if (_replay) return;
         if (playerIndex >= 0 && playerIndex < kRexMaxPlayers) _inputs[playerIndex] = input;
     }
     InputState current_input(int playerIndex = 0) const {
@@ -90,7 +108,7 @@ public:
     uint32_t entity_count() const { return _nextID; }
     uint64_t tick_count() const { return _tickCount; }
 
-    void set_seed(uint32_t seed) { _rngState = seed ? seed : 0x9E3779B9u; }
+    void set_seed(uint32_t seed);
     uint32_t rand_u32() {
         uint32_t x = _rngState;
         x ^= x << 13; x ^= x >> 17; x ^= x << 5;
@@ -222,14 +240,27 @@ public:
     void enter_arena();
 
 private:
+    friend void ScreenShakeSystem_trigger(World&, float);
+    friend void ScreenShakeSystem_update(World&, float);
+    friend simd_float2 ScreenShakeSystem_offset(const World&);
+    float _shakeMagnitude = 0.f;
+    simd_float2 _shakeOffset = {0, 0};
+
     void flush();
     void reset_m1_scene();
     void tick(float gameDt);
 
     template<typename T> ComponentStorage<T>& _pool();
 
+    std::optional<InputRecording> _recording;
+    std::optional<InputRecording> _replay;
+    size_t _replayIndex = 0;
+    ScoreTimeline _scoreTimeline;
+    std::string _replayError;
     uint32_t _nextID;
     uint32_t _rngState;
+    uint32_t _initialSeed = 0x9E3779B9u;
+    ReticleTuning _sessionTuning;
     uint32_t _deferredDestroyCount;
     EntityID _deferredDestroy[256];
     EventBus _events;

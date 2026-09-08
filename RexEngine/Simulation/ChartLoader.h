@@ -54,6 +54,9 @@ struct BossChartConfig {
 };
 
 struct LevelChart {
+    std::string sourceName;
+    uint64_t sourceHash = 0; // FNV-1a of the exact chart file bytes
+
     RailSpline rail;
     std::vector<LookAtBeat> lookAtBeats;
     std::vector<ChartEvent> events;

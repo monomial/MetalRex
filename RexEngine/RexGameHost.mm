@@ -2,6 +2,8 @@
 #import <QuartzCore/QuartzCore.h>
 #include "Simulation/World.h"
 #include <algorithm>
+#include <stdexcept>
+#include <cstdio>
 #import "Renderer/RexRenderer.h"
 #import "Audio/AudioEngine.h"
 
@@ -15,6 +17,10 @@
     InputState _inputs[4];
     AudioEngine *_audio;
     BOOL _musicStarted;
+    BOOL _replayHooksStarted;
+    NSException* _replayHookError;
+    std::string _recordPath;
+    uint64_t _lastSavedTick;
 }
 
 - (instancetype)initWithDevice:(id<MTLDevice>)device pixelFormat:(MTLPixelFormat)pixelFormat {
@@ -80,6 +86,8 @@
 }
 
 - (void)dealloc {
+    [[NSNotificationCenter defaultCenter] removeObserver:self];
+    [self _saveRecording];
     delete _world;
 }
 
@@ -90,12 +98,96 @@
     }
 }
 
+// Start on the first frame, after capture-mode setup and seed overrides.
+- (void)_startReplayHooks {
+    if (_replayHooksStarted) {
+        if (_replayHookError) @throw _replayHookError;
+        return;
+    }
+    _replayHooksStarted = YES;
+    const char* replayPath = getenv("REX_REPLAY");
+    const char* recordPath = getenv("REX_RECORD");
+    try {
+        if (replayPath && recordPath) throw std::runtime_error("REX_RECORD and REX_REPLAY are mutually exclusive");
+        if (replayPath) {
+            InputRecording log;
+            std::string error;
+            if (!log.loadFromFile(replayPath, &error)) throw std::runtime_error(error);
+            auto integer = [&](const char* field) -> uint64_t {
+                auto it = log.header.fields.find(field);
+                if (it == log.header.fields.end()) throw std::runtime_error(std::string("replay mismatch: ") + field);
+                size_t used = 0;
+                uint64_t value;
+                try { value = std::stoull(it->second, &used); }
+                catch (...) { throw std::runtime_error(std::string("invalid replay field: ") + field); }
+                if (used != it->second.size()) throw std::runtime_error(std::string("invalid replay field: ") + field);
+                return value;
+            };
+            // Establish recorded startup state, then begin_replay validates every
+            // knob against this build. An explicit caller seed remains authoritative.
+            uint64_t seed = integer("seed");
+            if (seed > UINT32_MAX) throw std::runtime_error("invalid replay field: seed");
+            uint64_t phase = integer("initial.phase");
+            if (phase > (int)GamePhase::Playing) throw std::runtime_error("invalid replay field: initial.phase");
+            // Reconstruct once from the constructor baseline: enter_title also
+            // recreates entities, so calling it twice would change their IDs.
+            uint32_t chosenSeed = self.rngSeedOverride ?: (uint32_t)seed;
+            delete _world;
+            _world = new World();
+            _world->set_seed(chosenSeed);
+            if (phase == (int)GamePhase::Title) _world->enter_title();
+            if (integer("initial.arena") == 1 && !_world->arena_active()) _world->enter_arena();
+            for (int p = 0; p < kRexMaxPlayers; ++p) {
+                std::string field = "initial.active[" + std::to_string(p) + "]";
+                uint64_t active = integer(field.c_str());
+                if (active > 1) throw std::runtime_error("invalid replay field: " + field);
+                _world->reticle(p).active = active != 0;
+            }
+            _world->begin_replay(log);
+            NSLog(@"REX_REPLAY: loaded %zu ticks from %s", log.tickCount(), replayPath);
+        } else if (recordPath) {
+            _recordPath = recordPath;
+            _world->begin_recording(kRexMaxPlayers); // includes later controller joins
+            [self _saveRecording];
+            // Flush the final partial second on normal app termination/backgrounding.
+            [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(_recordingLifecycle:)
+                name:@"NSApplicationWillTerminateNotification" object:nil];
+            [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(_recordingLifecycle:)
+                name:@"UIApplicationDidEnterBackgroundNotification" object:nil];
+        }
+    } catch (const std::exception& e) {
+        NSLog(@"REPLAY ERROR: %s", e.what());
+        _replayHookError = [NSException exceptionWithName:@"RexReplayError"
+                                                 reason:[NSString stringWithUTF8String:e.what()] userInfo:nil];
+        @throw _replayHookError;
+    }
+}
+
+- (void)_recordingLifecycle:(NSNotification*)notification {
+    (void)notification;
+    [self _saveRecording];
+}
+
+- (void)_saveRecording {
+    if (_recordPath.empty() || !_world || !_world->recording()) return;
+    std::string error;
+    std::string temporary = _recordPath + ".tmp";
+    if (!_world->recording()->saveToFile(temporary.c_str(), &error)
+        || std::rename(temporary.c_str(), _recordPath.c_str()) != 0) {
+        NSLog(@"REX_RECORD ERROR: %s (%s)", error.empty() ? "could not replace recording" : error.c_str(), _recordPath.c_str());
+    } else {
+        _lastSavedTick = _world->tick_count();
+    }
+}
+
 - (void)advanceFrame:(float)dt {
     if (!_world) return;
+    [self _startReplayHooks];
     for (int i = 0; i < 4; ++i) {
         _world->set_input(_inputs[i], i);
     }
     _world->update(dt, dt);
+    if (!_recordPath.empty() && _world->tick_count() - _lastSavedTick >= 120) [self _saveRecording];
     [self _playAudioCues];
 }
 

@@ -68,15 +68,16 @@ void ReticleSystem_adjust_fallback_tuning(float frictionDelta, float radiusDelta
 
 void ReticleSystem_update(World& world, float gameDt) {
     if (gameDt == 0.f) return;
+    const ReticleTuning tuning = world.reticle_tuning();
 
     for (int player = 0; player < kRexMaxPlayers; ++player) {
         ReticleComponent& reticle = world.reticle(player);
-        reticle.stickSensitivityH = s_tuning.stickSensitivityH;
-        reticle.stickSensitivityV = s_tuning.stickSensitivityV;
-        reticle.gyroSensitivityH = s_tuning.gyroSensitivityH;
-        reticle.gyroSensitivityV = s_tuning.gyroSensitivityV;
-        reticle.smoothingAlpha = s_tuning.stillnessSmoothingAlpha;
-        reticle.stillnessThreshold = s_tuning.stillnessThreshold;
+        reticle.stickSensitivityH = tuning.stickSensitivityH;
+        reticle.stickSensitivityV = tuning.stickSensitivityV;
+        reticle.gyroSensitivityH = tuning.gyroSensitivityH;
+        reticle.gyroSensitivityV = tuning.gyroSensitivityV;
+        reticle.smoothingAlpha = tuning.stillnessSmoothingAlpha;
+        reticle.stillnessThreshold = tuning.stillnessThreshold;
         if (!reticle.active) continue;
         if (world.player_health(player).sittingOut) {
             reticle.overTarget = false;
@@ -100,7 +101,7 @@ void ReticleSystem_update(World& world, float gameDt) {
 
         reticle.overTarget = false;
         TargetComponent* nearest = nullptr;
-        float nearestDistSq = s_tuning.fallbackMagnetRadius * s_tuning.fallbackMagnetRadius;
+        float nearestDistSq = tuning.fallbackMagnetRadius * tuning.fallbackMagnetRadius;
         for (int i = 0; i < kM1MaxTargets; ++i) {
             TargetComponent& target = world.target(i);
             if (point_inside(reticle, target)) reticle.overTarget = true;
@@ -115,26 +116,31 @@ void ReticleSystem_update(World& world, float gameDt) {
         }
 
         float stickScale = (reticle.stickOnlyAssist && reticle.overTarget)
-                         ? s_tuning.fallbackFrictionScale : 1.f;
-        float dx = input.stickX * s_tuning.stickSensitivityH * gameDt * stickScale;
-        float dy = input.stickY * s_tuning.stickSensitivityV * gameDt * stickScale;
+                         ? tuning.fallbackFrictionScale : 1.f;
+        float dx = input.stickX * tuning.stickSensitivityH * gameDt * stickScale;
+        float dy = input.stickY * tuning.stickSensitivityV * gameDt * stickScale;
 
         float rawGyroX = input.gyroDeltaX;
         float rawGyroY = input.gyroDeltaY;
         float gyroMag = sqrtf(rawGyroX * rawGyroX + rawGyroY * rawGyroY);
         float gyroX = rawGyroX;
         float gyroY = rawGyroY;
-        if (gyroMag < s_tuning.stillnessThreshold) {
-            gyroX = smooth_toward(reticle.smoothedGyroX, rawGyroX, s_tuning.stillnessSmoothingAlpha);
-            gyroY = smooth_toward(reticle.smoothedGyroY, rawGyroY, s_tuning.stillnessSmoothingAlpha);
+        if (gyroMag < tuning.stillnessThreshold) {
+            gyroX = smooth_toward(reticle.smoothedGyroX, rawGyroX, tuning.stillnessSmoothingAlpha);
+            gyroY = smooth_toward(reticle.smoothedGyroY, rawGyroY, tuning.stillnessSmoothingAlpha);
         }
         reticle.smoothedGyroX = gyroX;
         reticle.smoothedGyroY = gyroY;
         reticle.gyroDriftX += gyroX;
         reticle.gyroDriftY += gyroY;
 
-        dx += gyroX * s_tuning.gyroSensitivityH;
-        dy += gyroY * s_tuning.gyroSensitivityV;
+        // Shells already converted rotationRate to radians per 1/120s tick,
+        // so gyro needs no gameDt here (unlike the stick's units/sec above).
+        // gameDt is always kFixedDt, even during boss slow motion. A raw-rate
+        // form multiplying by gameDt would keep sensitivities unchanged, but
+        // must scale stillnessThreshold and the availability epsilon by 120.
+        dx += gyroX * tuning.gyroSensitivityH;
+        dy += gyroY * tuning.gyroSensitivityV;
 
         if (reticle.stickOnlyAssist && nearest) {
             float dist = sqrtf(nearestDistSq);
@@ -151,8 +157,8 @@ void ReticleSystem_update(World& world, float gameDt) {
                 // read as a soft snap-lock.
                 float towardDot = dx * pullDirX + dy * pullDirY;
                 if (towardDot >= 0.f) {
-                    float pull = (1.f - dist / s_tuning.fallbackMagnetRadius)
-                               * s_tuning.fallbackMagnetStrength * gameDt;
+                    float pull = (1.f - dist / tuning.fallbackMagnetRadius)
+                               * tuning.fallbackMagnetStrength * gameDt;
                     dx += pullDirX * pull;
                     dy += pullDirY * pull;
                 }
